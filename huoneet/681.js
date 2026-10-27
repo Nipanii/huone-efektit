@@ -142,6 +142,36 @@ tila.lenna = (oid, x, y, z) => {
   return true;
 };
 
+// Naapuri (kp 27.10. 18:38-18:45 "voi räjäyttää vierustoverin" · "script aktivoi tän wiredin"): kun miina räjähtää, jokainen clientti
+//   katsoo onko OMA hahmo enintään naapuriSade ruudun päässä (ei laukaisija itse). Jos on, se klikkaa piilotettua wired-esinettä
+//   naapuriKlikki (ClickFurni 443, sama paketti kuin furnin klikkaus). Palvelin ei tarkista etäisyyttä eikä oikeuksia
+//   (Habbo-Daybreak ClickFurniMessageEvent), joten huoneen wired (klikkaus -> teleport) siirtää juuri sen naapurin.
+//   Vain naapurin oma clientti lähettää, joten yksi räjähdys = enintään yksi klikkaus per naapuri.
+tila.naapuriSade = 2;
+tila.naapuriKlikki = 442639;
+let naapuriViimeksi = 0;
+const yhteys = () => {
+  const e = window.NitroDevTools && window.NitroDevTools.roomEngine; if (!e) return null;
+  const dv = (o, k) => { const d = o && Object.getOwnPropertyDescriptor(o, k); return d && !d.get ? d.value : undefined; };
+  const nahty = new Set(); let c = null;
+  const etsi = (o, d) => { if (!o || c || d > 4 || typeof o !== 'object' || nahty.has(o)) return; nahty.add(o);
+    if (Object.getOwnPropertyDescriptor(o, '_cryptoState')) { c = o; return; }
+    for (const k of Object.getOwnPropertyNames(o)) { const de = Object.getOwnPropertyDescriptor(o, k); if (de && !de.get && de.value && typeof de.value === 'object') etsi(de.value, d + 1); } };
+  etsi(dv(e, '_roomSessionManager'), 0); return c;
+};
+tila.naapurit = (x, y, laukaisija) => {
+  const e = window.NitroDevTools && window.NitroDevTools.roomEngine; if (!e || !(tila.naapuriSade > 0) || !tila.naapuriKlikki) return false;
+  const sm = Object.getOwnPropertyDescriptor(e, '_roomSessionManager'); const s = sm && sm.value && sm.value.getSession && sm.value.getSession(huone);
+  const oma = s && s.ownRoomIndex; if (oma == null || oma < 0 || oma === laukaisija) return false;
+  const o = e.getRoomObject(huone, oma, 100); const L = o && o.getLocation && o.getLocation(); if (!L) return false;
+  const etai = Math.hypot(L.x - x, L.y - y); if (etai > tila.naapuriSade) return false;
+  const nyt = Date.now(); if (nyt - naapuriViimeksi < 1500) return false; naapuriViimeksi = nyt;
+  const c = yhteys(); if (!c || typeof c.sendRawPacket !== 'function') { tila.loki.push({ naapuri: 'ei yhteyttä' }); return false; }
+  c.sendRawPacket(443, [tila.naapuriKlikki, 0], 'miina681');
+  tila.loki.push({ naapuri: oma, laukaisija, x, y, etai: Math.round(etai * 10) / 10 });
+  return true;
+};
+
 // Ensimmäinen räjähdys jäi näkymättä, koska efektin grafiikka latautuu vasta ensikäytössä -> esilataus kartan ulkopuolelle.
 const esilataus = setTimeout(() => tila.rajayta(-60, -60, 0, ASETUS.furni, 3000), 500);
 
@@ -157,7 +187,7 @@ tila.__liike = (rid, oid, loc, tgt, kesto) => {
       let osui = false;
       for (const [x, y] of ehd) { const s = saannot.find(s => s.ruudut && s.ruudut.has(x + ',' + y)); if (!s) continue;
         viimeksi.set(oid, Date.now()); tila.loki.push({ u: oid, x, y, tapa: 'hyppy', viive: 0 });
-        tila.rajayta(x, y, ed.z || 0, s.furni, s.kesto); tila.lenna(oid, x, y, ed.z || 0); osui = true; break; }
+        tila.rajayta(x, y, ed.z || 0, s.furni, s.kesto); tila.lenna(oid, x, y, ed.z || 0); tila.naapurit(x, y, oid); osui = true; break; }
       if (!osui) tila.loki.push({ u: oid, ohi: true, mista: [Math.round(ed.x), Math.round(ed.y)], kohde: ed.t, nyt: [Math.round(loc.x), Math.round(loc.y)] }); } }
   paikka.set(oid, { loc, tgt });
   for (const [P, tulossa] of [[tgt, true], [loc, false]]) {
@@ -168,7 +198,7 @@ tila.__liike = (rid, oid, loc, tgt, kesto) => {
     viimeksi.set(oid + '@' + k, nyt); viimeksi.set(oid, nyt);
     const viive = tulossa && loc && (Math.round(loc.x) !== x || Math.round(loc.y) !== y) ? (kesto > 0 ? kesto : 500) : 0;
     tila.loki.push({ u: oid, x, y, tapa: tulossa ? 'kohde' : 'sijainti', viive });
-    setTimeout(() => { tila.rajayta(x, y, P.z, s.furni, s.kesto); tila.lenna(oid, x, y, P.z); }, viive);
+    setTimeout(() => { tila.rajayta(x, y, P.z, s.furni, s.kesto); tila.lenna(oid, x, y, P.z); tila.naapurit(x, y, oid); }, viive);
     return;
   }
 };
@@ -212,7 +242,7 @@ tila.__efektiNyt = (rid, oid, fx) => {
       const viive = tulossa && p.loc && (Math.round(p.loc.x) !== x || Math.round(p.loc.y) !== y) ? 500 : 0;
       tila.loki.push({ u: oid, x, y, tapa: 'efekti' + fx, viive });
       varaa(oid);
-      setTimeout(() => { tila.rajayta(x, y, P.z, s.furni, s.kesto); if (!tila.lenna(oid, x, y, P.z)) purraVaraus(oid); }, viive);
+      setTimeout(() => { tila.rajayta(x, y, P.z, s.furni, s.kesto); if (!tila.lenna(oid, x, y, P.z)) purraVaraus(oid); tila.naapurit(x, y, oid); }, viive);
       pidennaEfekti(oid, viive + tila.efektiViive);
       return;
     }
