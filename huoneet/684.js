@@ -22,8 +22,9 @@ const huone = (kupla && kupla.roomId && kupla.roomId()) || (e && e.activeRoomId)
 const tila = window.pimeys = { versio: 'huone-684 valosim', huone, tummuus: 0.97, estoKorkeus: 1, seinaKorkeus: 2.4, askel: 0.1,
   sateet: 220, resoluutio: 3, ilmanValoa: 1.3, pehmeys: 14,   // pehmeys = reunan sumennus css-pikseleinä (kp 20:37:40 'aika harsh noi valo reunat')
   // ymparys = piirin säde ruutuina, keila = keilan pituus ruutuina, kulma = keilan puolikulma asteina, liekki = lämmin sävy + lepatus
-  valot: { 1058: { nimi: 'Öljylamppu', ymparys: 1.8, keila: 7.5, kulma: 30, liekki: 1 }, 1027: { nimi: 'Kynttilä', ymparys: 2.4, liekki: 1 },
-    1113: { nimi: 'LED-kynttilä', ymparys: 2.4 }, 1031: { nimi: 'Soihtu', ymparys: 3.8, liekki: 1 } },
+  valot: { 1058: { nimi: 'Öljylamppu', ymparys: 1.8, keila: 7.5, kulma: 30, liekki: 1 }, 1027: { nimi: 'Kynttilä', ymparys: 2.0, keila: 3.8, kulma: 55, liekki: 1 },
+    1113: { nimi: 'LED-kynttilä', ymparys: 2.0, keila: 3.8, kulma: 55 }, 1031: { nimi: 'Soihtu', ymparys: 3.2, keila: 5.5, kulma: 60, liekki: 1 } },
+    // kp 20:42:15: kynttilälläkin pitää näkyä enemmän katseen suuntaan kuin selän taakse -> jokaisella käsivalolla leveä keila
   lamppu: { ymparys: 3.2, liekki: 1 }, lamppuKuvio: /lamp|light|vela|candle|torch|lantern/i,
   dimmeri: { vari: '#2a1050', voima: 0.35 }, loki: [], mitta: 0 };
 tila.loki.push = function () { const t = new Date().toTimeString().slice(0, 8); for (const o of arguments) if (o && typeof o === 'object' && !o.t) o.t = t;
