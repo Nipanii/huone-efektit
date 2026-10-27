@@ -99,10 +99,15 @@ const kuvaa = () => {
 };
 let kehys = null;
 const seuraava = () => { kehys = document.hidden ? setTimeout(kuvaa, 30) : requestAnimationFrame(kuvaa); };
-tila.aja = () => { if (!e0 || !V || (ajo && ajo.kaynnissa)) return false; const a = e0.getRoomObject(huone, AUTO, 10); if (!a) return false;
+tila.aja = (ohi = 0) => { if (!e0 || !V || (ajo && ajo.kaynnissa)) return false; const a = e0.getRoomObject(huone, AUTO, 10); if (!a) return false;
   const L = a.getLocation(); autoAlku = { x: L.x, y: L.y, z: L.z, d: a.getDirection().x }; REITTI[0] = [L.x, L.y]; REITTI[REITTI.length - 1] = [L.x, L.y];
-  kavelyEsto(); const s = osuudet(); ajo = { alku: performance.now(), o: s.o, kesto: s.kesto, kaynnissa: true }; tila.ajossa = true;
+  kavelyEsto(); const s = osuudet(); if (ohi >= s.kesto) return false; ajo = { alku: performance.now() - ohi, o: s.o, kesto: s.kesto, kaynnissa: true }; tila.ajossa = true;
   tila.loki.push({ ajo: 'alku', kesto: Math.round(s.kesto), t: new Date().toTimeString().slice(0, 8) }); if (!kehys) seuraava(); return true; };
+
+// Ajastettu käynnistys ilman tööt-sanaa (kp 28.10. 00:15:25 yv "ei, pistä päälle ilman tööt"): kaikki clientit alkavat samasta kellonajasta
+//   ALKAA (epoch ms). Myöhässä latautuva client liittyy kesken ajon oikeaan kohtaan; ajon jälkeen latautuva ei aja mitään.
+const ALKAA = 1793139500000;
+const ajastus = setTimeout(() => tila.aja(Math.max(0, Date.now() - ALKAA)), Math.max(0, ALKAA - Date.now()));
 
 const vayla = e0 && e0.events;
 const kuule = ev => { try { if (!ev || ev.chatType == null || !SANA.test(String(ev.message || '').trim())) return;
@@ -111,6 +116,7 @@ const kuule = ev => { try { if (!ev || ev.chatType == null || !SANA.test(String(
 if (vayla && vayla.addEventListener) vayla.addEventListener('RSCE_CHAT_EVENT', kuule);
 
 return () => {
+  clearTimeout(ajastus);
   if (vayla && vayla.removeEventListener) vayla.removeEventListener('RSCE_CHAT_EVENT', kuule);
   if (kehys) { cancelAnimationFrame(kehys); clearTimeout(kehys); }
   try { const a = autoAlku && e0.getRoomObject(huone, AUTO, 10); if (a) e0.updateRoomObjectFloor(huone, AUTO, new V(autoAlku.x, autoAlku.y, autoAlku.z), new V(autoAlku.d), a.getState(0), null); } catch (x) {}
