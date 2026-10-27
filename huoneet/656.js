@@ -109,7 +109,7 @@ tila.aja = (ohi = 0) => { if (!e0 || !V || (ajo && ajo.kaynnissa)) return false;
 // Linjalaukaisu (kp 28.10. 01:18:43 "tee sillai et ku on x pelaajaa linjal nii auto tulee"): kun tienauhalla (x 15-40, y KAISTA)
 //   seisoo vähintään LINJALLA hahmoa, auto lähtee. Jokainen client näkee samat palvelimen sijainnit, joten ajot alkavat lähes yhtä aikaa.
 //   JAAHY ajon jälkeen ettei auto lähde heti uudestaan kaatuneiden päälle. LINJALLA = 3 on valittu luku, kp voi pyytää muun.
-const LINJALLA = 3, JAAHY = 20000;
+const LINJALLA = 3, JAAHY = 60000;   // kp 01:21 "oisko vähä cooldown aina välis"
 let viimeksi = 0, viritetty = false;   // reuna: tie piti olla alle LINJALLA ennen uutta ajoa (01:20 mitattu: 15 hahmoa tiellä -> ajo 20 s välein)
 const ajastus = setInterval(() => { try {
   if (tila.ajossa || (ajo && ajo.kaynnissa) || kaatuneet.size || Date.now() - viimeksi < JAAHY) return;
