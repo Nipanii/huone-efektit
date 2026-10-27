@@ -120,14 +120,15 @@ tila.aja = (ohi = 0) => { if (!e0 || !V || (ajo && ajo.kaynnissa)) return false;
 //   seisoo vähintään LINJALLA hahmoa, auto lähtee. Jokainen client näkee samat palvelimen sijainnit, joten ajot alkavat lähes yhtä aikaa.
 //   JAAHY ajon jälkeen ettei auto lähde heti uudestaan kaatuneiden päälle. LINJALLA = 3 on valittu luku, kp voi pyytää muun.
 const LINJALLA = 3, JAAHY = 15 * 60000;   // kp 01:21:18 "muutaman kerran tunnis" + 01:21:25 "EI MUUTAMAN KERRAN MINUUTIS"
-let viimeksi = 0, viritetty = false;   // reuna: tie piti olla alle LINJALLA ennen uutta ajoa (01:20 mitattu: 15 hahmoa tiellä -> ajo 20 s välein)
+// Kellojakso (01:24): ajo kerran per JAAHY-jakso seinäkellosta, jolloin kaikki clientit lähtevät samassa jaksossa yhtä aikaa ja
+//   koodin uudelleenlataus ei nollaa jäähyä pitkäksi aikaa. Reuna-ehto poistettu: porukka seisoo tiellä koko ajan (15 hahmoa), joten tie ei tyhjene.
+let viimJakso = -1;
 const ajastus = setInterval(() => { try {
-  if (tila.ajossa || (ajo && ajo.kaynnissa) || kaatuneet.size || Date.now() - viimeksi < JAAHY) return;
+  if (tila.ajossa || (ajo && ajo.kaynnissa) || kaatuneet.size || Math.floor(Date.now() / JAAHY) === viimJakso) return;
   let n = 0; for (const o of e0.getRoomObjects(huone, 100) || []) { if (o.id < 0 || !o.model || !o.model.getValue('figure')) continue;
     const L = o.getLocation(); if (L.x >= 15 && L.x <= 40 && L.y >= KAISTA[0] && L.y <= KAISTA[1]) n++; }
   tila.linjalla = n;
-  if (n < LINJALLA) { viritetty = true; return; }
-  if (viritetty && tila.aja()) { viritetty = false; viimeksi = Date.now(); tila.loki.push({ ajo: 'linja', n, t: new Date().toTimeString().slice(0, 8) }); }
+  if (n >= LINJALLA && tila.aja()) { viimJakso = Math.floor(Date.now() / JAAHY); tila.loki.push({ ajo: 'linja', n, t: new Date().toTimeString().slice(0, 8) }); }
 } catch (x) {} }, 500);
 
 const vayla = e0 && e0.events;
