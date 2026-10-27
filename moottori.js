@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Huone-efektit (miinarata ym.)
-// @version      0.4.11
+// @version      0.4.12
 // @match        https://kupla.cc/*
 // @grant        none
 // ==/UserScript==
@@ -12,7 +12,7 @@
   const LISTA = 'https://nipanii.github.io/huone-efektit/efektit.json';
   // 0.3.2: oikea ajastin on _ajastin, koska vanha 0.2.x pysäyttää window.miina.ajastin -kentän ajastimen latautuessaan.
   if (window.miina) { clearInterval(window.miina.ajastin); clearInterval(window.miina._ajastin); clearInterval(window.miina._paivitys); }
-  const cfg = window.miina = { versio: '0.4.11', lennata: true, kesto: null, vali: 1500, piilotaPohja: true, loki: [], lista: null };
+  const cfg = window.miina = { versio: '0.4.12', lennata: true, muunnelma: null, kesto: null, vali: 1500, piilotaPohja: true, loki: [], lista: null };
   let seuraavaId = -930001;
   const edellinen = new Map(), viimeksi = new Map(), paikka = new Map();
   let huone = null, saannot = [], haetaan = false;
@@ -39,7 +39,7 @@
   // 0.4.9 (kp 27.10. 12:16 "lisää scriptiin testinä"): hahmo lentää räjähdyksessä ilmaan pyörien. Vain omassa clientissä:
   //   paikallinen kopio hahmosta (negatiivinen id) miinaruutuun, oikea hahmo piiloon jos se on vielä ruudulla. Pois: miina.lennata = false
   let haamuId = -940001;
-  // 0.4.11 (kp 12:30 "freeze hahmo telen jälkee kunnes animaatio on finished ja ei rendaa oikeeta hahmon sijaintii", Res "ei näkis itteänsä
+  // 0.4.12 (kp 12:30 "freeze hahmo telen jälkee kunnes animaatio on finished ja ei rendaa oikeeta hahmon sijaintii", Res "ei näkis itteänsä
   //   duplicatena"): lennon ajan oikea hahmo piilossa joka ruudussa (alpha 0, shooterin sävytyksen tapaan increaseUpdateCounter) ja sen
   //   sijaintipäivitykset pidätetään (__jaa); lopussa viimeisin päivitys ajetaan. Satunnaisuus (kp 12:29 "lay + spin", "randomiutta angles"):
   //   kaksi muunnelmaa ja satunnainen kaari. Siemen = hahmo + ruutu + 5 s ikkuna, joten eri clientit arpovat useimmiten saman.
@@ -53,8 +53,9 @@
     const r = e.activeRoomId, o = e.getRoomObject(r, oid, 100); if (!o) return false;
     const V = o.getLocation().constructor, fig = o.model.getValue('figure'); if (!fig) return false;
     const rnd = arpa((oid * 73856093) ^ (Math.round(x) * 19349663) ^ (Math.round(y) * 83492791) ^ Math.floor(Date.now() / 5000));
-    const makaa = rnd() < 0.5, kulma = rnd() * Math.PI * 2, matka = 0.5 + rnd() * 1.0, h = 2.5 + rnd() * 2.5;
+    const arvo = rnd(), makaa = cfg.muunnelma ? cfg.muunnelma === "makaa" : arvo < 0.5, kulma = rnd() * Math.PI * 2, matka = 0.5 + rnd() * 1.0, h = 2.5 + rnd() * 2.5;
     const kierrokset = (1 + Math.floor(rnd() * 3)) * (rnd() < 0.5 ? -1 : 1), ms = 900 + Math.floor(rnd() * 600), alkuSuunta = Math.floor(rnd() * 8);
+    const kieriminen = 2 + Math.floor(rnd() * 3);   // 0.4.12 (kp 12:42 "lay spin vähä bugged"): makuu piirtyy vain kahteen suuntaan, 8 suunnan pyöritys välkkyi -> kieritään 90/180 välillä
     const dx = Math.cos(kulma) * matka, dy = Math.sin(kulma) * matka;
     const g = haamuId--, z0 = z || 0, alku = performance.now();
     if (!e.addRoomObjectUser(r, g, new V(x, y, z0), new V(alkuSuunta * 45), alkuSuunta * 45, 1, fig)) return false;
@@ -62,7 +63,7 @@
     const asento = () => { try { const ho = e.getRoomObject(r, g, 100); if (makaa && ho && ho.model.getValue('figure_posture') !== 'lay') e.updateRoomObjectUserPosture(r, g, 'lay', ''); } catch (x) {} };
     asento(); piilota(o, talteen);
     const ajo = setInterval(() => {
-      const t = Math.min(1, (performance.now() - alku) / ms), suunta = (((alkuSuunta + Math.floor(t * 8 * Math.abs(kierrokset)) * Math.sign(kierrokset)) % 8) + 8) % 8 * 45;
+      const t = Math.min(1, (performance.now() - alku) / ms), suunta = makaa ? (Math.floor(t * kieriminen) % 2 ? 180 : 90) : (((alkuSuunta + Math.floor(t * 8 * Math.abs(kierrokset)) * Math.sign(kierrokset)) % 8) + 8) % 8 * 45;
       try { e.updateRoomObjectUserLocation(r, g, new V(x + t * dx, y + t * dy, z0 + 4 * h * t * (1 - t)), null, false, 0, new V(suunta), suunta, true, false, 30); } catch (x) {}
       asento(); piilota(e.getRoomObject(r, oid, 100) || o, talteen);
       if (t >= 1) { clearInterval(ajo); try { e.removeRoomObjectUser(r, g); } catch (x) {}
@@ -160,7 +161,7 @@
       e.updateRoomObjectUserEffect = function (rid, oid, fx) { try { const k = window.miina && window.miina.__efekti; if (k) k(rid, oid, fx); } catch (x) {} return orig.apply(this, arguments); }; }
     if (!e.__miinaKoukku) { const orig = e.updateRoomObjectUserLocation; e.__miinaKoukku = true;
       e.updateRoomObjectUserLocation = function (rid, oid, loc, tgt) { try { const k = window.miina && window.miina.__liike; if (k) k(rid, oid, loc, tgt, arguments[10]); } catch (x) {} return orig.apply(this, arguments); }; }
-    if (!e.__miinaKoukku2) { const ed = e.updateRoomObjectUserLocation; e.__miinaKoukku2 = true;   // 0.4.11: lennon ajan pidätys (ulompi kerros)
+    if (!e.__miinaKoukku2) { const ed = e.updateRoomObjectUserLocation; e.__miinaKoukku2 = true;   // 0.4.12: lennon ajan pidätys (ulompi kerros)
       e.updateRoomObjectUserLocation = function (rid, oid) { try { const k = window.miina && window.miina.__jaa; if (k && k(rid, oid, arguments)) return true; } catch (x) {} return ed.apply(this, arguments); }; }
   }, 50);
 })();
