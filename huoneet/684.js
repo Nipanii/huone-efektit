@@ -20,7 +20,7 @@ const MUISTI = 'h684.efektit';
 const e = window.NitroDevTools && window.NitroDevTools.roomEngine;
 const huone = (kupla && kupla.roomId && kupla.roomId()) || (e && e.activeRoomId);
 const tila = window.pimeys = { versio: 'huone-684 valosim', huone, tummuus: 0.97, estoKorkeus: 1, seinaKorkeus: 2.4, askel: 0.1,
-  sateet: 220, resoluutio: 3, ilmanValoa: 1.3, pehmeys: 34, eteen: 0.7, keilaVoima: 0.35, varjoValo: 0.45,   // pehmeys = reunan sumennus css-pikseleinä (kp 20:37:40 'aika harsh noi valo reunat', 21:52 'pitäs olla pehmeempi spread')
+  sateet: 220, resoluutio: 3, ilmanValoa: 1.3, pehmeys: 34, eteen: 0.7, keilaVoima: 0.35, varjoValo: 0.45, vartaloVoima: 0.45,   // pehmeys = reunan sumennus css-pikseleinä (kp 20:37:40 'aika harsh noi valo reunat', 21:52 'pitäs olla pehmeempi spread')
   // eteen = valopiirin liukuman keskipiste siirtyy näin monta ruutua katseen suuntaan; keilaVoima = keilan voima (kp 21:53 'paljon subtlempi')
   // varjoValo = kalusteen varjoon jäävä osuus valosta (kp 21:55 'pitäs toi varjo olla silti partly lit'); seinät varjostavat yhä täysin
   // ymparys = piirin säde ruutuina, keila = keilan pituus ruutuina, kulma = keilan puolikulma asteina, liekki = lämmin sävy + lepatus
@@ -133,10 +133,11 @@ const valaise = (l, kulma0, kulma1, n, r, voima, lampin, gk, vainSeinat) => {   
 // Hahmon vartalo valoon koko korkeudeltaan clientin oman rajauslaatikon mukaan (kp 21:52 'outo toi varjo tos pään pääl':
 // vanha soikio oli z+1:n kohdalla 40 css-px säteellä, joten hattu ja pää jäivät pimeään).
 const vartalo = (l, voima) => { let b = null; try { b = e.getRoomObjectBoundingRectangle(huone, l.id, 100, e._activeRoomActiveCanvas); } catch (x) {}
-  if (!b || !b.width) return; const R = tila.resoluutio, cxp = (b.x + b.width / 2 + rr.left) / R, cyp = (b.y + b.height / 2 + rr.top) / R;
-  const ry = b.height / 2 / R * 1.25, rx = b.width / 2 / R * 1.25;
+  if (!b || !b.width) return; // kp 21:59 'liian selkee ovaali muoto': painopiste ylävartaloon (lattiapiiri valaisee jalat), laatikko ei kasva yli hahmon, gaussimainen liukuma
+  const R = tila.resoluutio, cxp = (b.x + b.width / 2 + rr.left) / R, cyp = (b.y + b.height * 0.4 + rr.top) / R;
+  const ry = b.height * 0.5 / R, rx = b.width * 0.5 / R;
   for (const k of [cx, sx]) { k.save(); k.translate(cxp, cyp); k.scale(rx / ry, 1); const gr = k.createRadialGradient(0, 0, 0, 0, 0, ry);
-    gr.addColorStop(0, 'rgba(0,0,0,' + voima + ')'); gr.addColorStop(0.6, 'rgba(0,0,0,' + (voima * 0.75) + ')'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    for (const [p, m] of [[0, 1], [0.3, 0.8], [0.55, 0.45], [0.8, 0.12], [1, 0]]) gr.addColorStop(p, 'rgba(0,0,0,' + (voima * m) + ')');
     k.globalCompositeOperation = 'destination-out'; k.fillStyle = gr; k.fillRect(-ry, -ry, 2 * ry, 2 * ry); k.restore(); } };
 
 // Kaikki valot: pelaajien käsivalot (oma + muut) ja päällä olevat lamput.
@@ -179,7 +180,7 @@ const piirra = () => {
       if (tila.varjoValo > 0) valaise(l, 0, Math.PI * 2, Math.round(tila.sateet / 2), (v.ymparys + eteen) * f, tila.varjoValo, 0, gk, true);   // kalusteiden varjot puolivaloon
       if (v.keila) { const k = v.kulma * Math.PI / 180;
         valaise(l, kesk - k, kesk + k, Math.round(tila.sateet / 4), v.keila * f, tila.keilaVoima, (v.liekki || 0) * 0.5); }
-      if (l.id != null) vartalo(l, v.keila || v.ymparys > tila.ilmanValoa ? 0.85 : 0.6);
+      if (l.id != null) vartalo(l, tila.vartaloVoima * (v.keila || v.ymparys > tila.ilmanValoa ? 1 : 0.7));
       if (l.oma) {   // oma hahmo näkyy aina vähän: soikio vartalon kohdalle
                 const nimi = (tila.valot[l.ese] || {}).nimi; if (nimi !== viimeVali) { viimeVali = nimi; tila.loki.push({ valo: nimi || 'ei valoa', ese: l.ese }); } } }
   } catch (x) { tila.loki.push({ virhe: String(x && x.stack || x).slice(0, 300) }); cancelAnimationFrame(raf); }
