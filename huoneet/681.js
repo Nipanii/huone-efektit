@@ -79,7 +79,7 @@ tila.lenna = (oid, x, y, z) => {
   // Kolme muunnelmaa (kp 27.10. 18:08:58 "istumis version, et lentää istuma asennos"): seiso-pyöri / makaa / istu, kukin 1/3.
   //   kp 18:15 "makuuasennos lento on vähä huono. poistetaan ja jätetään se vaan siihen kun osuu maahan": arvonnassa vain istu / pyori (1/2),
   //   makuu vain laskeutumisessa. 'makaa' toimii yhä konsolista (miina.muunnelma) vertailuun.
-  const arvo = rnd(), laji = tila.muunnelma || (arvo < 0.5 ? 'istu' : 'pyori'), makaa = laji === 'makaa', istu = laji === 'istu';
+  const arvo = rnd(), laji = tila.muunnelma || (arvo < 0.4 ? 'istu' : 'pyori'), makaa = laji === 'makaa', istu = laji === 'istu';
   // kp 18:12 "jos hahmo vois lentää ylipäätää kauemmaks räjähdyspisteestä, ei vaa korkeemmalle": matka 1,5-3,5 ruutua (ennen 0,5-1,5), korkeus ennallaan.
   //   kp 18:13 "lennon voimakkuuteen variaatiota, välil mega lento välil normaalimpi": voima 1-3 painotettu pieneen (rnd^3: ~70 % alle 1,7,
   //   ~10 % yli 2,5). kp 18:20 "minimi korkeutta matalemmalle et vois melkee lentää maata pitkin": kaaren huippu 0,3-5 (ennen 2,5-5). Matka = (1,5-3,5) x voima, korkeus kasvaa vähän (x 0,8-1,3) ja kesto (x 0,6-1,4).
@@ -88,7 +88,8 @@ tila.lenna = (oid, x, y, z) => {
   // 18:30 Res "takas se kaari · matala kaari pois" -> huippu taas 2,5-5. kp "lento takas lyhyemmäks": voiman vaikutus matkaan puolitettu (max x2, 1,5-7 ruutua).
   // kp 18:08 "keskiverto spinnin määrä vois olla vähemmän" + "molemmat voi olla tosi hitaita välil, iso rng factor":
   //   kierroksia 0,1-2,0, painotettu hitaaseen (rnd^2 -> keskiarvo ~0,73). Ennen 1-3 (ka 2).
-  const kierrokset = (0.1 + 1.9 * Math.pow(rnd(), 2)) * (rnd() < 0.5 ? -1 : 1), ms = Math.round((600 + rnd() * 500) * (1 + 0.18 * (voima - 1)));
+  const kierrokset = (0.4 + 1.6 * Math.pow(rnd(), 2)) * (rnd() < 0.5 ? -1 : 1), ms = Math.round((600 + rnd() * 500) * (1 + 0.18 * (voima - 1)));
+  // Res 18:32 "pyöriminen vois olla vähemmän rare": pyöriminen 60 % (ennen 50 %), kierroksia 0,4-2 (ennen 0,1-2).
   // kp 18:32 "välil on oudon pitkää kyl ilmas · jos se ois nopeempi": ilmassa 0,6-1,5 s (ennen 0,5-2,7), voima pidentää enää vähän.
   // kp 18:21 "lensin seinän sisää · teehän siihen collision, tehtii shootterii ettei voi ampuu seinien läpi": lentorata käydään 0,1 ruudun
   //   askelin. Este = kartan ulkopuoli, seinä/tyhjä (seinägeometrian korkeus > 1,5 lähtökorkeuden yli) tai yli 2 korkea kaluste. Ensimmäinen
