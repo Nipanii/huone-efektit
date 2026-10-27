@@ -201,15 +201,18 @@ const lappu = (u, teksti) => {
   const e = window.NitroDevTools && window.NitroDevTools.roomEngine;
   const cv = [...document.querySelectorAll('canvas')].sort((a, b) => b.width * b.height - a.width * a.height)[0]; if (!e || !cv) return false;
   const d = document.createElement('div'); d.textContent = teksti;
-  d.style.cssText = 'position:fixed;z-index:99999;pointer-events:none;transform:translate(-50%,-100%);font:bold 15px sans-serif;color:#fff;' +
+  d.style.cssText = 'position:fixed;left:0;top:0;z-index:99999;pointer-events:none;font:bold 15px sans-serif;color:#fff;will-change:transform;' +
     'text-shadow:0 0 3px #000,0 0 3px #000,1px 1px 0 #000;white-space:nowrap;transition:opacity .4s';
   document.body.appendChild(d);
-  const alku = Date.now();
-  const paikka = () => { const p = e.getRoomObjectScreenLocation(huone, u, 100); if (!p) return; const r = cv.getBoundingClientRect();
-    d.style.left = (r.left + p.x) + 'px'; d.style.top = (r.top + p.y - 105 - (Date.now() - alku) / 100) + 'px'; };
-  paikka();
-  const l = { d, ajo: setInterval(() => { const ms = Date.now() - alku; paikka(); if (ms > 2600) d.style.opacity = '0';
-    if (ms > 3100) { clearInterval(l.ajo); d.remove(); nakyvatLaput.delete(l); } }, 50) };
+  const alku = performance.now();
+  // kp 19:19:45 "laginen toi teksti/counter": paikka päivitetään joka ruudunpäivityksellä (rAF), ei 50 ms välein.
+  const paikka = nyt => { const p = e.getRoomObjectScreenLocation(huone, u, 100); if (!p) return; const r = cv.getBoundingClientRect();
+    d.style.transform = 'translate3d(' + (r.left + p.x) + 'px,' + (r.top + p.y - 105 - (nyt - alku) / 100) + 'px,0) translate(-50%,-100%)'; };
+  paikka(alku);
+  const l = { d, ajo: 0 };
+  const kierros = nyt => { const ms = nyt - alku; paikka(nyt); if (ms > 2600) d.style.opacity = '0';
+    if (ms > 3100) { d.remove(); nakyvatLaput.delete(l); return; } l.ajo = requestAnimationFrame(kierros); };
+  l.ajo = requestAnimationFrame(kierros);
   nakyvatLaput.add(l); return true;
 };
 let muistiN = 0;
@@ -368,7 +371,7 @@ return () => {
   clearInterval(ajastin); clearTimeout(esilataus); lentavat.clear();
   for (const off of jakoPois) try { off(); } catch (x) {}
   if (ks) try { ks.unsubscribe(AIHE); } catch (x) {}
-  for (const l of nakyvatLaput) { clearInterval(l.ajo); l.d.remove(); } nakyvatLaput.clear();
+  for (const l of nakyvatLaput) { cancelAnimationFrame(l.ajo); l.d.remove(); } nakyvatLaput.clear();
   for (const oid of [...varatut.keys()]) purraVaraus(oid);
   for (const oid of [...pidatetyt.keys()]) vapauta(oid, true);   // pidätetyt efektit perille, ettei kenenkään efekti jää puuttumaan
   if (window.miina === tila) delete window.miina;
