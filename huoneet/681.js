@@ -55,7 +55,19 @@ tila.rajayta = (x, y, z, furni = 'fx_explosion', kesto = 1500) => {
 //   joten eri clientit arpovat useimmiten saman. Pois: miina.lennata = false
 let haamuId = -940001;
 const lentavat = new Map();   // oid -> { args }
-tila.__jaa = (rid, oid, args) => { const f = lentavat.get(oid); if (!f) return false; f.args = Array.prototype.slice.call(args); return true; };
+// kp 27.10. 18:24 "hahmo välähtää teleport pisteel ku astuu miinaa": nopea tele siirtää hahmon 1 tiki (500 ms) efektin 235 jälkeen,
+//   eli samaan aikaan kun lento vasta alkaa (räjähdys odottaa askeleen miinalle, viive 500). Miinan tunnistuksesta lähtien hyppy (> 1,5 ruutua
+//   nykyisestä paikasta) pidätetään (varatut) ja lenna() ottaa sen omakseen; jos lentoa ei tule, se ajetaan viimeistään 1,5 s kuluttua.
+const varatut = new Map();   // oid -> { args, aika }
+const varaa = (oid) => varatut.set(oid, { args: null, aika: Date.now() });
+const purraVaraus = (oid) => { const v = varatut.get(oid); varatut.delete(oid); const e = window.NitroDevTools && window.NitroDevTools.roomEngine;
+  if (v && v.args && e) try { e.updateRoomObjectUserLocation.apply(e, v.args); } catch (x) {} };
+tila.__jaa = (rid, oid, args) => { const f = lentavat.get(oid); if (f) { f.args = Array.prototype.slice.call(args); return true; }
+  const v = varatut.get(oid); if (!v || rid !== huone) return false;
+  if (Date.now() - v.aika > 1500) { purraVaraus(oid); return false; }
+  const e = window.NitroDevTools && window.NitroDevTools.roomEngine, o = e && e.getRoomObject(rid, oid, 100), L = o && o.getLocation(), uusi = args[2];
+  if (!L || !uusi || Math.hypot(uusi.x - L.x, uusi.y - L.y) <= 1.5) return false;
+  v.args = Array.prototype.slice.call(args); return true; };
 const arpa = (s) => () => { s = (s + 0x6D2B79F5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 const piilota = (o, talteen) => { const sp = (o && o.visualization && o.visualization.sprites) || [];
   for (const s of sp) { if (!talteen.has(s)) talteen.set(s, { a: s.alpha, v: s.visible }); if (s.alpha !== 0 || s.visible) { s.alpha = 0; s.visible = false; if (s.increaseUpdateCounter) s.increaseUpdateCounter(); } } };
@@ -95,7 +107,8 @@ tila.lenna = (oid, x, y, z) => {
     : (((alkuSuunta + Math.floor(t * 8 * Math.abs(kierrokset)) * Math.sign(kierrokset)) % 8) + 8) % 8 * 45;
   const g = haamuId--, z0 = z || 0, alku = performance.now();
   if (!e.addRoomObjectUser(r, g, new V(x, y, z0), new V(alkuSuunta * 45), alkuSuunta * 45, 1, fig)) return false;
-  const f = { args: null }, talteen = new Map(); lentavat.set(oid, f);
+  const vr = varatut.get(oid); varatut.delete(oid);
+  const f = { args: (vr && vr.args) || null }, talteen = new Map(); lentavat.set(oid, f);
   let maassa = 0, lepoSuunta = 0;
   const asento = () => { try { const ho = e.getRoomObject(r, g, 100), haluttu = (makaa || maassa) ? 'lay' : istu ? 'sit' : null;
     if (haluttu && ho && ho.model.getValue('figure_posture') !== haluttu) e.updateRoomObjectUserPosture(r, g, haluttu, ''); } catch (x) {} };
@@ -193,7 +206,8 @@ tila.__efektiNyt = (rid, oid, fx) => {
       const nyt = Date.now(); if (nyt - (viimeksi.get(oid) || 0) < tila.vali) return; viimeksi.set(oid, nyt);
       const viive = tulossa && p.loc && (Math.round(p.loc.x) !== x || Math.round(p.loc.y) !== y) ? 500 : 0;
       tila.loki.push({ u: oid, x, y, tapa: 'efekti' + fx, viive });
-      setTimeout(() => { tila.rajayta(x, y, P.z, s.furni, s.kesto); tila.lenna(oid, x, y, P.z); }, viive);
+      varaa(oid);
+      setTimeout(() => { tila.rajayta(x, y, P.z, s.furni, s.kesto); if (!tila.lenna(oid, x, y, P.z)) purraVaraus(oid); }, viive);
       pidennaEfekti(oid, viive + tila.efektiViive);
       return;
     }
@@ -203,6 +217,7 @@ tila.__efektiNyt = (rid, oid, fx) => {
 
 const ajastin = setInterval(() => {
   const e = window.NitroDevTools && window.NitroDevTools.roomEngine; if (!e || e.activeRoomId !== huone) return;
+  for (const [oid, v] of [...varatut]) if (Date.now() - v.aika > 1500) purraVaraus(oid);
   for (const s of saannot) {
     // F5:n jälkeen furnin koko (furniture_size_x/y) puuttuu vielä ensimmäisillä tikeillä -> luettiin 1x1 ja vain 2x2-miinan kulma
     //   laukesi (kp 27.10. 16:57, 43/172 ruutua). Lasketaan uudelleen joka tiki kunnes jokainen furni JA sen koko löytyy,
@@ -232,6 +247,7 @@ const ajastin = setInterval(() => {
 // Pysäytys: moottori kutsuu tätä kun huoneesta lähdetään tai tämä tiedosto muuttuu. Kesken olevat räjähdykset ja lennot päättyvät itse.
 return () => {
   clearInterval(ajastin); clearTimeout(esilataus); lentavat.clear();
+  for (const oid of [...varatut.keys()]) purraVaraus(oid);
   for (const oid of [...pidatetyt.keys()]) vapauta(oid, true);   // pidätetyt efektit perille, ettei kenenkään efekti jää puuttumaan
   if (window.miina === tila) delete window.miina;
 };
