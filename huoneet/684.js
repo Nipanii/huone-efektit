@@ -20,7 +20,7 @@ const MUISTI = 'h684.efektit';
 const e = window.NitroDevTools && window.NitroDevTools.roomEngine;
 const huone = (kupla && kupla.roomId && kupla.roomId()) || (e && e.activeRoomId);
 const tila = window.pimeys = { versio: 'huone-684 valosim', huone, tummuus: 0.97, estoKorkeus: 1, seinaKorkeus: 2.4, askel: 0.1,
-  sateet: 220, resoluutio: 3, ilmanValoa: 1.3,
+  sateet: 220, resoluutio: 3, ilmanValoa: 1.3, pehmeys: 14,   // pehmeys = reunan sumennus css-pikseleinä (kp 20:37:40 'aika harsh noi valo reunat')
   // ymparys = piirin säde ruutuina, keila = keilan pituus ruutuina, kulma = keilan puolikulma asteina, liekki = lämmin sävy + lepatus
   valot: { 1058: { nimi: 'Öljylamppu', ymparys: 1.8, keila: 7.5, kulma: 30, liekki: 1 }, 1027: { nimi: 'Kynttilä', ymparys: 2.4, liekki: 1 },
     1113: { nimi: 'LED-kynttilä', ymparys: 2.4 }, 1031: { nimi: 'Soihtu', ymparys: 3.8, liekki: 1 } },
@@ -111,11 +111,13 @@ const valaise = (l, kulma0, kulma1, n, r, voima, lampin) => {
     monikulmio(polku, [ruudulle(a.x, a.y, l.z), ruudulle(b.x, b.y, l.z), ruudulle(b.x, b.y, l.z + tila.seinaKorkeus), ruudulle(a.x, a.y, l.z + tila.seinaKorkeus)]); }
   const reuna = ruudulle(l.x + r, l.y, l.z), sade = reuna ? Math.hypot(reuna.x - kesk.x, reuna.y - kesk.y) * 1.15 : 50;
   const gr = cx.createRadialGradient(kesk.x, kesk.y, 0, kesk.x, kesk.y, sade);
-  gr.addColorStop(0, 'rgba(0,0,0,' + voima + ')'); gr.addColorStop(0.5, 'rgba(0,0,0,' + (voima * 0.8) + ')'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+  gr.addColorStop(0, 'rgba(0,0,0,' + voima + ')'); gr.addColorStop(0.35, 'rgba(0,0,0,' + (voima * 0.9) + ')'); gr.addColorStop(0.7, 'rgba(0,0,0,' + (voima * 0.45) + ')'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+  cx.filter = 'blur(' + (tila.pehmeys / tila.resoluutio).toFixed(1) + 'px)';
   cx.globalCompositeOperation = 'destination-out'; cx.fillStyle = gr; cx.fill(polku);
   if (lampin) { const lg = cx.createRadialGradient(kesk.x, kesk.y, 0, kesk.x, kesk.y, sade);
     lg.addColorStop(0, 'rgba(255,160,60,' + (0.16 * lampin) + ')'); lg.addColorStop(1, 'rgba(255,140,40,0)');
     cx.globalCompositeOperation = 'source-over'; cx.fillStyle = lg; cx.fill(polku); }
+  cx.filter = 'none';
 };
 
 // Kaikki valot: pelaajien käsivalot (oma + muut) ja päällä olevat lamput.
