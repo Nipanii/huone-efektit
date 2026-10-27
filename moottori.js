@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Huoneskriptit (moottori)
-// @version      0.5.0
+// @version      0.5.1
 // @match        https://kupla.cc/*
 // @grant        none
 // ==/UserScript==
@@ -11,11 +11,11 @@
 // Huoneeseen tullessa: hakee huoneet.json:n, ja jos huoneella on skriptejä, hakee ne ja ajaa: new Function('kupla', koodi)(api).
 //   Sama sopimus kuin Resin Messenger-moottorissa (client/DarkUI/messenger-scripts/moottori.js), joten skriptit voi myöhemmin
 //   siirtää sinne sellaisenaan. Skripti palauttaa funktion (tai olion jolla dispose()), jota kutsutaan kun huoneesta lähdetään.
-// 15 s välein, kun huoneessa on skripti: muuttunut skripti käynnistetään uudelleen (versiota ei tarvitse nostaa).
+// 15 s välein missä tahansa huoneessa: muuttunut tai huoneet.json:iin lisätty skripti käynnistetään (versiota ei tarvitse nostaa).
 // 15 s välein aina: uudempi moottori (// @version) ajetaan tämän tilalle.
 // Konsolissa: huoneskriptit.ajossa (mitä ajetaan) · huoneskriptit.loki · huoneskriptit.paivita(true) (hae ja käynnistä uudelleen)
 (() => {
-  const hs = { versio: '0.5.0', huone: 0, ajossa: new Map(), loki: [], pysaytetty: false };   // versio: myös 0.4.x:n itsepäivitys lukee tämän
+  const hs = { versio: '0.5.1', huone: 0, ajossa: new Map(), loki: [], pysaytetty: false };   // versio: myös 0.4.x:n itsepäivitys lukee tämän
   const POHJA = 'https://nipanii.github.io/huone-efektit/';
   const uudempi = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number);
     for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); return false; };
@@ -76,7 +76,7 @@
 
   hs._tiki = setInterval(async () => {
     if (hs.pysaytetty) return;
-    if (hs.ajossa.size) paivita(false);
+    if (hs.huone > 0) paivita(false);   // 0.5.1: myös huoneessa jossa ei vielä ajeta mitään (kp 28.10. 00:11:49 "toivottavasti huoneeseen ei tarvii tulla uudelleen"): uusi huoneet.json-rivi käynnistyy ilman huoneen vaihtoa
     try { const t = await hae('moottori.js'), v = ((t.match(/\/\/\s*@version\s+([^\r\n]+)/) || [])[1] || '').trim();
       if (v && !hs.pysaytetty && uudempi(v, hs.versio)) { const L = window.huoneEfektiLataaja; if (L) L.koodi = t; (0, eval)(t); console.info('[huoneskriptit] moottori päivitetty', v); } } catch (err) {}
   }, 15000);

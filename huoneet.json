@@ -1,7 +1,23 @@
 {
   "_ohje": "Huoneskriptit. Avain = huone-id, skriptit = polut tähän repoon. Moottori hakee tämän listan huoneeseen tullessa, ajaa huoneen skriptit ja pysäyttää ne kun huoneesta lähdetään. Skriptin muutos näkyy huoneessa oleville noin 15 s sisällä ilman version nostoa.",
   "huoneet": {
-    "681": { "nimi": "Miinarata", "skriptit": ["huoneet/681.js"] },
-    "684": { "nimi": "Halloween rata 5/6 (pimeys)", "skriptit": ["huoneet/684.js"] }
+    "656": {
+      "nimi": "Halloween-pila (väliaikainen)",
+      "skriptit": [
+        "huoneet/656.js"
+      ]
+    },
+    "681": {
+      "nimi": "Miinarata",
+      "skriptit": [
+        "huoneet/681.js"
+      ]
+    },
+    "684": {
+      "nimi": "Halloween rata 5/6 (pimeys)",
+      "skriptit": [
+        "huoneet/684.js"
+      ]
+    }
   }
 }
