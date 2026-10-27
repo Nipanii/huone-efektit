@@ -202,7 +202,8 @@ if (!ks) tila.loki.push({ jako: 'ei kanavaa', syy: 'window.kuplaScripts puuttuu 
 //   (wf_act_show_message, näkyvyys 1 = koko huone, kupla 34): "%user% pääsi radan 2 läpi!" kuiskataan JOKAISELLE huoneessa
 //   (WiredEffectWhisper.java:123), joten ilmoitus näkyy kaikille ilman moottoria. Moottori lisää sen päälle bannerin 4 s,
 //   kuultuna omalta väylältä (RSCE_CHAT_EVENT, chatType 1, objectId = oma indeksi koska palvelin lähettää h,h).
-const MAALI = /^(.+) pääsi radan (d+) läpi!$/;
+// 23:27 korjattu: oli (d+) ilman kenoviivaa, joten mikään läpäisy ei osunut ja banneri ei koskaan näkynyt.
+const MAALI = /^(.+) pääsi radan (\d+) läpi!$/;
 const viimLapi = new Map();
 const banneri = teksti => {
   const d = document.createElement('div'); d.textContent = teksti;
