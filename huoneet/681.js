@@ -64,10 +64,12 @@ tila.lenna = (oid, x, y, z) => {
   // Kolme muunnelmaa (kp 27.10. 18:08:58 "istumis version, et lentää istuma asennos"): seiso-pyöri / makaa / istu, kukin 1/3.
   const arvo = rnd(), laji = tila.muunnelma || (arvo < 1 / 3 ? 'makaa' : arvo < 2 / 3 ? 'istu' : 'pyori'), makaa = laji === 'makaa', istu = laji === 'istu';
   // kp 18:12 "jos hahmo vois lentää ylipäätää kauemmaks räjähdyspisteestä, ei vaa korkeemmalle": matka 1,5-3,5 ruutua (ennen 0,5-1,5), korkeus ennallaan.
-  const kulma = rnd() * Math.PI * 2, matka = 1.5 + rnd() * 2.0, h = 2.5 + rnd() * 2.5;
+  //   kp 18:13 "lennon voimakkuuteen variaatiota, välil mega lento välil normaalimpi": voima 1-3 painotettu pieneen (rnd^3: ~70 % alle 1,7,
+  //   ~10 % yli 2,5). Matka = (1,5-3,5) x voima, korkeus kasvaa vähän (x 0,8-1,3) ja kesto (x 0,6-1,4).
+  const voima = 1 + 2 * Math.pow(rnd(), 3), kulma = rnd() * Math.PI * 2, matka = (1.5 + rnd() * 2.0) * voima, h = (2.5 + rnd() * 2.5) * (0.8 + 0.25 * (voima - 1));
   // kp 18:08 "keskiverto spinnin määrä vois olla vähemmän" + "molemmat voi olla tosi hitaita välil, iso rng factor":
   //   kierroksia 0,1-2,0, painotettu hitaaseen (rnd^2 -> keskiarvo ~0,73). Ennen 1-3 (ka 2).
-  const kierrokset = (0.1 + 1.9 * Math.pow(rnd(), 2)) * (rnd() < 0.5 ? -1 : 1), ms = 900 + Math.floor(rnd() * 600);
+  const kierrokset = (0.1 + 1.9 * Math.pow(rnd(), 2)) * (rnd() < 0.5 ? -1 : 1), ms = Math.round((900 + rnd() * 600) * (0.6 + 0.4 * voima));
   const dx = Math.cos(kulma) * matka, dy = Math.sin(kulma) * matka;
   // Makuu piirtyy vain kahteen suuntaan: clientin AvatarImage.appendAction(lay) pakottaa suunnan 0 -> 4 ja KAIKKI muut -> 2
   //   (Nitro_Render_V3 avatar/AvatarImage.ts:482). Vanha 90/180-kieritys oli siksi aina 2 = jalat oikealle (kp 27.10. 17:39).
@@ -100,7 +102,7 @@ tila.lenna = (oid, x, y, z) => {
       //   __liike-tunnistuksen toiseen kertaan (simulaatio 27.10.: kaksi lentoa yhdestä miinasta). Laskeutuminen nollaa ajan.
       viimeksi.set(oid, Date.now());
       lentavat.delete(oid); if (f.args) try { e.updateRoomObjectUserLocation.apply(e, f.args); } catch (x) {}
-      tila.loki.push({ lensi: oid, x, y, laji, kierrokset: Math.round(kierrokset * 100) / 100, lepoPuoli: lepoSuunta ? 'oikea' : 'vasen', kulma: Math.round(kulma * 57.3), pidatetty: !!f.args }); }
+      tila.loki.push({ lensi: oid, x, y, laji, voima: Math.round(voima * 100) / 100, kierrokset: Math.round(kierrokset * 100) / 100, lepoPuoli: lepoSuunta ? 'oikea' : 'vasen', kulma: Math.round(kulma * 57.3), pidatetty: !!f.args }); }
   }, 30);
   return true;
 };
