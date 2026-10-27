@@ -83,7 +83,8 @@ tila.lenna = (oid, x, y, z) => {
   // kp 18:12 "jos hahmo vois lentää ylipäätää kauemmaks räjähdyspisteestä, ei vaa korkeemmalle": matka 1,5-3,5 ruutua (ennen 0,5-1,5), korkeus ennallaan.
   //   kp 18:13 "lennon voimakkuuteen variaatiota, välil mega lento välil normaalimpi": voima 1-3 painotettu pieneen (rnd^3: ~70 % alle 1,7,
   //   ~10 % yli 2,5). kp 18:20 "minimi korkeutta matalemmalle et vois melkee lentää maata pitkin": kaaren huippu 0,3-5 (ennen 2,5-5). Matka = (1,5-3,5) x voima, korkeus kasvaa vähän (x 0,8-1,3) ja kesto (x 0,6-1,4).
-  const voima = 1 + 2 * Math.pow(rnd(), 3), kulma = rnd() * Math.PI * 2, matka = (1.5 + rnd() * 2.0) * voima, h = (0.3 + rnd() * 4.7) * (0.8 + 0.25 * (voima - 1));
+  const voima = 1 + 2 * Math.pow(rnd(), 3), kulma = (() => { const k = rnd(), puoli = k < 0.5 ? 0 : Math.PI;   // Res 18:29 "vitun outo kun lensi suoraa kameraa päi": kameran akseli (+x+y) ±30° pois
+    return Math.PI / 4 + puoli + (Math.PI / 6) + ((k % 0.5) * 2) * (Math.PI * 2 / 3); })(), matka = (1.5 + rnd() * 2.0) * voima, h = (0.3 + rnd() * 4.7) * (0.8 + 0.25 * (voima - 1));
   // kp 18:08 "keskiverto spinnin määrä vois olla vähemmän" + "molemmat voi olla tosi hitaita välil, iso rng factor":
   //   kierroksia 0,1-2,0, painotettu hitaaseen (rnd^2 -> keskiarvo ~0,73). Ennen 1-3 (ka 2).
   const kierrokset = (0.1 + 1.9 * Math.pow(rnd(), 2)) * (rnd() < 0.5 ? -1 : 1), ms = Math.round((900 + rnd() * 600) * (0.6 + 0.4 * voima));
