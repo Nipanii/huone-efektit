@@ -142,6 +142,42 @@ tila.lenna = (oid, x, y, z) => {
   return true;
 };
 
+// kp 27.10. 18:38-18:39 "voi räjäyttää vierustoverin · nii pitää pitää etäisyyttä · viereinen lentää vähemmäl voimal", Res 18:40 "ei se
+//   liikaha oikeesti": miinan lähellä (miina.naapuriSade ruutua) olevat pomppaavat ilmaan ja laskeutuvat OMAAN ruutuunsa. Vain näyttävä:
+//   kukaan ei oikeasti liiku, joten tällä ei voi griefata. Lähempänä korkeampi pomppu (huippu 0,5-2,4 ruutua, 0,3-0,7 s). Pois: miina.naapuriSade = 0
+tila.naapuriSade = 2;
+tila.pomppaa = (oid, o, L, mx, my, etai) => {
+  const e = window.NitroDevTools && window.NitroDevTools.roomEngine; if (!e || lentavat.has(oid)) return false;
+  const r = e.activeRoomId, V = L.constructor, fig = o.model.getValue('figure'); if (!fig) return false;
+  const rnd = arpa((oid * 73856093) ^ (Math.round(mx) * 19349663) ^ (Math.round(my) * 83492791) ^ Math.floor(Date.now() / 5000) ^ 0x51ed);
+  const lahella = 1 - 0.6 * Math.min(1, etai / tila.naapuriSade), h = (0.8 + rnd() * 0.8) * lahella * 1.5;
+  const ms = Math.round((450 + rnd() * 250) * (0.7 + 0.3 * lahella)), d0 = Math.round(((o.getDirection && o.getDirection().x) || 0) / 45);
+  const askeleet = rnd() < 0.5 ? 0 : (2 + Math.floor(rnd() * 3)) * (rnd() < 0.5 ? -1 : 1), asentoNyt = o.model.getValue('figure_posture');
+  const g = haamuId--, alku = performance.now(), z0 = L.z || 0;
+  if (!e.addRoomObjectUser(r, g, new V(L.x, L.y, z0), new V(d0 * 45), d0 * 45, 1, fig)) return false;
+  const f = { args: null }, talteen = new Map(); lentavat.set(oid, f);
+  try { if (asentoNyt === 'sit' || asentoNyt === 'lay') e.updateRoomObjectUserPosture(r, g, asentoNyt, ''); } catch (x) {}
+  piilota(o, talteen);
+  let ohi = false; const seuraava = () => { if (!ohi) { if (document.hidden) setTimeout(askel, 30); else requestAnimationFrame(askel); } };
+  const askel = () => { if (ohi) return;
+    const t = Math.min(1, (performance.now() - alku) / ms), suunta = ((((d0 + Math.round(askeleet * t)) % 8) + 8) % 8) * 45;
+    try { e.updateRoomObjectUserLocation(r, g, new V(L.x, L.y, z0 + 4 * h * t * (1 - t)), null, false, 0, new V(suunta), suunta, true, false, 16); } catch (x) {}
+    piilota(e.getRoomObject(r, oid, 100) || o, talteen);
+    if (t >= 1) { ohi = true; try { e.removeRoomObjectUser(r, g); } catch (x) {}
+      for (const [sp, v] of talteen) { sp.alpha = v.a; sp.visible = v.v; if (sp.increaseUpdateCounter) sp.increaseUpdateCounter(); }
+      lentavat.delete(oid); if (f.args) try { e.updateRoomObjectUserLocation.apply(e, f.args); } catch (x) {}
+      tila.loki.push({ pomppasi: oid, etai: Math.round(etai * 10) / 10, h: Math.round(h * 10) / 10, ms }); }
+    seuraava(); };
+  seuraava(); return true;
+};
+tila.naapurit = (x, y, laukaisija) => {
+  const e = window.NitroDevTools && window.NitroDevTools.roomEngine; if (!tila.lennata || !e || !(tila.naapuriSade > 0)) return 0;
+  let n = 0; for (const o of e.getRoomObjects(e.activeRoomId, 100) || []) { const oid = o && o.id;
+    if (oid == null || oid < 0 || oid === laukaisija) continue; const L = o.getLocation && o.getLocation(); if (!L) continue;
+    const etai = Math.hypot(L.x - x, L.y - y); if (etai <= tila.naapuriSade && tila.pomppaa(oid, o, L, x, y, etai)) n++; }
+  return n;
+};
+
 // Ensimmäinen räjähdys jäi näkymättä, koska efektin grafiikka latautuu vasta ensikäytössä -> esilataus kartan ulkopuolelle.
 const esilataus = setTimeout(() => tila.rajayta(-60, -60, 0, ASETUS.furni, 3000), 500);
 
@@ -157,7 +193,7 @@ tila.__liike = (rid, oid, loc, tgt, kesto) => {
       let osui = false;
       for (const [x, y] of ehd) { const s = saannot.find(s => s.ruudut && s.ruudut.has(x + ',' + y)); if (!s) continue;
         viimeksi.set(oid, Date.now()); tila.loki.push({ u: oid, x, y, tapa: 'hyppy', viive: 0 });
-        tila.rajayta(x, y, ed.z || 0, s.furni, s.kesto); tila.lenna(oid, x, y, ed.z || 0); osui = true; break; }
+        tila.rajayta(x, y, ed.z || 0, s.furni, s.kesto); tila.lenna(oid, x, y, ed.z || 0); tila.naapurit(x, y, oid); osui = true; break; }
       if (!osui) tila.loki.push({ u: oid, ohi: true, mista: [Math.round(ed.x), Math.round(ed.y)], kohde: ed.t, nyt: [Math.round(loc.x), Math.round(loc.y)] }); } }
   paikka.set(oid, { loc, tgt });
   for (const [P, tulossa] of [[tgt, true], [loc, false]]) {
@@ -168,7 +204,7 @@ tila.__liike = (rid, oid, loc, tgt, kesto) => {
     viimeksi.set(oid + '@' + k, nyt); viimeksi.set(oid, nyt);
     const viive = tulossa && loc && (Math.round(loc.x) !== x || Math.round(loc.y) !== y) ? (kesto > 0 ? kesto : 500) : 0;
     tila.loki.push({ u: oid, x, y, tapa: tulossa ? 'kohde' : 'sijainti', viive });
-    setTimeout(() => { tila.rajayta(x, y, P.z, s.furni, s.kesto); tila.lenna(oid, x, y, P.z); }, viive);
+    setTimeout(() => { tila.rajayta(x, y, P.z, s.furni, s.kesto); tila.lenna(oid, x, y, P.z); tila.naapurit(x, y, oid); }, viive);
     return;
   }
 };
@@ -212,7 +248,7 @@ tila.__efektiNyt = (rid, oid, fx) => {
       const viive = tulossa && p.loc && (Math.round(p.loc.x) !== x || Math.round(p.loc.y) !== y) ? 500 : 0;
       tila.loki.push({ u: oid, x, y, tapa: 'efekti' + fx, viive });
       varaa(oid);
-      setTimeout(() => { tila.rajayta(x, y, P.z, s.furni, s.kesto); if (!tila.lenna(oid, x, y, P.z)) purraVaraus(oid); }, viive);
+      setTimeout(() => { tila.rajayta(x, y, P.z, s.furni, s.kesto); if (!tila.lenna(oid, x, y, P.z)) purraVaraus(oid); tila.naapurit(x, y, oid); }, viive);
       pidennaEfekti(oid, viive + tila.efektiViive);
       return;
     }
