@@ -24,6 +24,8 @@ const e0 = window.NitroDevTools && window.NitroDevTools.roomEngine;
 const huone = (kupla && kupla.roomId && kupla.roomId()) || (e0 && e0.activeRoomId);
 // versio-kenttä: vanha 0.4.x-moottori ottaa window.miinan haltuunsa jos siltä puuttuu versio. Moottori 0.5 pysäyttää 0.4.x:n, tämä on varmistus.
 const tila = window.miina = { versio: 'huone-681', huone, lennata: true, muunnelma: null, kesto: null, vali: 1500, lepo: 700, piilotaPohja: true, loki: [] };
+// Kellonaika jokaiseen lokiriviin (kp 27.10. 19:09): pelaajan chatrivi "äske vaa telesin" pitää voida kohdistaa lokiin.
+tila.loki.push = function () { const t = new Date().toTimeString().slice(0, 8); for (const o of arguments) if (o && typeof o === 'object' && !o.t) o.t = t; return Array.prototype.push.apply(this, arguments); };
 const saannot = tila.saannot = [{ furni: ASETUS.furni, kesto: ASETUS.kesto, efekti: ASETUS.efekti, efektit: ASETUS.efektit, furnit: ASETUS.furnit, ruudut: null }];
 
 let seuraavaId = -930001;
@@ -41,11 +43,22 @@ tila.rajayta = (x, y, z, furni = 'fx_explosion', kesto = 1500) => {
   const id = seuraavaId--, L = new V(x, y, z), D = new V(0), ms = tila.kesto || kesto;
   if (!e.addFurnitureFloorByTypeName(r, id, furni, L, D, 0, data('0'), NaN, -1, 0, -1, '', true, false)) return false;
   const alku = performance.now();
-  const piilo = tila.piilotaPohja ? setInterval(() => { const o = e.getRoomObject(r, id, 10); if (!o) return; for (const s of o.visualization.sprites) if (/_a_\d+_\d+$/.test(s.name)) s.visible = false; }, 16) : null;
+  // kp 27.10. 19:07 + 19:09 "etten nähny räjähdyst" · "äske vaa telesin": lokin mukaan räjähdys piirrettiin, joten mitataan näkyikö
+  //   animaatio oikeasti: nakyi = suurin määrä näkyviä animaatiospritejä (ei pohjaa) kerralla. 0 = näkymätön räjähdys.
+  //   Piilotetussa välilehdessä visualisointi ei päivity, joten siellä 0 ei kerro mitään.
+  let nakyi = 0, uusinnat = 0, viimUusinta = 0;
+  const piilo = setInterval(() => { const o = e.getRoomObject(r, id, 10); if (!o || !o.visualization) return; let n = 0;
+    for (const s of o.visualization.sprites) { if (/_a_\d+_\d+$/.test(s.name)) { if (tila.piilotaPohja) s.visible = false; }
+      else if (s.visible && s.alpha > 0 && s.texture && s.texture.width > 1) n++; }
+    if (n > nakyi) nakyi = n;
+    // Arvaus, ei mitattu syy: tila 1 voi kadota myös spritejen jo olemassa ollessa (grafiikka vielä latautumatta). Jos animaatiota ei
+    //   näy 150 ms tilan asettamisen jälkeen, tila 1 lähetetään uudelleen (enintään 4 kertaa). uusinnat lokiin, jotta näkyy auttoiko.
+    const nyt = performance.now(); if (!nakyi && asetettu && nyt - viimUusinta > 150 && uusinnat < 4 && nyt - alku < ms - 300) {
+      viimUusinta = nyt; uusinnat++; e.updateRoomObjectFloor(r, id, L, D, 1, data('1')); } }, 16);
   // tila 1 (animaatio) katosi jos se tuli ennen kuin visualisointi oli valmis -> vain pohja näkyi (kp 2/5). Odotetaan spritejä.
-  let yrit = 0; const kaynnista = setInterval(() => { const o = e.getRoomObject(r, id, 10); yrit++;
-    if ((o && o.visualization && o.visualization.sprites && o.visualization.sprites.length) || yrit > 30) { clearInterval(kaynnista); e.updateRoomObjectFloor(r, id, L, D, 1, data('1')); } }, 30);
-  setTimeout(() => { clearInterval(piilo); e.removeRoomObjectFloor(r, id); tila.loki.push({ piirretty: true, x, y, ms: Math.round(performance.now() - alku) }); }, ms);
+  let yrit = 0, asetettu = false; const kaynnista = setInterval(() => { const o = e.getRoomObject(r, id, 10); yrit++;
+    if ((o && o.visualization && o.visualization.sprites && o.visualization.sprites.length) || yrit > 30) { clearInterval(kaynnista); e.updateRoomObjectFloor(r, id, L, D, 1, data('1')); asetettu = true; viimUusinta = performance.now(); } }, 30);
+  setTimeout(() => { clearInterval(piilo); clearInterval(kaynnista); e.removeRoomObjectFloor(r, id); tila.loki.push({ piirretty: true, x, y, ms: Math.round(performance.now() - alku), nakyi, uusinnat }); }, ms);
   return true;
 };
 
