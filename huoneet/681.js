@@ -62,22 +62,28 @@ tila.lenna = (oid, x, y, z) => {
   const V = o.getLocation().constructor, fig = o.model.getValue('figure'); if (!fig) return false;
   const rnd = arpa((oid * 73856093) ^ (Math.round(x) * 19349663) ^ (Math.round(y) * 83492791) ^ Math.floor(Date.now() / 5000));
   const arvo = rnd(), makaa = tila.muunnelma ? tila.muunnelma === 'makaa' : arvo < 0.5, kulma = rnd() * Math.PI * 2, matka = 0.5 + rnd() * 1.0, h = 2.5 + rnd() * 2.5;
-  const kierrokset = (1 + Math.floor(rnd() * 3)) * (rnd() < 0.5 ? -1 : 1), ms = 900 + Math.floor(rnd() * 600), alkuSuunta = Math.floor(rnd() * 8);
-  const kieriminen = 2 + Math.floor(rnd() * 3);   // makuu piirtyy vain kahteen suuntaan, 8 suunnan pyöritys välkkyi -> kieritään 90/180 välillä (kp 12:42)
+  const kierrokset = (1 + Math.floor(rnd() * 3)) * (rnd() < 0.5 ? -1 : 1), ms = 900 + Math.floor(rnd() * 600);
   const dx = Math.cos(kulma) * matka, dy = Math.sin(kulma) * matka;
+  // Makuu piirtyy vain kahteen suuntaan: clientin AvatarImage.appendAction(lay) pakottaa suunnan 0 -> 4 ja KAIKKI muut -> 2
+  //   (Nitro_Render_V3 avatar/AvatarImage.ts:482). Vanha 90/180-kieritys oli siksi aina 2 = jalat oikealle (kp 27.10. 17:39).
+  //   Puoli lennon suunnasta ruudulla (ruudun x ~ x - y): vasemmalle lentävä makaa jalat vasemmalle, ei vaihdeta kesken (8 suunnan pyöritys välkkyi, kp 12:42).
+  const makuuSuunta = (dx - dy) < 0 ? 0 : 90, alkuSuunta = makaa ? makuuSuunta / 45 : Math.floor(rnd() * 8);
   const g = haamuId--, z0 = z || 0, alku = performance.now();
   if (!e.addRoomObjectUser(r, g, new V(x, y, z0), new V(alkuSuunta * 45), alkuSuunta * 45, 1, fig)) return false;
   const f = { args: null }, talteen = new Map(); lentavat.set(oid, f);
   const asento = () => { try { const ho = e.getRoomObject(r, g, 100); if (makaa && ho && ho.model.getValue('figure_posture') !== 'lay') e.updateRoomObjectUserPosture(r, g, 'lay', ''); } catch (x) {} };
   asento(); piilota(o, talteen);
   const ajo = setInterval(() => {
-    const t = Math.min(1, (performance.now() - alku) / ms), suunta = makaa ? (Math.floor(t * kieriminen) % 2 ? 180 : 90) : (((alkuSuunta + Math.floor(t * 8 * Math.abs(kierrokset)) * Math.sign(kierrokset)) % 8) + 8) % 8 * 45;
+    const t = Math.min(1, (performance.now() - alku) / ms), suunta = makaa ? makuuSuunta : (((alkuSuunta + Math.floor(t * 8 * Math.abs(kierrokset)) * Math.sign(kierrokset)) % 8) + 8) % 8 * 45;
     try { e.updateRoomObjectUserLocation(r, g, new V(x + t * dx, y + t * dy, z0 + 4 * h * t * (1 - t)), null, false, 0, new V(suunta), suunta, true, false, 30); } catch (x) {}
     asento(); piilota(e.getRoomObject(r, oid, 100) || o, talteen);
     if (t >= 1) { clearInterval(ajo); try { e.removeRoomObjectUser(r, g); } catch (x) {}
       for (const [s, v] of talteen) { s.alpha = v.a; s.visible = v.v; if (s.increaseUpdateCounter) s.increaseUpdateCounter(); }
+      // Pidätetty päivitys on yleensä miinan oma teleport takaisin: hyppy miinaruudusta > 1,5 s räjähdyksen jälkeen laukaisi
+      //   __liike-tunnistuksen toiseen kertaan (simulaatio 27.10.: kaksi lentoa yhdestä miinasta). Laskeutuminen nollaa ajan.
+      viimeksi.set(oid, Date.now());
       lentavat.delete(oid); if (f.args) try { e.updateRoomObjectUserLocation.apply(e, f.args); } catch (x) {}
-      tila.loki.push({ lensi: oid, x, y, makaa, kulma: Math.round(kulma * 57.3), pidatetty: !!f.args }); }
+      tila.loki.push({ lensi: oid, x, y, makaa, puoli: makaa ? (makuuSuunta ? 'oikea' : 'vasen') : null, kulma: Math.round(kulma * 57.3), pidatetty: !!f.args }); }
   }, 30);
   return true;
 };
@@ -115,7 +121,32 @@ tila.__liike = (rid, oid, loc, tgt, kesto) => {
 // Säännöllä "efekti": N laukaisu on PALVELIMEN oma hetki: wired antaa hahmolle efektin N (teleport = 4) kun se rekisteröi astumisen,
 //   ja hahmon kohderuutu on silloin miinaruutu. kp 23:58 "teleport efekti tulee ennen teleporttia, siitä voisit tunnistaa".
 //   Efekti tulee juuri ennen samassa nipussa olevaa liikepäivitystä (kohde = miinaruutu) -> arvioidaan 60 ms myöhemmin.
-tila.__efekti = (rid, oid, fx) => { setTimeout(() => tila.__efektiNyt(rid, oid, fx), 60); };
+tila.__efekti = (rid, oid, fx) => { if (toisto) return; setTimeout(() => tila.__efektiNyt(rid, oid, fx), 60); };
+
+// Teleport-efekti näkyi hahmossa ennen räjähdystä ja paljasti miinan (kp 27.10. 17:37 "teleportti effect spoilaa ku tulee ennen
+//   räjähdyst · viivytä sitä"). Efektin 4 päivitys pidätetään (ulompi koukku __efektiPidata) kunnes miina on tunnistettu (60 ms).
+//   Jos miina laukesi: pidätys jatkuu räjähdykseen + efektiViive, ja lennon aikana kunnes hahmo laskeutuu, joten efekti näkyy vasta
+//   laskeutumispaikassa. Saman hahmon muut efektipäivitykset (esim. efektin poisto) jonoon ja ajetaan järjestyksessä, ettei efekti jää päälle.
+tila.efektiViive = 200;
+const pidatetyt = new Map();   // oid -> { jono: [args], jatko, ajastin, alku }
+let toisto = false;
+const vapauta = (oid, pakota) => {
+  const p = pidatetyt.get(oid); if (!p) return; clearTimeout(p.ajastin);
+  if (!pakota && lentavat.has(oid) && Date.now() - p.alku < 5000) { p.ajastin = setTimeout(() => vapauta(oid), 50); return; }
+  pidatetyt.delete(oid);
+  const e = window.NitroDevTools && window.NitroDevTools.roomEngine; if (!e) return;
+  toisto = true; try { for (const a of p.jono) try { p.jatko.apply(e, a); } catch (x) {} } finally { toisto = false; }
+  tila.loki.push({ efekti: 'vapautettu', u: oid, n: p.jono.length, ms: Date.now() - p.alku });
+};
+tila.__efektiPidata = (rid, oid, args, jatko) => {
+  if (toisto || rid !== huone || oid < 0) return false;
+  const p = pidatetyt.get(oid); if (p) { p.jono.push(Array.prototype.slice.call(args)); return true; }
+  if (args[2] !== ASETUS.efekti) return false;
+  pidatetyt.set(oid, { jono: [Array.prototype.slice.call(args)], jatko, alku: Date.now(), ajastin: setTimeout(() => vapauta(oid), 120) });
+  tila.__efekti(rid, oid, args[2]);   // tunnistus nyt: sisempi koukku näkee tämän vasta vapautuksessa
+  return true;
+};
+const pidennaEfekti = (oid, ms) => { const p = pidatetyt.get(oid); if (!p) return; clearTimeout(p.ajastin); p.ajastin = setTimeout(() => vapauta(oid), ms); };
 tila.__efektiNyt = (rid, oid, fx) => {
   if (rid !== huone || !saannot.length) return;
   const p = paikka.get(oid) || {};
@@ -127,6 +158,7 @@ tila.__efektiNyt = (rid, oid, fx) => {
       const viive = tulossa && p.loc && (Math.round(p.loc.x) !== x || Math.round(p.loc.y) !== y) ? 500 : 0;
       tila.loki.push({ u: oid, x, y, tapa: 'efekti' + fx, viive });
       setTimeout(() => { tila.rajayta(x, y, P.z, s.furni, s.kesto); tila.lenna(oid, x, y, P.z); }, viive);
+      pidennaEfekti(oid, viive + tila.efektiViive);
       return;
     }
     tila.loki.push({ u: oid, efekti: fx, ohi: true, loc: p.loc && [Math.round(p.loc.x), Math.round(p.loc.y)], tgt: p.tgt && [Math.round(p.tgt.x), Math.round(p.tgt.y)] });
@@ -153,6 +185,8 @@ const ajastin = setInterval(() => {
   //   tyhjiä ja seuraava ajo ottaa ne taas käyttöön. Samat liput kuin 0.4.x-moottorilla, joten sen jo asentamia ei asenneta toiseen kertaan.
   if (!e.__miinaEfektiKoukku) { const orig = e.updateRoomObjectUserEffect; e.__miinaEfektiKoukku = true;
     e.updateRoomObjectUserEffect = function (rid, oid, fx) { try { const k = window.miina && window.miina.__efekti; if (k) k(rid, oid, fx); } catch (x) {} return orig.apply(this, arguments); }; }
+  if (!e.__miinaEfektiKoukku2) { const ed = e.updateRoomObjectUserEffect; e.__miinaEfektiKoukku2 = true;   // efektin pidätys (ulompi kerros)
+    e.updateRoomObjectUserEffect = function (rid, oid) { try { const k = window.miina && window.miina.__efektiPidata; if (k && k(rid, oid, arguments, ed)) return true; } catch (x) {} return ed.apply(this, arguments); }; }
   if (!e.__miinaKoukku) { const orig = e.updateRoomObjectUserLocation; e.__miinaKoukku = true;
     e.updateRoomObjectUserLocation = function (rid, oid, loc, tgt) { try { const k = window.miina && window.miina.__liike; if (k) k(rid, oid, loc, tgt, arguments[10]); } catch (x) {} return orig.apply(this, arguments); }; }
   if (!e.__miinaKoukku2) { const ed = e.updateRoomObjectUserLocation; e.__miinaKoukku2 = true;   // lennon ajan pidätys (ulompi kerros)
@@ -162,5 +196,6 @@ const ajastin = setInterval(() => {
 // Pysäytys: moottori kutsuu tätä kun huoneesta lähdetään tai tämä tiedosto muuttuu. Kesken olevat räjähdykset ja lennot päättyvät itse.
 return () => {
   clearInterval(ajastin); clearTimeout(esilataus); lentavat.clear();
+  for (const oid of [...pidatetyt.keys()]) vapauta(oid, true);   // pidätetyt efektit perille, ettei kenenkään efekti jää puuttumaan
   if (window.miina === tila) delete window.miina;
 };
