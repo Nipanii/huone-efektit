@@ -236,6 +236,39 @@ if (ks) try {
 } catch (x) { tila.loki.push({ jako: 'virhe', viesti: String(x) }); }
 else tila.loki.push({ jako: 'ei kanavaa', syy: 'window.kuplaScripts puuttuu (vanha client?)' });
 
+// Läpäisyilmoitus kaikille (kp 19:28:12 "läpäsi ilmoitus kaikille vois toimii", 19:30:56 "vasta ku saa ton laatikon auki"):
+//   maalipinon 1,11 wired kuiskaa arkun avaajalle (WiredEffectWhisper, kupla 34: "Klik! Arkun lukko aukeaa…", 2 s päästä
+//   "Pääsit radan 2 läpi, onnea!"). Vain avaajan client saa kuiskauksen; se kuulee sen clientin omalta tapahtumaväylältä
+//   (roomEngine.events, RSCE_CHAT_EVENT) ja lähettää kanavaan h681.lapi. Jokainen tilaaja näyttää bannerin 4 s.
+const LAPI = 'h681.lapi';
+const MAALI = /Arkun lukko aukeaa|Pääsit radan \d+ läpi/;
+let viimLapi = 0;
+const banneri = teksti => {
+  const d = document.createElement('div'); d.textContent = teksti;
+  d.style.cssText = 'position:fixed;left:50%;top:18%;transform:translate(-50%,0);z-index:99999;pointer-events:none;font:bold 26px sans-serif;' +
+    'color:#fff;text-shadow:0 0 4px #000,0 0 4px #000,2px 2px 0 #000;white-space:nowrap;transition:opacity .6s';
+  document.body.appendChild(d); const l = { d, ajo: 0 }; nakyvatLaput.add(l);
+  setTimeout(() => { d.style.opacity = '0'; }, 4000); setTimeout(() => { d.remove(); nakyvatLaput.delete(l); }, 4700);
+};
+const vayla = window.NitroDevTools && window.NitroDevTools.roomEngine && window.NitroDevTools.roomEngine.events;
+const kuuleMaali = ev => { try {
+  if (!ev || ev.chatType !== 1 || ev.objectId !== omaIndeksi() || !MAALI.test(String(ev.message || ''))) return;
+  const nyt = Date.now(); if (nyt - viimLapi < 10000) return; viimLapi = nyt;
+  tila.loki.push({ lapi: 'oma', viesti: String(ev.message).slice(0, 40) });
+  if (!ks) { banneri('Selvisit läpi!'); return; }
+  ks.send(LAPI, JSON.stringify({ u: ev.objectId, t: nyt }));
+} catch (x) { tila.loki.push({ lapi: 'virhe', viesti: String(x) }); } };
+if (vayla && vayla.addEventListener) { vayla.addEventListener('RSCE_CHAT_EVENT', kuuleMaali); jakoPois.push(() => vayla.removeEventListener('RSCE_CHAT_EVENT', kuuleMaali)); }
+else tila.loki.push({ lapi: 'ei väylää', syy: 'roomEngine.events puuttuu' });
+if (ks) try {
+  ks.subscribe(LAPI);
+  jakoPois.push(ks.on('message', m => {
+    if (!m || m.topic !== LAPI) return; let d; try { d = JSON.parse(m.data); } catch (x) { return; }
+    tila.loki.push({ lapi: 'saatu', kenelta: m.senderName, viive: Date.now() - Number(d && d.t) });
+    banneri('☠ ' + m.senderName + ' selvisi läpi! ☠');
+  }));
+} catch (x) { tila.loki.push({ lapi: 'virhe', viesti: String(x) }); }
+
 // Naapurin lento (kp 18:56:55 "res ei lennä ku mä räjähdän", 18:38 pienemmällä voimalla): JOKAINEN clientti lennättää kaikki
 //   naapuriSade-säteellä olevat hahmot heti, poispäin räjähdyksestä, matka ja korkeus x naapuriVoima. Naapurin tele (wired) tulee
 //   lennon aikana ja pidätetään lenna():n omalla __jaa-pidätyksellä, joten hahmo siirtyy pelastuspaikkaan vasta laskeuduttuaan.
@@ -370,7 +403,7 @@ const ajastin = setInterval(() => {
 return () => {
   clearInterval(ajastin); clearTimeout(esilataus); lentavat.clear();
   for (const off of jakoPois) try { off(); } catch (x) {}
-  if (ks) try { ks.unsubscribe(AIHE); } catch (x) {}
+  if (ks) try { ks.unsubscribe(AIHE); ks.unsubscribe(LAPI); } catch (x) {}
   for (const l of nakyvatLaput) { cancelAnimationFrame(l.ajo); l.d.remove(); } nakyvatLaput.clear();
   for (const oid of [...varatut.keys()]) purraVaraus(oid);
   for (const oid of [...pidatetyt.keys()]) vapauta(oid, true);   // pidätetyt efektit perille, ettei kenenkään efekti jää puuttumaan
