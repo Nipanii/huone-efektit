@@ -5,7 +5,7 @@
 // Muokkaus: muuta tätä tiedostoa ja pushaa mainiin. Huoneessa olevat clientit hakevat muuttuneen version noin 15 s välein
 // (+ Pagesin julkaisuviive ~1 min). Versiota EI tarvitse nostaa, eikä moottoriin tarvitse koskea.
 // Miinanurmet: lisää tai poista furni-id ASETUS.furnit-listasta. Taikapinolla päällekkäin laitetut nurmet toimivat (ruudut yhdistetään).
-// Konsolissa (testaus): miina.loki · miina.lennata = false · miina.muunnelma = 'makaa' | 'pyori' · miina.kesto = 1200
+// Konsolissa (testaus): miina.loki · miina.lennata = false · miina.muunnelma = 'makaa' | 'pyori' | 'istu' · miina.lepo = 700 · miina.kesto = 1200
 const ASETUS = {
   furni: 'fx_explosion',   // räjähdyksen furni-luokka (sen oma animaatio piirretään)
   kesto: 1500,             // ms
@@ -20,7 +20,7 @@ const ASETUS = {
 const e0 = window.NitroDevTools && window.NitroDevTools.roomEngine;
 const huone = (kupla && kupla.roomId && kupla.roomId()) || (e0 && e0.activeRoomId);
 // versio-kenttä: vanha 0.4.x-moottori ottaa window.miinan haltuunsa jos siltä puuttuu versio. Moottori 0.5 pysäyttää 0.4.x:n, tämä on varmistus.
-const tila = window.miina = { versio: 'huone-681', huone, lennata: true, muunnelma: null, kesto: null, vali: 1500, piilotaPohja: true, loki: [] };
+const tila = window.miina = { versio: 'huone-681', huone, lennata: true, muunnelma: null, kesto: null, vali: 1500, lepo: 700, piilotaPohja: true, loki: [] };
 const saannot = tila.saannot = [{ furni: ASETUS.furni, kesto: ASETUS.kesto, efekti: ASETUS.efekti, furnit: ASETUS.furnit, ruudut: null }];
 
 let seuraavaId = -930001;
@@ -61,29 +61,46 @@ tila.lenna = (oid, x, y, z) => {
   const r = e.activeRoomId, o = e.getRoomObject(r, oid, 100); if (!o) return false;
   const V = o.getLocation().constructor, fig = o.model.getValue('figure'); if (!fig) return false;
   const rnd = arpa((oid * 73856093) ^ (Math.round(x) * 19349663) ^ (Math.round(y) * 83492791) ^ Math.floor(Date.now() / 5000));
-  const arvo = rnd(), makaa = tila.muunnelma ? tila.muunnelma === 'makaa' : arvo < 0.5, kulma = rnd() * Math.PI * 2, matka = 0.5 + rnd() * 1.0, h = 2.5 + rnd() * 2.5;
-  const kierrokset = (1 + Math.floor(rnd() * 3)) * (rnd() < 0.5 ? -1 : 1), ms = 900 + Math.floor(rnd() * 600);
+  // Kolme muunnelmaa (kp 27.10. 18:08:58 "istumis version, et lentää istuma asennos"): seiso-pyöri / makaa / istu, kukin 1/3.
+  const arvo = rnd(), laji = tila.muunnelma || (arvo < 1 / 3 ? 'makaa' : arvo < 2 / 3 ? 'istu' : 'pyori'), makaa = laji === 'makaa', istu = laji === 'istu';
+  // kp 18:12 "jos hahmo vois lentää ylipäätää kauemmaks räjähdyspisteestä, ei vaa korkeemmalle": matka 1,5-3,5 ruutua (ennen 0,5-1,5), korkeus ennallaan.
+  const kulma = rnd() * Math.PI * 2, matka = 1.5 + rnd() * 2.0, h = 2.5 + rnd() * 2.5;
+  // kp 18:08 "keskiverto spinnin määrä vois olla vähemmän" + "molemmat voi olla tosi hitaita välil, iso rng factor":
+  //   kierroksia 0,1-2,0, painotettu hitaaseen (rnd^2 -> keskiarvo ~0,73). Ennen 1-3 (ka 2).
+  const kierrokset = (0.1 + 1.9 * Math.pow(rnd(), 2)) * (rnd() < 0.5 ? -1 : 1), ms = 900 + Math.floor(rnd() * 600);
   const dx = Math.cos(kulma) * matka, dy = Math.sin(kulma) * matka;
   // Makuu piirtyy vain kahteen suuntaan: clientin AvatarImage.appendAction(lay) pakottaa suunnan 0 -> 4 ja KAIKKI muut -> 2
   //   (Nitro_Render_V3 avatar/AvatarImage.ts:482). Vanha 90/180-kieritys oli siksi aina 2 = jalat oikealle (kp 27.10. 17:39).
-  //   Puoli lennon suunnasta ruudulla (ruudun x ~ x - y): vasemmalle lentävä makaa jalat vasemmalle, ei vaihdeta kesken (8 suunnan pyöritys välkkyi, kp 12:42).
-  const makuuSuunta = (dx - dy) < 0 ? 0 : 90, alkuSuunta = makaa ? makuuSuunta / 45 : Math.floor(rnd() * 8);
+  //   Puoli lennon suunnasta ruudulla (ruudun x ~ x - y): vasemmalle lentävä makaa jalat vasemmalle.
+  //   kp 18:08 "spinnii myös lay versiossa": makuussa pyöritys = puolen vaihto tasaisesti, päättyy aina lentosuunnan puolelle.
+  //   Istuma piirtyy siististi vain parillisiin suuntiin -> istuen pyöritään 2 suunnan askelin.
+  const makuuSuunta = (dx - dy) < 0 ? 0 : 90, puolikkaat = Math.max(1, Math.round(2 * Math.abs(kierrokset))), alkuSuunta = makaa ? makuuSuunta / 45 : istu ? 2 * Math.floor(rnd() * 4) : Math.floor(rnd() * 8);
+  const suuntaHetkella = t => makaa ? (((puolikkaat - Math.min(puolikkaat, Math.floor(t * (puolikkaat + 1)))) % 2) ? 90 - makuuSuunta : makuuSuunta)
+    : istu ? (((alkuSuunta + 2 * Math.floor(t * 4 * Math.abs(kierrokset)) * Math.sign(kierrokset)) % 8) + 8) % 8 * 45
+    : (((alkuSuunta + Math.floor(t * 8 * Math.abs(kierrokset)) * Math.sign(kierrokset)) % 8) + 8) % 8 * 45;
   const g = haamuId--, z0 = z || 0, alku = performance.now();
   if (!e.addRoomObjectUser(r, g, new V(x, y, z0), new V(alkuSuunta * 45), alkuSuunta * 45, 1, fig)) return false;
   const f = { args: null }, talteen = new Map(); lentavat.set(oid, f);
-  const asento = () => { try { const ho = e.getRoomObject(r, g, 100); if (makaa && ho && ho.model.getValue('figure_posture') !== 'lay') e.updateRoomObjectUserPosture(r, g, 'lay', ''); } catch (x) {} };
+  let maassa = 0, lepoSuunta = 0;
+  const asento = () => { try { const ho = e.getRoomObject(r, g, 100), haluttu = (makaa || maassa) ? 'lay' : istu ? 'sit' : null;
+    if (haluttu && ho && ho.model.getValue('figure_posture') !== haluttu) e.updateRoomObjectUserPosture(r, g, haluttu, ''); } catch (x) {} };
   asento(); piilota(o, talteen);
   const ajo = setInterval(() => {
-    const t = Math.min(1, (performance.now() - alku) / ms), suunta = makaa ? makuuSuunta : (((alkuSuunta + Math.floor(t * 8 * Math.abs(kierrokset)) * Math.sign(kierrokset)) % 8) + 8) % 8 * 45;
-    try { e.updateRoomObjectUserLocation(r, g, new V(x + t * dx, y + t * dy, z0 + 4 * h * t * (1 - t)), null, false, 0, new V(suunta), suunta, true, false, 30); } catch (x) {}
+    const nyt = performance.now(), t = Math.min(1, (nyt - alku) / ms);
+    // kp 18:10 "lame et hahmo katoo kokonaan kun tippuu maahan · voisko se ihan lyhyen aikaa makaa maassa siin mihin laskeutuu ·
+    //   ottaa huomioon miten päin hahmo oli kun osuu maahan": laskeutuessa haamu jää makaamaan (miina.lepo ms), puoli viimeisestä suunnasta.
+    if (t >= 1 && !maassa) { maassa = nyt; const d = suuntaHetkella(1); lepoSuunta = makaa ? d : ((d / 45 + 1) % 8 < 4 ? 90 : 0);
+      try { e.updateRoomObjectUserLocation(r, g, new V(x + dx, y + dy, z0), null, false, 0, new V(lepoSuunta), lepoSuunta, true, false, 30); } catch (x) {} }
+    if (!maassa) { const suunta = suuntaHetkella(t);
+      try { e.updateRoomObjectUserLocation(r, g, new V(x + t * dx, y + t * dy, z0 + 4 * h * t * (1 - t)), null, false, 0, new V(suunta), suunta, true, false, 30); } catch (x) {} }
     asento(); piilota(e.getRoomObject(r, oid, 100) || o, talteen);
-    if (t >= 1) { clearInterval(ajo); try { e.removeRoomObjectUser(r, g); } catch (x) {}
+    if (maassa && nyt - maassa >= tila.lepo) { clearInterval(ajo); try { e.removeRoomObjectUser(r, g); } catch (x) {}
       for (const [s, v] of talteen) { s.alpha = v.a; s.visible = v.v; if (s.increaseUpdateCounter) s.increaseUpdateCounter(); }
       // Pidätetty päivitys on yleensä miinan oma teleport takaisin: hyppy miinaruudusta > 1,5 s räjähdyksen jälkeen laukaisi
       //   __liike-tunnistuksen toiseen kertaan (simulaatio 27.10.: kaksi lentoa yhdestä miinasta). Laskeutuminen nollaa ajan.
       viimeksi.set(oid, Date.now());
       lentavat.delete(oid); if (f.args) try { e.updateRoomObjectUserLocation.apply(e, f.args); } catch (x) {}
-      tila.loki.push({ lensi: oid, x, y, makaa, puoli: makaa ? (makuuSuunta ? 'oikea' : 'vasen') : null, kulma: Math.round(kulma * 57.3), pidatetty: !!f.args }); }
+      tila.loki.push({ lensi: oid, x, y, laji, kierrokset: Math.round(kierrokset * 100) / 100, lepoPuoli: lepoSuunta ? 'oikea' : 'vasen', kulma: Math.round(kulma * 57.3), pidatetty: !!f.args }); }
   }, 30);
   return true;
 };
