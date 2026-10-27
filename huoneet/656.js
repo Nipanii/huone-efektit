@@ -106,8 +106,18 @@ tila.aja = (ohi = 0) => { if (!e0 || !V || (ajo && ajo.kaynnissa)) return false;
 
 // Ajastettu käynnistys ilman tööt-sanaa (kp 28.10. 00:15:25 yv "ei, pistä päälle ilman tööt"): kaikki clientit alkavat samasta kellonajasta
 //   ALKAA (epoch ms). Myöhässä latautuva client liittyy kesken ajon oikeaan kohtaan; ajon jälkeen latautuva ei aja mitään.
-const ALKAA = 1793143050000;   // 28.10. 01:17:30 (kp 01:15 "laita takas")
-const ajastus = setTimeout(() => tila.aja(Math.max(0, Date.now() - ALKAA)), Math.max(0, ALKAA - Date.now()));
+// Linjalaukaisu (kp 28.10. 01:18:43 "tee sillai et ku on x pelaajaa linjal nii auto tulee"): kun tienauhalla (x 15-40, y KAISTA)
+//   seisoo vähintään LINJALLA hahmoa, auto lähtee. Jokainen client näkee samat palvelimen sijainnit, joten ajot alkavat lähes yhtä aikaa.
+//   JAAHY ajon jälkeen ettei auto lähde heti uudestaan kaatuneiden päälle. LINJALLA = 3 on valittu luku, kp voi pyytää muun.
+const LINJALLA = 3, JAAHY = 20000;
+let viimeksi = 0;
+const ajastus = setInterval(() => { try {
+  if (tila.ajossa || (ajo && ajo.kaynnissa) || kaatuneet.size || Date.now() - viimeksi < JAAHY) return;
+  let n = 0; for (const o of e0.getRoomObjects(huone, 100) || []) { if (o.id < 0 || !o.model || !o.model.getValue('figure')) continue;
+    const L = o.getLocation(); if (L.x >= 15 && L.x <= 40 && L.y >= KAISTA[0] && L.y <= KAISTA[1]) n++; }
+  tila.linjalla = n;
+  if (n >= LINJALLA && tila.aja()) { viimeksi = Date.now(); tila.loki.push({ ajo: 'linja', n, t: new Date().toTimeString().slice(0, 8) }); }
+} catch (x) {} }, 500);
 
 const vayla = e0 && e0.events;
 const kuule = ev => { try { if (!ev || ev.chatType == null || !SANA.test(String(ev.message || '').trim())) return;
@@ -116,7 +126,7 @@ const kuule = ev => { try { if (!ev || ev.chatType == null || !SANA.test(String(
 if (vayla && vayla.addEventListener) vayla.addEventListener('RSCE_CHAT_EVENT', kuule);
 
 return () => {
-  clearTimeout(ajastus);
+  clearInterval(ajastus);
   if (vayla && vayla.removeEventListener) vayla.removeEventListener('RSCE_CHAT_EVENT', kuule);
   if (kehys) { cancelAnimationFrame(kehys); clearTimeout(kehys); }
   try { const a = autoAlku && e0.getRoomObject(huone, AUTO, 10); if (a) e0.updateRoomObjectFloor(huone, AUTO, new V(autoAlku.x, autoAlku.y, autoAlku.z), new V(autoAlku.d), a.getState(0), null); } catch (x) {}
