@@ -219,6 +219,7 @@ const kuuleMaali = ev => { try {
   const nyt = Date.now(); if (nyt - (viimLapi.get(m[1]) || 0) < 10000) return; viimLapi.set(m[1], nyt);
   tila.loki.push({ lapi: 'saatu', kuka: m[1], t: new Date().toTimeString().slice(0, 8) });
   banneri('☠ ' + m[1] + ' selvisi läpi! ☠');
+  arkkuLapaisy(m[1]);
 } catch (x) { tila.loki.push({ lapi: 'virhe', viesti: String(x) }); } };
 if (vayla && vayla.addEventListener) { vayla.addEventListener('RSCE_CHAT_EVENT', kuuleMaali); jakoPois.push(() => vayla.removeEventListener('RSCE_CHAT_EVENT', kuuleMaali)); }
 else tila.loki.push({ lapi: 'ei väylää', syy: 'roomEngine.events puuttuu' });
@@ -353,6 +354,45 @@ const ajastin = setInterval(() => {
     e.updateRoomObjectUserLocation = function (rid, oid) { try { const k = window.miina && window.miina.__jaa; if (k && k(rid, oid, arguments)) return true; } catch (x) {} return ed.apply(this, arguments); }; }
 }, 50);
 
+// Arkku auki läpäisseelle (kp 27.10. 23:35:01 "saisko nii et ku pääsee läpi nii toi chest näkyy auki olevana", 23:35:13 "jos on var 2").
+//   Arkku 435843 (army_c15_locker): tila 0 = auki, 1 = kiinni (kaluste-kuva + gw 27.10.). Muutos vain tämän pelaajan clientissä.
+//   Oma ratoja_tehty (room:442708) luetaan Wired Menun tarkastuksella: 7012 [1 = käyttäjä, oma huoneindeksi] -> 7111 (Habbo-Daybreak
+//   WiredMenuMessageEvent.inspect). Lukuoikeus: huoneen 681 read-maski 15 sisältää EVERYONE-bitin (WiredMenuSettings.java:21), joten
+//   jokainen pelaaja saa lukea omansa. Vastaus siepataan yhteyden handleMessages-kutsusta eikä sitä näytetä Wired Menu -ikkunalle.
+//   Ehto >= 2: radan 2 läpäisy nostaa arvon kahteen; isompi arvo = myöhempi rata, joten arkku pysyy auki.
+const ARKKU = 435843, ARKKU_AUKI = 0, RATA_MUUTTUJA = 'room:442708', RATA_RAJA = 2;
+tila.arkku = { arvo: null, auki: false, kysytty: 0 };
+let arkkuOdottaa = 0, arkkuYhteys = null, arkkuOma = null, arkkuAlkup = null, arkkuEnnen = null;
+const arkkuPakota = () => { try {
+  if (!tila.arkku.auki || !e0) return; const o = e0.getRoomObject(huone, ARKKU, 10); if (!o || !o.getState) return;
+  const s = o.getState(0); if (s === ARKKU_AUKI) return; if (arkkuEnnen == null) arkkuEnnen = s;
+  e0.updateRoomObjectFloor(huone, ARKKU, o.getLocation(), o.getDirection(), ARKKU_AUKI, null);
+} catch (x) { tila.loki.push({ arkku: 'virhe', viesti: String(x) }); } };
+const arkkuKoukku = () => {
+  const c = yhteys(); if (!c || typeof c.handleMessages !== 'function') return null; if (arkkuYhteys === c) return c;
+  const alkup = c.handleMessages;
+  const oma = function (...viestit) { try { if (arkkuOdottaa && Date.now() - arkkuOdottaa < 5000) {
+    const i = omaIndeksi();
+    viestit = viestit.filter(v => { const p = v && v.parser;
+      if (!p || p.type !== 1 || p.objectId !== i || !Array.isArray(p.values) || !Array.isArray(p.wiredIds)) return true;
+      arkkuOdottaa = 0; const r = p.values.find(x => x && x.id === RATA_MUUTTUJA); const arvo = r ? r.value : 0;
+      tila.arkku.arvo = arvo; tila.arkku.auki = arvo >= RATA_RAJA; tila.loki.push({ arkku: 'luettu', arvo, auki: tila.arkku.auki });
+      arkkuPakota(); return false; });
+    if (!viestit.length) return; } } catch (x) { tila.loki.push({ arkku: 'virhe', viesti: String(x) }); }
+    return alkup.apply(this, viestit); };
+  c.handleMessages = oma; arkkuYhteys = c; arkkuOma = oma; arkkuAlkup = alkup; return c;
+};
+const arkkuKysy = () => { try {
+  const c = arkkuKoukku(), i = omaIndeksi(); if (!c || i == null || typeof c.sendRawPacket !== 'function') return false;
+  arkkuOdottaa = Date.now(); tila.arkku.kysytty++; c.sendRawPacket(7012, [1, i], 'miina681'); return true;
+} catch (x) { tila.loki.push({ arkku: 'virhe', viesti: String(x) }); return false; } };
+const arkkuLapaisy = nimi => { const sdm = e0 && e0._sessionDataManager, o = String((sdm && sdm._name) || '').toLowerCase();
+  if (o && String(nimi).toLowerCase() === o) setTimeout(arkkuKysy, 1500); };
+tila.arkkuKysy = arkkuKysy;
+let arkkuYrit = 0;
+const arkkuAloitus = setInterval(() => { if (arkkuKysy() || ++arkkuYrit > 30) clearInterval(arkkuAloitus); }, 1000);
+const arkkuAjastin = setInterval(arkkuPakota, 500);
+
 // Wiredit näkyvät vain kurkkupomolle, sonalle ja Resille (kp 27.10. 21:02 "täs huonees vaa minä sona ja res nähää wiredit",
 //   21:03 "jos teen :hidewireds et ne tulee näkyviin nii ne ei saa paljastua muille"). Palvelimen :hidewired on kaikki tai ei mitään
 //   (Habbo-Daybreak HideWiredCommand.java), joten muilla laatikot piilotetaan tässä clientissä: alpha 0 + klikkaus läpi
@@ -380,6 +420,9 @@ try {
 
 // Pysäytys: moottori kutsuu tätä kun huoneesta lähdetään tai tämä tiedosto muuttuu. Kesken olevat räjähdykset ja lennot päättyvät itse.
 return () => {
+  clearInterval(arkkuAloitus); clearInterval(arkkuAjastin);
+  try { if (arkkuYhteys && arkkuYhteys.handleMessages === arkkuOma) { if (arkkuAlkup === Object.getPrototypeOf(arkkuYhteys).handleMessages) delete arkkuYhteys.handleMessages; else arkkuYhteys.handleMessages = arkkuAlkup; } } catch (x) {}
+  try { const o = arkkuEnnen != null && e0 && e0.getRoomObject(huone, ARKKU, 10); if (o) e0.updateRoomObjectFloor(huone, ARKKU, o.getLocation(), o.getDirection(), arkkuEnnen, null); } catch (x) {}
   clearInterval(wiredAjastin);
   for (const o of wiredPiilossa) try { o.model.setValue('furniture_alpha_multiplier', 1); o.model.setValue('furniture_wired_click_through', 0); } catch (x) {}
   clearInterval(ajastin); clearTimeout(esilataus); lentavat.clear();
