@@ -88,8 +88,9 @@ tila.lenna = (oid, x, y, z) => {
   // 18:30 Res "takas se kaari · matala kaari pois" -> huippu taas 2,5-5. kp "lento takas lyhyemmäks": voiman vaikutus matkaan puolitettu (max x2, 1,5-7 ruutua).
   // kp 18:08 "keskiverto spinnin määrä vois olla vähemmän" + "molemmat voi olla tosi hitaita välil, iso rng factor":
   //   kierroksia 0,1-2,0, painotettu hitaaseen (rnd^2 -> keskiarvo ~0,73). Ennen 1-3 (ka 2).
-  const kierrokset = (0.4 + 1.6 * Math.pow(rnd(), 2)) * (rnd() < 0.5 ? -1 : 1), ms = Math.round((600 + rnd() * 500) * (1 + 0.18 * (voima - 1)));
+  const kierrokset = (0.3 + 0.9 * Math.pow(rnd(), 2)) * (rnd() < 0.5 ? -1 : 1), ms = Math.round((600 + rnd() * 500) * (1 + 0.18 * (voima - 1)));
   // Res 18:32 "pyöriminen vois olla vähemmän rare": pyöriminen 60 % (ennen 50 %), kierroksia 0,4-2 (ennen 0,1-2).
+  //   kp 18:33 "tai vähemmän pyörimistä overall": useammin mutta vähemmän, 0,3-1,2 kierrosta.
   // kp 18:32 "välil on oudon pitkää kyl ilmas · jos se ois nopeempi": ilmassa 0,6-1,5 s (ennen 0,5-2,7), voima pidentää enää vähän.
   // kp 18:21 "lensin seinän sisää · teehän siihen collision, tehtii shootterii ettei voi ampuu seinien läpi": lentorata käydään 0,1 ruudun
   //   askelin. Este = kartan ulkopuoli, seinä/tyhjä (seinägeometrian korkeus > 1,5 lähtökorkeuden yli) tai yli 2 korkea kaluste. Ensimmäinen
