@@ -76,7 +76,8 @@ const arpa = (s) => () => { s = (s + 0x6D2B79F5) | 0; let t = Math.imul(s ^ (s >
 const piilota = (o, talteen) => { const sp = (o && o.visualization && o.visualization.sprites) || [];
   for (const s of sp) { if (!talteen.has(s)) talteen.set(s, { a: s.alpha }); if (s.alpha !== 0) { s.alpha = 0; if (s.increaseUpdateCounter) s.increaseUpdateCounter(); } } };
 const palauta = (o, talteen) => { for (const [s, v] of talteen) { s.alpha = v.a > 0 ? v.a : 255; if (s.increaseUpdateCounter) s.increaseUpdateCounter(); } };
-tila.lenna = (oid, x, y, z) => {
+// opts (naapurin lento, kp 18:56 "res ei lennä ku mä räjähdän"): kulma = suunta ruudukossa (rad), kerroin = matkan ja korkeuden kerroin.
+tila.lenna = (oid, x, y, z, opts) => {
   const e = window.NitroDevTools && window.NitroDevTools.roomEngine; if (!tila.lennata || !e || oid == null || oid < 0 || lentavat.has(oid)) return false;
   const r = e.activeRoomId, o = e.getRoomObject(r, oid, 100); if (!o) return false;
   const V = o.getLocation().constructor, fig = o.model.getValue('figure'); if (!fig) return false;
@@ -89,7 +90,12 @@ tila.lenna = (oid, x, y, z) => {
   //   kp 18:13 "lennon voimakkuuteen variaatiota, välil mega lento välil normaalimpi": voima 1-3 painotettu pieneen (rnd^3: ~70 % alle 1,7,
   //   ~10 % yli 2,5). kp 18:20 "minimi korkeutta matalemmalle et vois melkee lentää maata pitkin": kaaren huippu 0,3-5 (ennen 2,5-5). Matka = (1,5-3,5) x voima, korkeus kasvaa vähän (x 0,8-1,3) ja kesto (x 0,6-1,4).
   const voima = 1 + 2 * Math.pow(rnd(), 3), kulma = (() => { const k = rnd(), puoli = k < 0.5 ? 0 : Math.PI;   // Res 18:29 "vitun outo kun lensi suoraa kameraa päi": kameran akseli (+x+y) ±30° pois
-    return Math.PI / 4 + puoli + (Math.PI / 6) + ((k % 0.5) * 2) * (Math.PI * 2 / 3); })(), matka = (1.5 + rnd() * 2.0) * (1 + 0.5 * (voima - 1)), h = (2.5 + rnd() * 4.0) * (0.8 + 0.25 * (voima - 1));
+    const oma = Math.PI / 4 + puoli + (Math.PI / 6) + ((k % 0.5) * 2) * (Math.PI * 2 / 3); if (!(opts && isFinite(opts.kulma))) return oma;
+    // Naapuri: poispäin räjähdyksestä ±15°, mutta sama kameran akselin rajaus (±30° akselista siirretään rajalle).
+    let a = opts.kulma + (k - 0.5) * (Math.PI / 6), d = ((a - Math.PI / 4) % Math.PI + Math.PI) % Math.PI;
+    if (d < Math.PI / 6) a += Math.PI / 6 - d; else if (d > Math.PI * 5 / 6) a -= d - Math.PI * 5 / 6; return a; })(),
+    kerroin = (opts && opts.kerroin > 0) ? opts.kerroin : 1,
+    matka = (1.5 + rnd() * 2.0) * (1 + 0.5 * (voima - 1)) * kerroin, h = (2.5 + rnd() * 4.0) * (0.8 + 0.25 * (voima - 1)) * kerroin;
   // 18:30 Res "takas se kaari · matala kaari pois" -> huippu taas 2,5-5. kp "lento takas lyhyemmäks": voiman vaikutus matkaan puolitettu (max x2, 1,5-7 ruutua).
   // kp 18:08 "keskiverto spinnin määrä vois olla vähemmän" + "molemmat voi olla tosi hitaita välil, iso rng factor":
   //   kierroksia 0,1-2,0, painotettu hitaaseen (rnd^2 -> keskiarvo ~0,73). Ennen 1-3 (ka 2).
@@ -164,8 +170,18 @@ const yhteys = () => {
     for (const k of Object.getOwnPropertyNames(o)) { const de = Object.getOwnPropertyDescriptor(o, k); if (de && !de.get && de.value && typeof de.value === 'object') etsi(de.value, d + 1); } };
   etsi(dv(e, '_roomSessionManager'), 0); return c;
 };
+// Naapurin lento (kp 18:56:55 "res ei lennä ku mä räjähdän", 18:38 pienemmällä voimalla): JOKAINEN clientti lennättää kaikki
+//   naapuriSade-säteellä olevat hahmot heti, poispäin räjähdyksestä, matka ja korkeus x naapuriVoima. Naapurin tele (wired) tulee
+//   lennon aikana ja pidätetään lenna():n omalla __jaa-pidätyksellä, joten hahmo siirtyy pelastuspaikkaan vasta laskeuduttuaan.
+tila.naapuriVoima = 0.6;
 tila.naapurit = (x, y, laukaisija) => {
-  const e = window.NitroDevTools && window.NitroDevTools.roomEngine; if (!e || !(tila.naapuriSade > 0) || !tila.naapuriKlikki) return false;
+  const e = window.NitroDevTools && window.NitroDevTools.roomEngine; if (!e || !(tila.naapuriSade > 0)) return false;
+  if (tila.naapuriVoima > 0) for (const u of e.getRoomObjects(huone, 100) || []) {
+    const id = u.id, L = u.getLocation && u.getLocation(); if (id == null || id < 0 || id === laukaisija || !L || u.type !== 'user') continue;
+    const d = Math.hypot(L.x - x, L.y - y); if (d > tila.naapuriSade) continue;
+    const ok = tila.lenna(id, L.x, L.y, L.z, { kulma: d > 0.01 ? Math.atan2(L.y - y, L.x - x) : undefined, kerroin: tila.naapuriVoima });
+    tila.loki.push({ naapuriLento: id, ok, etai: Math.round(d * 10) / 10 }); }
+  if (!tila.naapuriKlikki) return false;
   const sm = Object.getOwnPropertyDescriptor(e, '_roomSessionManager'); const s = sm && sm.value && sm.value.getSession && sm.value.getSession(huone);
   const oma = s && s.ownRoomIndex; if (oma == null || oma < 0 || oma === laukaisija) return false;
   const o = e.getRoomObject(huone, oma, 100); const L = o && o.getLocation && o.getLocation(); if (!L) return false;
