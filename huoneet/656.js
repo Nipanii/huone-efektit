@@ -26,6 +26,7 @@ const fdata = (st) => ({ flags: 0, uniqueNumber: 0, uniqueSeries: 0, rarityLevel
 const veriLatakko = (x, y, z) => { try { const id = veriId--;
   if (!e0.addFurnitureFloorByTypeName(huone, id, VERI, new V(Math.round(x), Math.round(y), z || 0), new V(Math.floor(Math.random() * 4) * 90), 0, fdata('0'), NaN, -1, 0, -1, '', true, false)) return;
   veret.add(id); setTimeout(() => { try { e0.removeRoomObjectFloor(huone, id); } catch (x) {} veret.delete(id); }, VERI_MS); } catch (x) { tila.loki.push({ veri: String(x) }); } };
+const veriLatakot = (x, y, z) => { veriLatakko(x, y, z); for (let i = 0; i < 3; i++) veriLatakko(x + (Math.random() * 2 - 1), y + (Math.random() * 2 - 1), z); };   // Shorp 01:25:39 "enemmän verta"
 const kaatuneet = new Map();   // oid -> { g, x, y, z, maassa, loppuu, talteen, ohi }
 let ajo = null, autoAlku = null, omaAlhaalla = false, lahetysYhteys = null, lahetysOma = null, lahetysAlkup = null;
 
@@ -75,7 +76,7 @@ const paivitaKaatuneet = (nyt) => {
       const suunta = ((Math.round(t * 8 * f.kierr) % 8) + 8) % 8 * 45;
       k.x = f.x0 + t * f.dx; k.y = f.y0 + t * f.dy; k.z = f.z0 + 4 * f.h * t * (1 - t);
       e0.updateRoomObjectUserLocation(huone, k.g, new V(k.x, k.y, k.z), null, false, 0, new V(suunta), suunta, true, false, 16);
-      if (t >= 1) { k.z = f.z0; k.maassa = nyt; k.loppuu = nyt + LEPO; veriLatakko(k.x, k.y, k.z);
+      if (t >= 1) { k.z = f.z0; k.maassa = nyt; k.loppuu = nyt + LEPO; veriLatakot(k.x, k.y, k.z);
         e0.updateRoomObjectUserLocation(huone, k.g, new V(k.x, k.y, k.z), null, false, 0, new V(f.lepoSuunta), f.lepoSuunta, true, false, 30); } }
     const ho = e0.getRoomObject(huone, k.g, 100);
     if (k.maassa && ho && ho.model.getValue('figure_posture') !== 'lay') e0.updateRoomObjectUserPosture(huone, k.g, 'lay', '');
