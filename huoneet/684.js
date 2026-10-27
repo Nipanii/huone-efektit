@@ -1,36 +1,50 @@
-// Huone 684 (Halloween rata 5/6): pimeys + simuloitu dimmeri. Huone on musta ja oman hahmon ympärillä näkyy pieni valopiiri
-// (kp 27.10. 20:04:59 "huone on tosi pimee ja näkee vaan pienen alueen ympärillä"). Valokäsiesine (lamppu, kynttilä, soihtu)
-// kasvattaa piiriä. Dimmeri (kp 20:11:28 "simuloitu dimmeri") = värisävy koko huoneen päällä, kuten huoneen tunnelmavalo.
-// Vain tässä clientissä: jokainen näkee oman valonsa, muiden pelaajien valot eivät valaise sinulle.
-// Rakentajille (kp 20:11:28 "komento joka poistaa nää efektit buildausta varten"): chatissa ":efektit pois" / ":efektit päälle"
-//   (pelkkä ":efektit" vaihtaa). Komento ei lähde palvelimelle eikä näy muille, ja valinta muistetaan tässä selaimessa.
+// Huone 684 (Halloween rata 5/6): pimeys, valosimulaatio ja simuloitu dimmeri.
+// kp 27.10. 20:04:59 "huone on tosi pimee ja näkee vaan pienen alueen ympärillä" · 20:13:42 "advanced context aware light sim"
+// · 20:28:23 "lyhty vois antaa enemmän valoo menosuuntaa" · 20:28:37 "huonekalut vois vaik blockaa" · 20:28:39 "ja seinät".
+// Valo lasketaan säteinä ruutukartalla: jokainen säde kulkee valosta ulospäin kunnes osuu ruutuun jonka pinta on vähintään
+// estoKorkeus valon jalkojen yläpuolella (seinät, kaapit, pöydät, korkeampi lattia). Osuman kohdalla seinän etupinta valaistaan.
+//   käsiesine            valo
+//   ei mitään            pieni piiri, juuri ja juuri näkee itsensä
+//   kynttilä             pieni piiri joka varjostuu
+//   öljylamppu           piiri + keila menosuuntaan (hahmon suunta)
+//   soihtu               iso piiri
+// Kontekstitietoinen: myös muiden pelaajien käsivalot ja huoneen päällä olevat lamput (tila > 0) valaisevat.
+// Dimmeri (kp 20:11:28 "simuloitu dimmeri") = värisävy koko huoneen päällä. Vain tässä clientissä, ei paketteja palvelimelle.
+// Rakentajille (kp 20:11:28): chatissa ":efektit pois" / ":efektit päälle" (pelkkä ":efektit" vaihtaa); ei lähde palvelimelle,
+//   valinta muistetaan tässä selaimessa.
 // Moottori ajaa tämän new Function('kupla', koodi)(api) ja kutsuu palautettua funktiota kun huoneesta lähdetään.
-// Konsolissa (testaus): pimeys.sade = 90 · pimeys.lamppuSade = 170 · pimeys.tummuus = 0.97 · pimeys.dimmeri = { vari: '#2a1050', voima: 0.35 }
-//   · pimeys.paalla(false) · pimeys.loki
-const KASIVALOT = { 1058: 'Öljylamppu', 1027: 'Kynttilä', 1113: 'LED-kynttilä', 1031: 'Soihtu' };
+// Konsolissa (testaus): pimeys.tummuus = 0.97 · pimeys.estoKorkeus = 1 · pimeys.valot[1058].keila = 7 · pimeys.resoluutio = 3
+//   · pimeys.dimmeri = { vari: '#2a1050', voima: 0.35 } · pimeys.paalla(false) · pimeys.loki · pimeys.mitta (ms/ruutu)
 const MUISTI = 'h684.efektit';
 
 const e = window.NitroDevTools && window.NitroDevTools.roomEngine;
 const huone = (kupla && kupla.roomId && kupla.roomId()) || (e && e.activeRoomId);
-const tila = window.pimeys = { versio: 'huone-684', huone, sade: 90, lamppuSade: 170, tummuus: 0.97,
-  dimmeri: { vari: '#2a1050', voima: 0.35 }, loki: [] };
-tila.loki.push = function () { const t = new Date().toTimeString().slice(0, 8); for (const o of arguments) if (o && typeof o === 'object' && !o.t) o.t = t; return Array.prototype.push.apply(this, arguments); };
+const tila = window.pimeys = { versio: 'huone-684 valosim', huone, tummuus: 0.97, estoKorkeus: 1, seinaKorkeus: 2.4, askel: 0.1,
+  sateet: 220, resoluutio: 3, ilmanValoa: 1.3,
+  // ymparys = piirin säde ruutuina, keila = keilan pituus ruutuina, kulma = keilan puolikulma asteina, liekki = lämmin sävy + lepatus
+  valot: { 1058: { nimi: 'Öljylamppu', ymparys: 1.8, keila: 7.5, kulma: 30, liekki: 1 }, 1027: { nimi: 'Kynttilä', ymparys: 2.4, liekki: 1 },
+    1113: { nimi: 'LED-kynttilä', ymparys: 2.4 }, 1031: { nimi: 'Soihtu', ymparys: 3.8, liekki: 1 } },
+  lamppu: { ymparys: 3.2, liekki: 1 }, lamppuKuvio: /lamp|light|vela|candle|torch|lantern/i,
+  dimmeri: { vari: '#2a1050', voima: 0.35 }, loki: [], mitta: 0 };
+tila.loki.push = function () { const t = new Date().toTimeString().slice(0, 8); for (const o of arguments) if (o && typeof o === 'object' && !o.t) o.t = t;
+  if (this.length > 200) this.splice(0, this.length - 200); return Array.prototype.push.apply(this, arguments); };
 
 const omaIndeksi = () => {
   const sm = e && Object.getOwnPropertyDescriptor(e, '_roomSessionManager'); const s = sm && sm.value && sm.value.getSession && sm.value.getSession(huone);
   const i = s && s.ownRoomIndex; return (i == null || i < 0) ? null : i;
 };
-const kanvas = () => [...document.querySelectorAll('canvas')].sort((a, b) => b.width * b.height - a.width * a.height)[0];
-// Käsiesine hahmon mallista (RoomObjectVariable.FIGURE_CARRY_OBJECT).
+const kanvas = () => [...document.querySelectorAll('canvas')].filter(c => c !== verho).sort((a, b) => b.width * b.height - a.width * a.height)[0];
 const kadessa = o => { try { return Number(o.model.getValue('figure_carry_object')) || 0; } catch (x) { return 0; } };
 
-const kerros = () => { const d = document.createElement('div');
-  d.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:100vh;pointer-events:none;z-index:1'; return d; };
-const savy = kerros(), verho = kerros();   // savy = dimmerin värisävy, verho = pimeys valopiirin ympärillä
+const savy = document.createElement('div');   // dimmerin värisävy
+savy.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:100vh;pointer-events:none;z-index:1';
+const verho = document.createElement('canvas');   // pimeys, josta valot leikataan; pieni resoluutio venytetään = pehmeät reunat
+verho.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:100vh;pointer-events:none;z-index:1';
+const cx = verho.getContext('2d');
 let liitetty = null;
 const liita = cv => {
   if (!cv || liitetty === cv) return;
-  // Kanvaksen perään samaan vanhempaan: kerrokset peittävät huoneen mutta jäävät chatin ja valikoiden alle (ne tulevat myöhemmin DOMissa).
+  // Kanvaksen perään samaan vanhempaan: kerrokset peittävät huoneen mutta jäävät chatin ja valikoiden alle.
   cv.parentNode.insertBefore(verho, cv.nextSibling); cv.parentNode.insertBefore(savy, verho); liitetty = cv;
 };
 
@@ -60,28 +74,90 @@ const kuuleKomento = ev => {
 };
 addEventListener('keydown', kuuleKomento, true);
 
-let sade = tila.sade, raf = 0, viimeVali = null;
+// Ruutukartta: korkein pinta per ruutu = max(kalustepino, lattia). Päivitetään puolen sekunnin välein (kalusteet liikkuvat).
+let kartta = null, kartanAika = 0;
+const rakennaKartta = () => {
+  const hm = e.getFurnitureStackingHeightMap(huone), wg = e.getLegacyWallGeometry(huone); if (!hm || !wg) return null;
+  const W = hm.width, H = hm.height, pinta = new Float32Array(W * H), lattiaa = new Uint8Array(W * H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = y * W + x;
+    lattiaa[i] = wg.isRoomTile(x, y) ? 1 : 0; pinta[i] = Math.max(hm.getTileHeight(x, y), wg.getHeight(x, y)); }
+  return { W, H, pinta, lattiaa };
+};
+const estaa = (x, y, z) => { const k = kartta, tx = Math.round(x), ty = Math.round(y);
+  if (tx < 0 || ty < 0 || tx >= k.W || ty >= k.H) return true; const i = ty * k.W + tx;
+  return !k.lattiaa[i] || k.pinta[i] - z >= tila.estoKorkeus; };
+
+// Säteet valosta kulmaväliltä a0..a1. Osuessa jatketaan vähän esteen sisään, jotta sen lähin reuna valaistuu.
+const sateile = (l, a0, a1, n, r) => { const pts = [];
+  for (let i = 0; i <= n; i++) { const a = a0 + (a1 - a0) * i / n, dx = Math.cos(a), dy = Math.sin(a); let d = 0.3, osui = false;
+    for (; d < r; d += tila.askel) if (estaa(l.x + dx * d, l.y + dy * d, l.z)) { osui = true; break; }
+    const dd = osui ? Math.min(r, d + 0.45) : r; pts.push({ x: l.x + dx * dd, y: l.y + dy * dd, osui }); }
+  return pts; };
+
+let g = null, rc = null, rr = null;
+const ruudulle = (x, y, z) => { const p = g.getScreenPoint({ x, y, z }); if (!p) return null; const R = tila.resoluutio;
+  return { x: (p.x * rc.scale + rc.width / 2 + rc.screenOffsetX + rr.left) / R, y: (p.y * rc.scale + rc.height / 2 + rc.screenOffsetY + rr.top) / R }; };
+const monikulmio = (polku, pisteet) => { const q = pisteet.filter(Boolean); if (q.length < 3) return; let A = 0;
+  for (let i = 0; i < q.length; i++) { const a = q[i], b = q[(i + 1) % q.length]; A += a.x * b.y - b.x * a.y; }
+  if (A < 0) q.reverse();   // sama kiertosuunta kaikille -> nonzero-täyttö on unioni, ei reikiä
+  polku.moveTo(q[0].x, q[0].y); for (let i = 1; i < q.length; i++) polku.lineTo(q[i].x, q[i].y); polku.closePath(); };
+
+// Yksi valonlähde: lattiaviuhka + osumakohtien seinäpinnat yhdeksi poluksi, leikataan pimeydestä säteittäisellä liukumalla.
+const valaise = (l, kulma0, kulma1, n, r, voima, lampin) => {
+  const pts = sateile(l, kulma0, kulma1, n, r), polku = new Path2D(), kesk = ruudulle(l.x, l.y, l.z); if (!kesk) return;
+  const taysi = kulma1 - kulma0 >= Math.PI * 2 - 1e-6;
+  monikulmio(polku, (taysi ? [] : [kesk]).concat(pts.map(p => ruudulle(p.x, p.y, l.z))));
+  for (let i = 0; i < pts.length - 1; i++) { const a = pts[i], b = pts[i + 1]; if (!a.osui || !b.osui) continue;
+    monikulmio(polku, [ruudulle(a.x, a.y, l.z), ruudulle(b.x, b.y, l.z), ruudulle(b.x, b.y, l.z + tila.seinaKorkeus), ruudulle(a.x, a.y, l.z + tila.seinaKorkeus)]); }
+  const reuna = ruudulle(l.x + r, l.y, l.z), sade = reuna ? Math.hypot(reuna.x - kesk.x, reuna.y - kesk.y) * 1.15 : 50;
+  const gr = cx.createRadialGradient(kesk.x, kesk.y, 0, kesk.x, kesk.y, sade);
+  gr.addColorStop(0, 'rgba(0,0,0,' + voima + ')'); gr.addColorStop(0.5, 'rgba(0,0,0,' + (voima * 0.8) + ')'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+  cx.globalCompositeOperation = 'destination-out'; cx.fillStyle = gr; cx.fill(polku);
+  if (lampin) { const lg = cx.createRadialGradient(kesk.x, kesk.y, 0, kesk.x, kesk.y, sade);
+    lg.addColorStop(0, 'rgba(255,160,60,' + (0.16 * lampin) + ')'); lg.addColorStop(1, 'rgba(255,140,40,0)');
+    cx.globalCompositeOperation = 'source-over'; cx.fillStyle = lg; cx.fill(polku); }
+};
+
+// Kaikki valot: pelaajien käsivalot (oma + muut) ja päällä olevat lamput.
+const valonlahteet = () => { const out = [], oma = omaIndeksi();
+  const n = e.getRoomObjectCount(huone, 100);
+  for (let i = 0; i < n; i++) { const o = e.getRoomObjectByIndex(huone, i, 100); if (!o || o.type === 'pet') continue;
+    const ese = kadessa(o), v = tila.valot[ese], L = o.getLocation(), oman = o.id === oma;
+    if (!v && !oman) continue;
+    out.push({ x: L.x, y: L.y, z: L.z, v: v || { ymparys: tila.ilmanValoa }, suunta: o.getDirection().x, oma: oman, ese }); }
+  const m = e.getRoomObjectCount(huone, 10);
+  for (let i = 0; i < m; i++) { const o = e.getRoomObjectByIndex(huone, i, 10);
+    if (!o || !tila.lamppuKuvio.test(o.type) || !(o.getState(0) > 0)) continue; const L = o.getLocation();
+    out.push({ x: L.x, y: L.y, z: L.z, v: tila.lamppu, lamppu: o.type }); }
+  return out; };
+
+let raf = 0, viimeVali = null;
 const piirra = () => {
   raf = requestAnimationFrame(piirra);
   if (!paalla) return;
+  const t0 = performance.now();
   try {
     const cv = kanvas(); if (!cv) return; liita(cv);
     const d = tila.dimmeri || {};
     savy.style.background = d.vari || 'transparent'; savy.style.opacity = String(Math.max(0, Math.min(1, Number(d.voima) || 0)));
-    const r = cv.getBoundingClientRect(), oma = omaIndeksi(), o = oma != null && e.getRoomObject(huone, oma, 100);
-    const p = o && e.getRoomObjectScreenLocation(huone, oma, 100);
-    const ese = o ? kadessa(o) : 0, valo = KASIVALOT[ese], tavoite = valo ? tila.lamppuSade : tila.sade;
-    sade += (tavoite - sade) * 0.08;   // piiri kasvaa ja pienenee pehmeästi kun lamppu otetaan käteen tai pois
-    if (valo !== viimeVali) { viimeVali = valo; tila.loki.push({ valo: valo || 'ei valoa', ese }); }
-    const a = tila.tummuus;
-    if (!p) { verho.style.background = 'rgba(0,0,0,' + a + ')'; return; }
-    const x = r.left + p.x, y = r.top + p.y - 45;   // hahmon keskikohta (sijainti on jalkojen kohdalla)
-    // Liekin lepatus ja lämmin hehku kun valo on kädessä.
-    const s = sade * (valo ? 1 + Math.sin(performance.now() / 120) * 0.025 + Math.sin(performance.now() / 47) * 0.015 : 1);
-    const keski = valo ? 'rgba(255,170,60,0.10)' : 'rgba(0,0,0,0)';
-    verho.style.background = 'radial-gradient(circle ' + Math.round(s) + 'px at ' + Math.round(x) + 'px ' + Math.round(y) + 'px,'
-      + keski + ' 0%,rgba(0,0,0,0) 45%,rgba(0,0,0,' + (a * 0.6).toFixed(3) + ') 75%,rgba(0,0,0,' + a + ') 100%)';
-  } catch (x) { tila.loki.push({ virhe: String(x) }); cancelAnimationFrame(raf); }
+    const R = tila.resoluutio, W = Math.ceil(innerWidth / R), H = Math.ceil(innerHeight / R);
+    if (verho.width !== W || verho.height !== H) { verho.width = W; verho.height = H; }
+    if (!kartta || t0 - kartanAika > 500) { kartta = rakennaKartta(); kartanAika = t0; }
+    const c = e._activeRoomActiveCanvas; g = e.getRoomInstanceGeometry(huone, c); rc = e.getRoomInstanceRenderingCanvas(huone, c); rr = cv.getBoundingClientRect();
+    cx.globalCompositeOperation = 'source-over'; cx.clearRect(0, 0, W, H); cx.fillStyle = 'rgba(0,0,0,' + tila.tummuus + ')'; cx.fillRect(0, 0, W, H);
+    if (!kartta || !g || !rc) return;
+    const lepatus = 1 + Math.sin(t0 / 120) * 0.03 + Math.sin(t0 / 47) * 0.02;
+    for (const l of valonlahteet()) { const v = l.v, f = v.liekki ? lepatus : 1;
+      valaise(l, 0, Math.PI * 2, tila.sateet, v.ymparys * f, 1, v.liekki ? 0.7 : 0);
+      if (v.keila) { const th = l.suunta * Math.PI / 180, kesk = Math.atan2(-Math.cos(th), Math.sin(th)), k = v.kulma * Math.PI / 180;
+        valaise(l, kesk - k, kesk + k, Math.round(tila.sateet / 4), v.keila * f, 0.95, v.liekki || 0); }
+      if (l.oma) {   // oma hahmo näkyy aina vähän: soikio vartalon kohdalle
+        const p = ruudulle(l.x, l.y, l.z + 1); if (p) { const gr = cx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 40 / R);
+          gr.addColorStop(0, 'rgba(0,0,0,0.75)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+          cx.globalCompositeOperation = 'destination-out'; cx.fillStyle = gr; cx.fillRect(p.x - 40 / R, p.y - 40 / R, 80 / R, 80 / R); }
+        const nimi = (tila.valot[l.ese] || {}).nimi; if (nimi !== viimeVali) { viimeVali = nimi; tila.loki.push({ valo: nimi || 'ei valoa', ese: l.ese }); } } }
+  } catch (x) { tila.loki.push({ virhe: String(x && x.stack || x).slice(0, 300) }); cancelAnimationFrame(raf); }
+  tila.mitta = Math.round((performance.now() - t0) * 10) / 10;
 };
 raf = requestAnimationFrame(piirra);
 tila.loki.push({ alku: huone, efektit: paalla ? 'päällä' : 'pois' });
