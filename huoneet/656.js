@@ -10,7 +10,7 @@
 //   ja jos auto ajaa uudestaan yli, lentää taas. Oma hahmo ei voi kävellä makuun aikana (UNIT_WALK 3320 jätetään lähettämättä).
 const e0 = window.NitroDevTools && window.NitroDevTools.roomEngine;
 const huone = (kupla && kupla.roomId && kupla.roomId()) || (e0 && e0.activeRoomId);
-const AUTO = 438129, LAUKAISIJAT = ['kurkkupomo'], SANA = /^t[öo]{2,}t!*$/i;
+const AUTO = 438129, LAUKAISIJAT = ['kurkkupomo', 'herra-robotti'], SANA = /^t[öo]{2,}t!*$/i;
 const REITTI = [[38, 17], [15, 16], [40, 16], [15, 16], [38, 17]];   // auton alkupaikka 38,17 -> länsipää -> itäpää -> länsipää -> takaisin
 const NOPEUS = 7, TAUKO = 600, LEPO = 4000, KAISTA = [12.5, 19.5], LEVEYS = 1.6;
 const tila = window.pila = { versio: 'huone-656', huone, ajossa: false, loki: [] };
