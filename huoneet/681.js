@@ -183,6 +183,56 @@ const yhteys = () => {
     for (const k of Object.getOwnPropertyNames(o)) { const de = Object.getOwnPropertyDescriptor(o, k); if (de && !de.get && de.value && typeof de.value === 'object') etsi(de.value, d + 1); } };
   etsi(dv(e, '_roomSessionManager'), 0); return c;
 };
+// Datajakotesti (kp 27.10. 19:12 "robo tee tähän joku pikku lisäys mil testataa true datajakoo"): kun OMA hahmo räjähtää, oma client
+//   lähettää Messenger-skriptien datakanavaan (window.kuplaScripts, aihe AIHE; palvelin 9493 -> 9498 kaikille tilaajille, myös
+//   lähettäjälle) oman räjähdyslaskurinsa. Laskuri on vain tämän koneen localStoragessa, joten muut eivät voi laskea sitä itse:
+//   jos muilla näkyy sama luku hahmon päällä, data kulki pelaajalta toiselle. Lähettäjä näkee oman lukunsa vasta kun se on käynyt
+//   palvelimella. Raja: 3 lähetystä / s / pelaaja (ScriptPolicy), räjähdyksiä tulee enintään 1 / 1,5 s per hahmo.
+const AIHE = 'h681.miina';
+const ks = window.kuplaScripts;
+tila.jako = { aihe: AIHE, kanava: !!ks, lahetetty: 0, saatu: 0 };
+const omaIndeksi = () => {
+  const e = window.NitroDevTools && window.NitroDevTools.roomEngine; if (!e) return null;
+  const sm = Object.getOwnPropertyDescriptor(e, '_roomSessionManager'); const s = sm && sm.value && sm.value.getSession && sm.value.getSession(huone);
+  const i = s && s.ownRoomIndex; return (i == null || i < 0) ? null : i;
+};
+const nakyvatLaput = new Set();
+const lappu = (u, teksti) => {
+  const e = window.NitroDevTools && window.NitroDevTools.roomEngine;
+  const cv = [...document.querySelectorAll('canvas')].sort((a, b) => b.width * b.height - a.width * a.height)[0]; if (!e || !cv) return false;
+  const d = document.createElement('div'); d.textContent = teksti;
+  d.style.cssText = 'position:fixed;z-index:99999;pointer-events:none;transform:translate(-50%,-100%);font:bold 15px sans-serif;color:#fff;' +
+    'text-shadow:0 0 3px #000,0 0 3px #000,1px 1px 0 #000;white-space:nowrap;transition:opacity .4s';
+  document.body.appendChild(d);
+  const alku = Date.now();
+  const paikka = () => { const p = e.getRoomObjectScreenLocation(huone, u, 100); if (!p) return; const r = cv.getBoundingClientRect();
+    d.style.left = (r.left + p.x) + 'px'; d.style.top = (r.top + p.y - 105 - (Date.now() - alku) / 100) + 'px'; };
+  paikka();
+  const l = { d, ajo: setInterval(() => { const ms = Date.now() - alku; paikka(); if (ms > 2600) d.style.opacity = '0';
+    if (ms > 3100) { clearInterval(l.ajo); d.remove(); nakyvatLaput.delete(l); } }, 50) };
+  nakyvatLaput.add(l); return true;
+};
+let muistiN = 0;
+tila.jaaOma = (x, y, oid) => {
+  if (!ks || oid == null || oid !== omaIndeksi()) return;
+  let n; try { n = (parseInt(localStorage.getItem('h681.rajahdykset'), 10) || 0) + 1; localStorage.setItem('h681.rajahdykset', String(n)); } catch (x) { n = ++muistiN; }
+  try { ks.send(AIHE, JSON.stringify({ n, u: oid, x, y, t: Date.now() })); tila.jako.lahetetty++; tila.loki.push({ jako: 'lahetetty', n, x, y }); }
+  catch (x) { tila.loki.push({ jako: 'virhe', viesti: String(x) }); }
+};
+const jakoPois = [];
+if (ks) try {
+  ks.subscribe(AIHE);
+  jakoPois.push(ks.on('message', m => {
+    if (!m || m.topic !== AIHE) return; let d; try { d = JSON.parse(m.data); } catch (x) { return; }
+    const n = Math.floor(Number(d && d.n)), u = Math.floor(Number(d && d.u)); if (!(n > 0) || !(u >= 0)) return;
+    tila.jako.saatu++;
+    tila.loki.push({ jako: 'saatu', kenelta: m.senderName, n, u, viive: Date.now() - Number(d.t), oma: u === omaIndeksi() });
+    lappu(u, `${m.senderName} 💥 ${n}`);
+  }));
+  jakoPois.push(ks.on('error', v => { if (v && JSON.stringify(v).includes(AIHE)) tila.loki.push({ jako: 'virhe', viesti: JSON.stringify(v).slice(0, 200) }); }));
+} catch (x) { tila.loki.push({ jako: 'virhe', viesti: String(x) }); }
+else tila.loki.push({ jako: 'ei kanavaa', syy: 'window.kuplaScripts puuttuu (vanha client?)' });
+
 // Naapurin lento (kp 18:56:55 "res ei lennä ku mä räjähdän", 18:38 pienemmällä voimalla): JOKAINEN clientti lennättää kaikki
 //   naapuriSade-säteellä olevat hahmot heti, poispäin räjähdyksestä, matka ja korkeus x naapuriVoima. Naapurin tele (wired) tulee
 //   lennon aikana ja pidätetään lenna():n omalla __jaa-pidätyksellä, joten hahmo siirtyy pelastuspaikkaan vasta laskeuduttuaan.
@@ -221,7 +271,7 @@ tila.__liike = (rid, oid, loc, tgt, kesto) => {
       let osui = false;
       for (const [x, y] of ehd) { const s = saannot.find(s => s.ruudut && s.ruudut.has(x + ',' + y)); if (!s) continue;
         viimeksi.set(oid, Date.now()); tila.loki.push({ u: oid, x, y, tapa: 'hyppy', viive: 0 });
-        tila.rajayta(x, y, ed.z || 0, s.furni, s.kesto); tila.lenna(oid, x, y, ed.z || 0); tila.naapurit(x, y, oid); osui = true; break; }
+        tila.rajayta(x, y, ed.z || 0, s.furni, s.kesto); tila.lenna(oid, x, y, ed.z || 0); tila.naapurit(x, y, oid); tila.jaaOma(x, y, oid); osui = true; break; }
       if (!osui) tila.loki.push({ u: oid, ohi: true, mista: [Math.round(ed.x), Math.round(ed.y)], kohde: ed.t, nyt: [Math.round(loc.x), Math.round(loc.y)] }); } }
   paikka.set(oid, { loc, tgt });
   for (const [P, tulossa] of [[tgt, true], [loc, false]]) {
@@ -232,7 +282,7 @@ tila.__liike = (rid, oid, loc, tgt, kesto) => {
     viimeksi.set(oid + '@' + k, nyt); viimeksi.set(oid, nyt);
     const viive = tulossa && loc && (Math.round(loc.x) !== x || Math.round(loc.y) !== y) ? (kesto > 0 ? kesto : 500) : 0;
     tila.loki.push({ u: oid, x, y, tapa: tulossa ? 'kohde' : 'sijainti', viive });
-    setTimeout(() => { tila.rajayta(x, y, P.z, s.furni, s.kesto); tila.lenna(oid, x, y, P.z); tila.naapurit(x, y, oid); }, viive);
+    setTimeout(() => { tila.rajayta(x, y, P.z, s.furni, s.kesto); tila.lenna(oid, x, y, P.z); tila.naapurit(x, y, oid); tila.jaaOma(x, y, oid); }, viive);
     return;
   }
 };
@@ -276,7 +326,7 @@ tila.__efektiNyt = (rid, oid, fx) => {
       const viive = tulossa && p.loc && (Math.round(p.loc.x) !== x || Math.round(p.loc.y) !== y) ? 500 : 0;
       tila.loki.push({ u: oid, x, y, tapa: 'efekti' + fx, viive });
       varaa(oid);
-      setTimeout(() => { tila.rajayta(x, y, P.z, s.furni, s.kesto); if (!tila.lenna(oid, x, y, P.z)) purraVaraus(oid); tila.naapurit(x, y, oid); }, viive);
+      setTimeout(() => { tila.rajayta(x, y, P.z, s.furni, s.kesto); if (!tila.lenna(oid, x, y, P.z)) purraVaraus(oid); tila.naapurit(x, y, oid); tila.jaaOma(x, y, oid); }, viive);
       pidennaEfekti(oid, viive + tila.efektiViive);
       return;
     }
@@ -316,6 +366,9 @@ const ajastin = setInterval(() => {
 // Pysäytys: moottori kutsuu tätä kun huoneesta lähdetään tai tämä tiedosto muuttuu. Kesken olevat räjähdykset ja lennot päättyvät itse.
 return () => {
   clearInterval(ajastin); clearTimeout(esilataus); lentavat.clear();
+  for (const off of jakoPois) try { off(); } catch (x) {}
+  if (ks) try { ks.unsubscribe(AIHE); } catch (x) {}
+  for (const l of nakyvatLaput) { clearInterval(l.ajo); l.d.remove(); } nakyvatLaput.clear();
   for (const oid of [...varatut.keys()]) purraVaraus(oid);
   for (const oid of [...pidatetyt.keys()]) vapauta(oid, true);   // pidätetyt efektit perille, ettei kenenkään efekti jää puuttumaan
   if (window.miina === tila) delete window.miina;
