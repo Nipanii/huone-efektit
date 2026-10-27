@@ -62,7 +62,9 @@ tila.lenna = (oid, x, y, z) => {
   const V = o.getLocation().constructor, fig = o.model.getValue('figure'); if (!fig) return false;
   const rnd = arpa((oid * 73856093) ^ (Math.round(x) * 19349663) ^ (Math.round(y) * 83492791) ^ Math.floor(Date.now() / 5000));
   // Kolme muunnelmaa (kp 27.10. 18:08:58 "istumis version, et lentää istuma asennos"): seiso-pyöri / makaa / istu, kukin 1/3.
-  const arvo = rnd(), laji = tila.muunnelma || (arvo < 1 / 3 ? 'makaa' : arvo < 2 / 3 ? 'istu' : 'pyori'), makaa = laji === 'makaa', istu = laji === 'istu';
+  //   kp 18:15 "makuuasennos lento on vähä huono. poistetaan ja jätetään se vaan siihen kun osuu maahan": arvonnassa vain istu / pyori (1/2),
+  //   makuu vain laskeutumisessa. 'makaa' toimii yhä konsolista (miina.muunnelma) vertailuun.
+  const arvo = rnd(), laji = tila.muunnelma || (arvo < 0.5 ? 'istu' : 'pyori'), makaa = laji === 'makaa', istu = laji === 'istu';
   // kp 18:12 "jos hahmo vois lentää ylipäätää kauemmaks räjähdyspisteestä, ei vaa korkeemmalle": matka 1,5-3,5 ruutua (ennen 0,5-1,5), korkeus ennallaan.
   //   kp 18:13 "lennon voimakkuuteen variaatiota, välil mega lento välil normaalimpi": voima 1-3 painotettu pieneen (rnd^3: ~70 % alle 1,7,
   //   ~10 % yli 2,5). Matka = (1,5-3,5) x voima, korkeus kasvaa vähän (x 0,8-1,3) ja kesto (x 0,6-1,4).
@@ -96,7 +98,7 @@ tila.lenna = (oid, x, y, z) => {
     if (!maassa) { const suunta = suuntaHetkella(t);
       try { e.updateRoomObjectUserLocation(r, g, new V(x + t * dx, y + t * dy, z0 + 4 * h * t * (1 - t)), null, false, 0, new V(suunta), suunta, true, false, 30); } catch (x) {} }
     asento(); piilota(e.getRoomObject(r, oid, 100) || o, talteen);
-    if (maassa && nyt - maassa >= tila.lepo) { clearInterval(ajo); try { e.removeRoomObjectUser(r, g); } catch (x) {}
+    if (maassa && nyt - maassa >= (tila.lepo || 0)) { clearInterval(ajo); try { e.removeRoomObjectUser(r, g); } catch (x) {}
       for (const [s, v] of talteen) { s.alpha = v.a; s.visible = v.v; if (s.increaseUpdateCounter) s.increaseUpdateCounter(); }
       // Pidätetty päivitys on yleensä miinan oma teleport takaisin: hyppy miinaruudusta > 1,5 s räjähdyksen jälkeen laukaisi
       //   __liike-tunnistuksen toiseen kertaan (simulaatio 27.10.: kaksi lentoa yhdestä miinasta). Laskeutuminen nollaa ajan.
