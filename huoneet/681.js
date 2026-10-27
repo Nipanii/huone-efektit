@@ -12,6 +12,9 @@ const ASETUS = {
   // Laukaisu: wired antaa hahmolle efektin 4 (teleport) kun se astuu miinalle. Natiivi nopea tele ei anna efektiä,
   // joten hyppy suoraan miinaruudusta räjäyttää myös (ks. __liike).
   efekti: 4,
+  // kp 27.10. 18:13 "teleportti efekti näkyy edellee liian aikasin": NOPEA tele antaa efektin 235, ei 4 (Habbo-Daybreak
+  //   WiredEffectTeleport.java:37-38 NORMAL 4 / FAST 235, :105 lähetys 1 tikin ennen siirtoa). Pidätys ja tunnistus kattavat molemmat.
+  efektit: [4, 235],
   furnit: [425447, 425455, 425528, 425463, 425510, 425486, 425487, 425459, 425490, 425456, 425505, 425457, 425506, 425488, 425526,
     425493, 425466, 425503, 425479, 425527, 425454, 425514, 425471, 425461, 425453, 425476, 425518, 425497, 425499, 425502, 425473,
     425452, 425515, 435482, 425470, 425483, 425512, 435377, 425513, 425448, 425462, 425519, 425511],
@@ -21,7 +24,7 @@ const e0 = window.NitroDevTools && window.NitroDevTools.roomEngine;
 const huone = (kupla && kupla.roomId && kupla.roomId()) || (e0 && e0.activeRoomId);
 // versio-kenttä: vanha 0.4.x-moottori ottaa window.miinan haltuunsa jos siltä puuttuu versio. Moottori 0.5 pysäyttää 0.4.x:n, tämä on varmistus.
 const tila = window.miina = { versio: 'huone-681', huone, lennata: true, muunnelma: null, kesto: null, vali: 1500, lepo: 700, piilotaPohja: true, loki: [] };
-const saannot = tila.saannot = [{ furni: ASETUS.furni, kesto: ASETUS.kesto, efekti: ASETUS.efekti, furnit: ASETUS.furnit, ruudut: null }];
+const saannot = tila.saannot = [{ furni: ASETUS.furni, kesto: ASETUS.kesto, efekti: ASETUS.efekti, efektit: ASETUS.efektit, furnit: ASETUS.furnit, ruudut: null }];
 
 let seuraavaId = -930001;
 const edellinen = new Map(), viimeksi = new Map(), paikka = new Map();
@@ -67,12 +70,20 @@ tila.lenna = (oid, x, y, z) => {
   const arvo = rnd(), laji = tila.muunnelma || (arvo < 0.5 ? 'istu' : 'pyori'), makaa = laji === 'makaa', istu = laji === 'istu';
   // kp 18:12 "jos hahmo vois lentää ylipäätää kauemmaks räjähdyspisteestä, ei vaa korkeemmalle": matka 1,5-3,5 ruutua (ennen 0,5-1,5), korkeus ennallaan.
   //   kp 18:13 "lennon voimakkuuteen variaatiota, välil mega lento välil normaalimpi": voima 1-3 painotettu pieneen (rnd^3: ~70 % alle 1,7,
-  //   ~10 % yli 2,5). Matka = (1,5-3,5) x voima, korkeus kasvaa vähän (x 0,8-1,3) ja kesto (x 0,6-1,4).
-  const voima = 1 + 2 * Math.pow(rnd(), 3), kulma = rnd() * Math.PI * 2, matka = (1.5 + rnd() * 2.0) * voima, h = (2.5 + rnd() * 2.5) * (0.8 + 0.25 * (voima - 1));
+  //   ~10 % yli 2,5). kp 18:20 "minimi korkeutta matalemmalle et vois melkee lentää maata pitkin": kaaren huippu 0,3-5 (ennen 2,5-5). Matka = (1,5-3,5) x voima, korkeus kasvaa vähän (x 0,8-1,3) ja kesto (x 0,6-1,4).
+  const voima = 1 + 2 * Math.pow(rnd(), 3), kulma = rnd() * Math.PI * 2, matka = (1.5 + rnd() * 2.0) * voima, h = (0.3 + rnd() * 4.7) * (0.8 + 0.25 * (voima - 1));
   // kp 18:08 "keskiverto spinnin määrä vois olla vähemmän" + "molemmat voi olla tosi hitaita välil, iso rng factor":
   //   kierroksia 0,1-2,0, painotettu hitaaseen (rnd^2 -> keskiarvo ~0,73). Ennen 1-3 (ka 2).
   const kierrokset = (0.1 + 1.9 * Math.pow(rnd(), 2)) * (rnd() < 0.5 ? -1 : 1), ms = Math.round((900 + rnd() * 600) * (0.6 + 0.4 * voima));
-  const dx = Math.cos(kulma) * matka, dy = Math.sin(kulma) * matka;
+  // kp 18:21 "lensin seinän sisää · teehän siihen collision, tehtii shootterii ettei voi ampuu seinien läpi": lentorata käydään 0,1 ruudun
+  //   askelin. Este = kartan ulkopuoli, seinä/tyhjä (seinägeometrian korkeus > 1,5 lähtökorkeuden yli) tai yli 2 korkea kaluste. Ensimmäinen
+  //   este pysäyttää lennon 0,6 ruutua ennen sitä. Laskeutumiskorkeus = kohderuudun pinnan korkeus.
+  const zA = z || 0, esto = (() => { try { const m = e.getFurnitureStackingHeightMap(r), gw = e.getLegacyWallGeometry(r);
+    return (px, py) => { const tx = Math.round(px), ty = Math.round(py); if (!m || !m.validPosition(tx, ty)) return true;
+      if (gw && gw.getHeight(tx, ty) - zA > 1.5) return true; return m.getTileHeight(tx, ty) - zA > 2; }; } catch (x) { return () => false; } })();
+  let lento = matka; for (let d = 0.1; d <= matka; d += 0.1) if (esto(x + Math.cos(kulma) * d, y + Math.sin(kulma) * d)) { lento = Math.max(0, d - 0.6); break; }
+  const dx = Math.cos(kulma) * lento, dy = Math.sin(kulma) * lento;
+  const zL = (() => { try { const m = e.getFurnitureStackingHeightMap(r), h2 = m.getTileHeight(Math.round(x + dx), Math.round(y + dy)); return isFinite(h2) && Math.abs(h2 - zA) <= 2 ? h2 : zA; } catch (x) { return zA; } })();
   // Makuu piirtyy vain kahteen suuntaan: clientin AvatarImage.appendAction(lay) pakottaa suunnan 0 -> 4 ja KAIKKI muut -> 2
   //   (Nitro_Render_V3 avatar/AvatarImage.ts:482). Vanha 90/180-kieritys oli siksi aina 2 = jalat oikealle (kp 27.10. 17:39).
   //   Puoli lennon suunnasta ruudulla (ruudun x ~ x - y): vasemmalle lentävä makaa jalat vasemmalle.
@@ -89,23 +100,27 @@ tila.lenna = (oid, x, y, z) => {
   const asento = () => { try { const ho = e.getRoomObject(r, g, 100), haluttu = (makaa || maassa) ? 'lay' : istu ? 'sit' : null;
     if (haluttu && ho && ho.model.getValue('figure_posture') !== haluttu) e.updateRoomObjectUserPosture(r, g, haluttu, ''); } catch (x) {} };
   asento(); piilota(o, talteen);
-  const ajo = setInterval(() => {
+  // kp 18:19 "vähä laginen välil toi lento": ruutu kerrallaan (requestAnimationFrame) 30 ms ajastimen sijaan; piilotetussa välilehdessä setTimeout.
+  let ohi = false; const seuraava = () => { if (!ohi) { if (document.hidden) setTimeout(askel, 30); else requestAnimationFrame(askel); } };
+  const askel = () => { if (ohi) return;
     const nyt = performance.now(), t = Math.min(1, (nyt - alku) / ms);
     // kp 18:10 "lame et hahmo katoo kokonaan kun tippuu maahan · voisko se ihan lyhyen aikaa makaa maassa siin mihin laskeutuu ·
     //   ottaa huomioon miten päin hahmo oli kun osuu maahan": laskeutuessa haamu jää makaamaan (miina.lepo ms), puoli viimeisestä suunnasta.
     if (t >= 1 && !maassa) { maassa = nyt; const d = suuntaHetkella(1); lepoSuunta = makaa ? d : ((d / 45 + 1) % 8 < 4 ? 90 : 0);
-      try { e.updateRoomObjectUserLocation(r, g, new V(x + dx, y + dy, z0), null, false, 0, new V(lepoSuunta), lepoSuunta, true, false, 30); } catch (x) {} }
+      try { e.updateRoomObjectUserLocation(r, g, new V(x + dx, y + dy, zL), null, false, 0, new V(lepoSuunta), lepoSuunta, true, false, 30); } catch (x) {} }
     if (!maassa) { const suunta = suuntaHetkella(t);
-      try { e.updateRoomObjectUserLocation(r, g, new V(x + t * dx, y + t * dy, z0 + 4 * h * t * (1 - t)), null, false, 0, new V(suunta), suunta, true, false, 30); } catch (x) {} }
+      try { e.updateRoomObjectUserLocation(r, g, new V(x + t * dx, y + t * dy, z0 + (zL - z0) * t + 4 * h * t * (1 - t)), null, false, 0, new V(suunta), suunta, true, false, 16); } catch (x) {} }
     asento(); piilota(e.getRoomObject(r, oid, 100) || o, talteen);
-    if (maassa && nyt - maassa >= (tila.lepo || 0)) { clearInterval(ajo); try { e.removeRoomObjectUser(r, g); } catch (x) {}
+    if (maassa && nyt - maassa >= (tila.lepo || 0)) { ohi = true; try { e.removeRoomObjectUser(r, g); } catch (x) {}
       for (const [s, v] of talteen) { s.alpha = v.a; s.visible = v.v; if (s.increaseUpdateCounter) s.increaseUpdateCounter(); }
       // Pidätetty päivitys on yleensä miinan oma teleport takaisin: hyppy miinaruudusta > 1,5 s räjähdyksen jälkeen laukaisi
       //   __liike-tunnistuksen toiseen kertaan (simulaatio 27.10.: kaksi lentoa yhdestä miinasta). Laskeutuminen nollaa ajan.
       viimeksi.set(oid, Date.now());
       lentavat.delete(oid); if (f.args) try { e.updateRoomObjectUserLocation.apply(e, f.args); } catch (x) {}
-      tila.loki.push({ lensi: oid, x, y, laji, voima: Math.round(voima * 100) / 100, kierrokset: Math.round(kierrokset * 100) / 100, lepoPuoli: lepoSuunta ? 'oikea' : 'vasen', kulma: Math.round(kulma * 57.3), pidatetty: !!f.args }); }
-  }, 30);
+      tila.loki.push({ lensi: oid, x, y, laji, voima: Math.round(voima * 100) / 100, matka: Math.round(lento * 10) / 10, este: lento < matka, kierrokset: Math.round(kierrokset * 100) / 100, lepoPuoli: lepoSuunta ? 'oikea' : 'vasen', kulma: Math.round(kulma * 57.3), pidatetty: !!f.args }); }
+    seuraava();
+  };
+  seuraava();
   return true;
 };
 
@@ -162,7 +177,7 @@ const vapauta = (oid, pakota) => {
 tila.__efektiPidata = (rid, oid, args, jatko) => {
   if (toisto || rid !== huone || oid < 0) return false;
   const p = pidatetyt.get(oid); if (p) { p.jono.push(Array.prototype.slice.call(args)); return true; }
-  if (args[2] !== ASETUS.efekti) return false;
+  if (!ASETUS.efektit.includes(args[2])) return false;
   pidatetyt.set(oid, { jono: [Array.prototype.slice.call(args)], jatko, alku: Date.now(), ajastin: setTimeout(() => vapauta(oid), 120) });
   tila.__efekti(rid, oid, args[2]);   // tunnistus nyt: sisempi koukku näkee tämän vasta vapautuksessa
   return true;
@@ -172,7 +187,7 @@ tila.__efektiNyt = (rid, oid, fx) => {
   if (rid !== huone || !saannot.length) return;
   const p = paikka.get(oid) || {};
   for (const s of saannot) {
-    if (s.efekti !== fx || !s.ruudut) continue;
+    if (!(s.efektit || [s.efekti]).includes(fx) || !s.ruudut) continue;
     for (const [P, tulossa] of [[p.tgt, true], [p.loc, false]]) {
       if (!P) continue; const x = Math.round(P.x), y = Math.round(P.y); if (!s.ruudut.has(x + ',' + y)) continue;
       const nyt = Date.now(); if (nyt - (viimeksi.get(oid) || 0) < tila.vali) return; viimeksi.set(oid, nyt);
