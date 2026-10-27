@@ -69,8 +69,13 @@ tila.__jaa = (rid, oid, args) => { const f = lentavat.get(oid); if (f) { f.args 
   if (!L || !uusi || Math.hypot(uusi.x - L.x, uusi.y - L.y) <= 1.5) return false;
   v.args = Array.prototype.slice.call(args); return true; };
 const arpa = (s) => () => { s = (s + 0x6D2B79F5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+// kp 27.10. 18:54 "must tulee näkymätön lennon jälkee": piilotus kirjoitti myös visible=false ja palautti tallennetun visible-arvon.
+//   Sprite joka oli käyttämätön (visible false) tallennushetkellä mutta jonka hahmo otti käyttöön lennon aikana (esim. tele-efekti)
+//   jäi palautuksessa pysyvästi näkymättömäksi, eikä client aseta visibleä uudelleen ennen kuin asu tms. muuttuu (mitattu robolla:
+//   sama asu uudelleen ei palauttanut). Nyt piilotus koskee VAIN alphaa, ja palautus antaa alphan 255 jos tallennettu oli 0.
 const piilota = (o, talteen) => { const sp = (o && o.visualization && o.visualization.sprites) || [];
-  for (const s of sp) { if (!talteen.has(s)) talteen.set(s, { a: s.alpha, v: s.visible }); if (s.alpha !== 0 || s.visible) { s.alpha = 0; s.visible = false; if (s.increaseUpdateCounter) s.increaseUpdateCounter(); } } };
+  for (const s of sp) { if (!talteen.has(s)) talteen.set(s, { a: s.alpha }); if (s.alpha !== 0) { s.alpha = 0; if (s.increaseUpdateCounter) s.increaseUpdateCounter(); } } };
+const palauta = (o, talteen) => { for (const [s, v] of talteen) { s.alpha = v.a > 0 ? v.a : 255; if (s.increaseUpdateCounter) s.increaseUpdateCounter(); } };
 tila.lenna = (oid, x, y, z) => {
   const e = window.NitroDevTools && window.NitroDevTools.roomEngine; if (!tila.lennata || !e || oid == null || oid < 0 || lentavat.has(oid)) return false;
   const r = e.activeRoomId, o = e.getRoomObject(r, oid, 100); if (!o) return false;
@@ -130,7 +135,7 @@ tila.lenna = (oid, x, y, z) => {
       try { e.updateRoomObjectUserLocation(r, g, new V(x + t * dx, y + t * dy, z0 + (zL - z0) * t + 4 * h * t * (1 - t)), null, false, 0, new V(suunta), suunta, true, false, 16); } catch (x) {} }
     asento(); piilota(e.getRoomObject(r, oid, 100) || o, talteen);
     if (maassa && nyt - maassa >= (tila.lepo || 0)) { ohi = true; try { e.removeRoomObjectUser(r, g); } catch (x) {}
-      for (const [s, v] of talteen) { s.alpha = v.a; s.visible = v.v; if (s.increaseUpdateCounter) s.increaseUpdateCounter(); }
+      palauta(e.getRoomObject(r, oid, 100) || o, talteen);
       // Pidätetty päivitys on yleensä miinan oma teleport takaisin: hyppy miinaruudusta > 1,5 s räjähdyksen jälkeen laukaisi
       //   __liike-tunnistuksen toiseen kertaan (simulaatio 27.10.: kaksi lentoa yhdestä miinasta). Laskeutuminen nollaa ajan.
       viimeksi.set(oid, Date.now());
