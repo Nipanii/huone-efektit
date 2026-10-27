@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Huone-efektit (miinarata ym.)
-// @version      0.4.12
+// @version      0.4.13
 // @match        https://kupla.cc/*
 // @grant        none
 // ==/UserScript==
@@ -12,7 +12,7 @@
   const LISTA = 'https://nipanii.github.io/huone-efektit/efektit.json';
   // 0.3.2: oikea ajastin on _ajastin, koska vanha 0.2.x pysäyttää window.miina.ajastin -kentän ajastimen latautuessaan.
   if (window.miina) { clearInterval(window.miina.ajastin); clearInterval(window.miina._ajastin); clearInterval(window.miina._paivitys); }
-  const cfg = window.miina = { versio: '0.4.12', lennata: true, muunnelma: null, kesto: null, vali: 1500, piilotaPohja: true, loki: [], lista: null };
+  const cfg = window.miina = { versio: '0.4.13', lennata: true, muunnelma: null, kesto: null, vali: 1500, piilotaPohja: true, loki: [], lista: null };
   let seuraavaId = -930001;
   const edellinen = new Map(), viimeksi = new Map(), paikka = new Map();
   let huone = null, saannot = [], haetaan = false;
@@ -146,14 +146,20 @@
     if (r !== huone) { huone = r; saannot = []; edellinen.clear(); if (r > 0) lataa(r); return; }
     if (haetaan || !saannot.length) return;
     for (const s of saannot) {
-      if (s.ruudut || s.laukaisu !== 'astu') continue;
-      const set = new Set();
+      if (s.laukaisu !== 'astu') continue;
+      // 0.4.13: F5:n jälkeen furnin koko (furniture_size_x/y) puuttuu vielä ensimmäisillä tikeillä -> luettiin 1x1 ja joukko lukittui,
+      //   joten vain 2x2-miinan kulmaruutu laukesi (kp 27.10. 16:57 "miinat ei räjähdä": moottorin joukossa 43 ruutua, oikea 172).
+      //   Lasketaan uudelleen joka tiki kunnes jokainen furni JA sen koko löytyy, sen jälkeen 5 s välein (furnia voi siirtää).
+      const nyt = Date.now(); if (s.ruudutValmis && nyt - (s.ruudutAika || 0) < 5000) continue;
+      const set = new Set(); let kaikki = true;
       // 0.4.3: furni voi olla monta ruutua (681:n nurmi 2x2) -> kaikki sen ruudut, ei vain kulmaa (kp 23:52 "joku ruutu ei laukee ikinä")
-      for (const id of s.furnit || []) { const o = e.getRoomObject(r, id, 10), L = o?.getLocation(); if (!L) continue;
-        const m = o.model, sx = Number(m?.getValue?.('furniture_size_x')) || 1, sy = Number(m?.getValue?.('furniture_size_y')) || 1;
-        const k = Math.round(o.getDirection?.()?.x || 0) % 180 === 90, w = k ? sy : sx, h = k ? sx : sy;
+      for (const id of s.furnit || []) { const o = e.getRoomObject(r, id, 10), L = o?.getLocation(); if (!L) { kaikki = false; continue; }
+        const m = o.model, sx = Number(m?.getValue?.('furniture_size_x')), sy = Number(m?.getValue?.('furniture_size_y'));
+        if (!(sx > 0) || !(sy > 0)) kaikki = false;
+        const k = Math.round(o.getDirection?.()?.x || 0) % 180 === 90, w = (k ? sy : sx) || 1, h = (k ? sx : sy) || 1;
         for (let dx = 0; dx < w; dx++) for (let dy = 0; dy < h; dy++) set.add((Math.round(L.x) + dx) + ',' + (Math.round(L.y) + dy)); }
       if (set.size) s.ruudut = set;
+      s.ruudutValmis = kaikki && set.size > 0; s.ruudutAika = nyt;
     }
     // 0.4.0: tunnistus suoraan jokaisesta sijaintipäivityksestä (kp 23:47 "tyhmä tunnistus"): 50 ms kysely ei nähnyt miinaruutua,
     //   kun palvelin lähetti askeleen miinalle ja teleportin samassa nipussa (loki: hyppy 10,16 -> 11,23 ilman miinaa).
