@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Huone-efektit (miinarata ym.)
-// @version      0.4.10
+// @version      0.4.11
 // @match        https://kupla.cc/*
 // @grant        none
 // ==/UserScript==
@@ -12,7 +12,7 @@
   const LISTA = 'https://nipanii.github.io/huone-efektit/efektit.json';
   // 0.3.2: oikea ajastin on _ajastin, koska vanha 0.2.x pysäyttää window.miina.ajastin -kentän ajastimen latautuessaan.
   if (window.miina) { clearInterval(window.miina.ajastin); clearInterval(window.miina._ajastin); clearInterval(window.miina._paivitys); }
-  const cfg = window.miina = { versio: '0.4.10', lennata: true, kesto: null, vali: 1500, piilotaPohja: true, loki: [], lista: null };
+  const cfg = window.miina = { versio: '0.4.11', lennata: true, kesto: null, vali: 1500, piilotaPohja: true, loki: [], lista: null };
   let seuraavaId = -930001;
   const edellinen = new Map(), viimeksi = new Map(), paikka = new Map();
   let huone = null, saannot = [], haetaan = false;
@@ -39,18 +39,36 @@
   // 0.4.9 (kp 27.10. 12:16 "lisää scriptiin testinä"): hahmo lentää räjähdyksessä ilmaan pyörien. Vain omassa clientissä:
   //   paikallinen kopio hahmosta (negatiivinen id) miinaruutuun, oikea hahmo piiloon jos se on vielä ruudulla. Pois: miina.lennata = false
   let haamuId = -940001;
+  // 0.4.11 (kp 12:30 "freeze hahmo telen jälkee kunnes animaatio on finished ja ei rendaa oikeeta hahmon sijaintii", Res "ei näkis itteänsä
+  //   duplicatena"): lennon ajan oikea hahmo piilossa joka ruudussa (alpha 0, shooterin sävytyksen tapaan increaseUpdateCounter) ja sen
+  //   sijaintipäivitykset pidätetään (__jaa); lopussa viimeisin päivitys ajetaan. Satunnaisuus (kp 12:29 "lay + spin", "randomiutta angles"):
+  //   kaksi muunnelmaa ja satunnainen kaari. Siemen = hahmo + ruutu + 5 s ikkuna, joten eri clientit arpovat useimmiten saman.
+  const lentavat = new Map();   // oid -> { args }
+  cfg.__jaa = (rid, oid, args) => { const f = lentavat.get(oid); if (!f) return false; f.args = Array.prototype.slice.call(args); return true; };
+  const arpa = (s) => () => { s = (s + 0x6D2B79F5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  const piilota = (o, talteen) => { const sp = (o && o.visualization && o.visualization.sprites) || [];
+    for (const s of sp) { if (!talteen.has(s)) talteen.set(s, { a: s.alpha, v: s.visible }); if (s.alpha !== 0 || s.visible) { s.alpha = 0; s.visible = false; if (s.increaseUpdateCounter) s.increaseUpdateCounter(); } } };
   cfg.lenna = (oid, x, y, z) => {
-    const e = window.NitroDevTools && window.NitroDevTools.roomEngine; if (!cfg.lennata || !e || oid == null || oid < 0) return false;
+    const e = window.NitroDevTools && window.NitroDevTools.roomEngine; if (!cfg.lennata || !e || oid == null || oid < 0 || lentavat.has(oid)) return false;
     const r = e.activeRoomId, o = e.getRoomObject(r, oid, 100); if (!o) return false;
     const V = o.getLocation().constructor, fig = o.model.getValue('figure'); if (!fig) return false;
-    const g = haamuId--, z0 = z || 0, alku = performance.now(), ms = 1100, h = 3.5;
-    if (!e.addRoomObjectUser(r, g, new V(x, y, z0), new V(90), 90, 1, fig)) return false;
-    const piilotetut = new Set(), lahella = () => { const l = o.getLocation(); return Math.hypot(l.x - x, l.y - y) < 1.1; };
+    const rnd = arpa((oid * 73856093) ^ (Math.round(x) * 19349663) ^ (Math.round(y) * 83492791) ^ Math.floor(Date.now() / 5000));
+    const makaa = rnd() < 0.5, kulma = rnd() * Math.PI * 2, matka = 0.5 + rnd() * 1.0, h = 2.5 + rnd() * 2.5;
+    const kierrokset = (1 + Math.floor(rnd() * 3)) * (rnd() < 0.5 ? -1 : 1), ms = 900 + Math.floor(rnd() * 600), alkuSuunta = Math.floor(rnd() * 8);
+    const dx = Math.cos(kulma) * matka, dy = Math.sin(kulma) * matka;
+    const g = haamuId--, z0 = z || 0, alku = performance.now();
+    if (!e.addRoomObjectUser(r, g, new V(x, y, z0), new V(alkuSuunta * 45), alkuSuunta * 45, 1, fig)) return false;
+    const f = { args: null }, talteen = new Map(); lentavat.set(oid, f);
+    const asento = () => { try { const ho = e.getRoomObject(r, g, 100); if (makaa && ho && ho.model.getValue('figure_posture') !== 'lay') e.updateRoomObjectUserPosture(r, g, 'lay', ''); } catch (x) {} };
+    asento(); piilota(o, talteen);
     const ajo = setInterval(() => {
-      const t = Math.min(1, (performance.now() - alku) / ms), suunta = (Math.floor(t * 16) % 8) * 45;
-      e.updateRoomObjectUserLocation(r, g, new V(x + t * 0.8, y - t * 0.8, z0 + 4 * h * t * (1 - t)), null, false, 0, new V(suunta), suunta, true, false, 30);
-      if (lahella() && o.visualization) for (const sp of o.visualization.sprites) if (sp.visible) { sp.visible = false; piilotetut.add(sp); }
-      if (t >= 1) { clearInterval(ajo); e.removeRoomObjectUser(r, g); for (const sp of piilotetut) sp.visible = true; cfg.loki.push({ lensi: oid, x, y }); }
+      const t = Math.min(1, (performance.now() - alku) / ms), suunta = (((alkuSuunta + Math.floor(t * 8 * Math.abs(kierrokset)) * Math.sign(kierrokset)) % 8) + 8) % 8 * 45;
+      try { e.updateRoomObjectUserLocation(r, g, new V(x + t * dx, y + t * dy, z0 + 4 * h * t * (1 - t)), null, false, 0, new V(suunta), suunta, true, false, 30); } catch (x) {}
+      asento(); piilota(e.getRoomObject(r, oid, 100) || o, talteen);
+      if (t >= 1) { clearInterval(ajo); try { e.removeRoomObjectUser(r, g); } catch (x) {}
+        for (const [s, v] of talteen) { s.alpha = v.a; s.visible = v.v; if (s.increaseUpdateCounter) s.increaseUpdateCounter(); }
+        lentavat.delete(oid); if (f.args) try { e.updateRoomObjectUserLocation.apply(e, f.args); } catch (x) {}
+        cfg.loki.push({ lensi: oid, x, y, makaa, kulma: Math.round(kulma * 57.3), pidatetty: !!f.args }); }
     }, 30);
     return true;
   };
@@ -142,6 +160,8 @@
       e.updateRoomObjectUserEffect = function (rid, oid, fx) { try { const k = window.miina && window.miina.__efekti; if (k) k(rid, oid, fx); } catch (x) {} return orig.apply(this, arguments); }; }
     if (!e.__miinaKoukku) { const orig = e.updateRoomObjectUserLocation; e.__miinaKoukku = true;
       e.updateRoomObjectUserLocation = function (rid, oid, loc, tgt) { try { const k = window.miina && window.miina.__liike; if (k) k(rid, oid, loc, tgt, arguments[10]); } catch (x) {} return orig.apply(this, arguments); }; }
+    if (!e.__miinaKoukku2) { const ed = e.updateRoomObjectUserLocation; e.__miinaKoukku2 = true;   // 0.4.11: lennon ajan pidätys (ulompi kerros)
+      e.updateRoomObjectUserLocation = function (rid, oid) { try { const k = window.miina && window.miina.__jaa; if (k && k(rid, oid, arguments)) return true; } catch (x) {} return ed.apply(this, arguments); }; }
   }, 50);
 })();
 // 0.3.4: itsepäivitys 60 s välein. Lataaja (#87) hakee vain kun huone-id vaihtuu, ja saman huoneen uudelleentulo ei vaihda sitä.
