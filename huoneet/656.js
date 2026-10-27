@@ -60,8 +60,8 @@ const lennata = (oid, sivu, liike) => {
   const L = k ? { x: k.x, y: k.y, z: k.z } : o.getLocation(), fig = o.model.getValue('figure'); if (!fig) return;
   if (!k) { const g = haamuId--; if (!e0.addRoomObjectUser(huone, g, new V(L.x, L.y, L.z), new V(90), 90, 1, fig)) return;
     k = { g, x: L.x, y: L.y, z: L.z, talteen: new Map() }; kaatuneet.set(oid, k); }
-  const r = Math.random(), matka = 1.5 + r * 2, h = 1.5 + Math.random() * 2.5, ms = 650 + Math.random() * 400;
-  const kulma = Math.atan2(sivu, liike * 0.6), x0 = k.x, y0 = k.y, z0 = k.z, osuu = esto(z0);
+  const r = Math.random(), matka = 1.5 + r * 3.5, h = 1.5 + Math.random() * 2.5, ms = 650 + Math.random() * 500;   // kp 01:32:33 "hajauta": pidempi ja hajonnut lento
+  const kulma = Math.atan2(sivu, liike * 0.6) + (Math.random() - 0.5) * 1.6, x0 = k.x, y0 = k.y, z0 = k.z, osuu = esto(z0);
   let lento = matka; for (let d = 0.1; d <= matka; d += 0.1) if (osuu(x0 + Math.cos(kulma) * d, y0 + Math.sin(kulma) * d)) { lento = Math.max(0, d - 0.6); break; }
   const dx = Math.cos(kulma) * lento, dy = Math.sin(kulma) * lento, kierr = (0.4 + Math.random() * 0.8) * (Math.random() < 0.5 ? -1 : 1);
   const lepoSuunta = (dx - dy) < 0 ? 0 : 90, alku = performance.now();
