@@ -106,7 +106,7 @@ tila.aja = (ohi = 0) => { if (!e0 || !V || (ajo && ajo.kaynnissa)) return false;
 
 // Ajastettu käynnistys ilman tööt-sanaa (kp 28.10. 00:15:25 yv "ei, pistä päälle ilman tööt"): kaikki clientit alkavat samasta kellonajasta
 //   ALKAA (epoch ms). Myöhässä latautuva client liittyy kesken ajon oikeaan kohtaan; ajon jälkeen latautuva ei aja mitään.
-const ALKAA = 1793139500000;
+const ALKAA = 1793139740000;
 const ajastus = setTimeout(() => tila.aja(Math.max(0, Date.now() - ALKAA)), Math.max(0, ALKAA - Date.now()));
 
 const vayla = e0 && e0.events;
