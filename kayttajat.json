@@ -44,6 +44,10 @@
         {
           "polku": "kayttajat/messenger/messenger-ikonit-testi.user.js",
           "globaali": "__kuplaMessengerIkonit"
+        },
+        {
+          "polku": "kayttajat/messenger/messenger-skriptit-testi.user.js",
+          "globaali": "__kuplaSkriptitTesti"
         }
       ]
     }
