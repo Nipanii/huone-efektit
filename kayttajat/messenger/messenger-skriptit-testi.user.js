@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         kupla: Skriptit-välilehti tiiviiksi riveiksi (esikatselu)
 // @namespace    kupla
-// @version      0.1.0
+// @version      0.1.1
 // @description  Messenger / Skriptit-välilehden lisäosakortit yhdeksi riviksi: nimi, kytkin, </> ja roskis. Vain CSS, chat-kortit ennallaan.
 // @match        https://kupla.cc/*
 // @grant        none
@@ -20,7 +20,7 @@
     const ROSKIS = 'url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAA0AAAANCAYAAABy6+R8AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAACxMAAAsTAQCanBgAAABJSURBVChTY2TADv5DaRDAUIMsgKwQFwCrh2kiRgMMwC0CaSKkEa6GLJvI8hMTmIkKYAah03CATRNBMMg1kRV66CGDTyNULQMDACkBCxHze4N3AAAAAElFTkSuQmCC")';
     const CSS = [
       // kortti: yksi rivi (nimi | kytkin </> roskis), muu sisältö rivin alle
-      `${P}{display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;gap:8px;padding:6px 10px}`,
+      `${P}{display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;gap:8px;padding:6px 10px;margin:3px 8px;max-width:calc(100% - 16px)}`,   // B144: .km-code-card margin 2px 0 + .km-scroll ilman sivupaddingia = reunasta reunaan (MessengerView.scss:1133, :195)
       `${P} > .km-code-head{display:contents}`,
       // nimi yhdelle riville, "Lisäosa:" pois (välilehden otsikko kertoo sen)
       `${P} > .km-code-head > .km-sys-text{order:1;flex:1 1 0;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;overflow-wrap:normal}`,
@@ -54,5 +54,5 @@
     document.head.appendChild(s);
   }
   // pois() hot-updatea varten (kp 28.10. "eikä tarvii f5"), sama muoto kuin messenger-lisaosanappi.user.js
-  window.__kuplaSkriptitTesti = { versio: '0.1.0', pois() { const s = document.getElementById('kst-tyyli'); if (s) s.remove(); delete window.__kuplaSkriptitTesti; } };
+  window.__kuplaSkriptitTesti = { versio: '0.1.1', pois() { const s = document.getElementById('kst-tyyli'); if (s) s.remove(); delete window.__kuplaSkriptitTesti; } };
 })();
