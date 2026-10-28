@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Huoneskriptit (moottori)
-// @version      0.6.3
+// @version      0.6.4
 // @match        https://kupla.cc/*
 // @grant        none
 // ==/UserScript==
@@ -18,7 +18,7 @@
 //   pysäytys kun polku poistuu listasta tai moottori pysähtyy. Moottori ei tiedä niistä mitään muuta: käyttäjälogiikka on skriptissä.
 // Konsolissa: huoneskriptit.ajossa (mitä ajetaan) · huoneskriptit.loki · huoneskriptit.paivita(true) (hae ja käynnistä uudelleen)
 (() => {
-  const hs = { versio: '0.6.3', huone: 0, ajossa: new Map(), loki: [], pysaytetty: false };   // versio: myös 0.4.x:n itsepäivitys lukee tämän
+  const hs = { versio: '0.6.4', huone: 0, ajossa: new Map(), loki: [], pysaytetty: false };   // versio: myös 0.4.x:n itsepäivitys lukee tämän
   const POHJA = 'https://nipanii.github.io/huone-efektit/';
   const uudempi = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number);
     for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); return false; };
@@ -136,7 +136,7 @@
   //   rivi ei lähde palvelimelle). Sallitut tarkistetaan käyttäjä-id:llä (_sessionDataManager._userId), ei nimellä; muille rivi menee chattiin kuten ennen.
   //   Siirto = pelin oma RoomSessionManager.createSession(huone[, salasana]), sama kuin DaybreakShell.tsx ja nitro/enter-room.js. Ei pakettia käsin.
   //   hs.hw.kuiva = true -> ei siirrä, vain palauttaa tuloksen (testi). Salasanat: hs.hw.salasanat[huone], EI kovakoodattuna (repo on julkinen).
-  const HW = hs.hw = { huoneet: { 1: 650, 2: 681, 3: 682, 4: 683, 5: 684, 6: 685 }, sallitut: [1, 281, 282, 245], salasanat: {}, kuiva: false };   // 0.6.3: kaikki 6 rataa (navigaattorihaku owner:sona 28.10.)
+  const HW = hs.hw = { huoneet: { 0: 656, 1: 650, 2: 681, 3: 682, 4: 683, 5: 684, 6: 685 }, sallitut: [1, 281, 282, 245], salasanat: {}, kuiva: false };   // 0.6.3: kaikki 6 rataa (navigaattorihaku owner:sona 28.10.) · 0.6.4: :hw0 = lobby 656 (kp 16:10:33 "lisää robo :hw0 sinne lobbyyn menoon")
   const HW_KOMENTO = /^:hw\s*(\d+)$/i, HW_KENTTA = 'input.nitro-chat-input-control';
   const dvh = (o, k) => { const d = o && Object.getOwnPropertyDescriptor(o, k); return d && !d.get ? d.value : undefined; };
   const omaId = () => { const re = window.NitroDevTools && window.NitroDevTools.roomEngine, u = dvh(dvh(re, '_sessionDataManager'), '_userId'); return u > 0 ? u : 0; };
@@ -158,7 +158,7 @@
     ev.preventDefault(); ev.stopImmediatePropagation();
     const t = hs.hwKomento(rivi); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, ''); el.dispatchEvent(new Event('input', { bubbles: true }));
     merkitse({ hw: rivi, tulos: JSON.stringify(t) });
-    hwIlmoita(t && t.ok ? 'Halloween-rata -> huone ' + t.huone : 'Halloween-rata: ' + (t && t.syy));
+    hwIlmoita(t && t.ok ? (t.huone === HW.huoneet[0] ? 'Halloween-lobby -> huone ' : 'Halloween-rata -> huone ') + t.huone : 'Halloween-rata: ' + (t && t.syy));
   };
   addEventListener('keydown', hwKuule, true);
 
