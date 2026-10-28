@@ -120,7 +120,9 @@ tila.aja = (ohi = 0) => { if (!e0 || !V || (ajo && ajo.kaynnissa)) return false;
 // Linjalaukaisu (kp 28.10. 01:18:43 "tee sillai et ku on x pelaajaa linjal nii auto tulee"): kun tienauhalla (x 15-40, y KAISTA)
 //   seisoo vähintään LINJALLA hahmoa, auto lähtee. Jokainen client näkee samat palvelimen sijainnit, joten ajot alkavat lähes yhtä aikaa.
 //   JAAHY ajon jälkeen ettei auto lähde heti uudestaan kaatuneiden päälle. LINJALLA = 3 on valittu luku, kp voi pyytää muun.
-const LINJALLA = 3, JAAHY = 15 * 60000;   // kp 01:21:18 "muutaman kerran tunnis" + 01:21:25 "EI MUUTAMAN KERRAN MINUUTIS"
+// kp 28.10. 11:03 yv "auto tulee vaan jos 5 hahmoo linjalla ja max 3 kertaa tunnissa": LINJALLA 3 -> 5, jakso 15 -> 20 min
+//   (kellojakso = enintään yksi ajo per jakso, eli enintään 3 tunnissa).
+const LINJALLA = 5, JAAHY = 20 * 60000;   // kp 01:21:18 "muutaman kerran tunnis" + 01:21:25 "EI MUUTAMAN KERRAN MINUUTIS"
 // Kellojakso (01:24): ajo kerran per JAAHY-jakso seinäkellosta, jolloin kaikki clientit lähtevät samassa jaksossa yhtä aikaa ja
 //   koodin uudelleenlataus ei nollaa jäähyä pitkäksi aikaa. Reuna-ehto poistettu: porukka seisoo tiellä koko ajan (15 hahmoa), joten tie ei tyhjene.
 // 28.10. 10:35 (kp "oon nähny sen monta kertaa jo 5 min sisään" · "huoneeseen tullessa kai tekee sen"): -1 alussa = jokainen
@@ -135,6 +137,49 @@ const ajastus = setInterval(() => { try {
   if (n >= LINJALLA && tila.aja()) { viimJakso = Math.floor(Date.now() / JAAHY); tila.loki.push({ ajo: 'linja', n, t: new Date().toTimeString().slice(0, 8) }); }
 } catch (x) {} }, 500);
 
+// Safe housen ikkunavalot (kp 28.10. 10:42 yv "jos var on 1 tai isompi niin script laittaa valoja päälle noihin ikkunoihin",
+//   10:47 "vaan ikkunalliset vaihdetaan osa versioon samasta seinästä/ikkunasta mis on valot"). Sininen kaupunkitiili
+//   (nyc_c23_buildingblue) olomuodot kaluste-kuvista 28.10.: 5 = ikkuna pimeä -> 6 = sama valo päällä, 7 = tupla-ikkuna pimeä -> 8 = valo.
+//   Muut olomuodot (seinä, ovi) ennallaan. Oma ratoja_tehty (room:439263, oletus 0, +1 per rata) luetaan Wired Menun tarkastuksella
+//   kuten 681:n arkku: 7012 [1, oma huoneindeksi] -> vastaus siepataan handleMessages-kutsusta. Muutos vain tämän pelaajan clientissä.
+//   Alkuperäiset tilat talteen: re-lab nitro/data/656-seinat-backup-2810.txt. Testi: pila.valot.pakota = true (näyttää valot arvosta riippumatta).
+//   kp 10:50 "ei ihan kaikkii valoi" + "vierekkäisiin päälle ja vierekkäisistä pois": PIMEA = ryhmät jotka jää pimeiksi
+//   (yläkerta x3-7, alakerta x9-11, sivu 1,23). Ovilla (olomuoto 4) ei ole valoversiota.
+const PIMEA = new Set([403308, 403307, 403306, 369492, 369491, 425605]);
+const IKKUNA = 'nyc_c23_buildingblue', VALO = { 5: 6, 7: 8 }, RATA_MUUTTUJA = 'room:439263', VALO_RAJA = 1;
+const valot = tila.valot = { arvo: null, paalla: false, pakota: false, kysytty: 0, alkup: new Map() };
+let valoOdottaa = 0, valoYhteys = null, valoOma = null, valoAlkup = null;
+const valoPakota = () => { try { if (!e0) return; const pois = !(valot.paalla || valot.pakota);
+  for (const o of e0.getRoomObjects(huone, 10) || []) { if (o.type !== IKKUNA || !o.getState) continue;
+    const s = o.getState(0); if (!PIMEA.has(o.id) && !valot.alkup.has(o.id) && VALO[s] != null) valot.alkup.set(o.id, s);
+    const a = valot.alkup.get(o.id); if (a == null) continue; const halu = pois ? a : VALO[a];
+    if (s !== halu) e0.updateRoomObjectFloor(huone, o.id, o.getLocation(), o.getDirection(), halu, null); }
+} catch (x) { tila.loki.push({ valot: 'virhe', viesti: String(x) }); } };
+const valoKoukku = () => {
+  const c = yhteys(); if (!c || typeof c.handleMessages !== 'function') return null; if (valoYhteys === c) return c;
+  const alkup = c.handleMessages;
+  const oma = function (...viestit) { try { if (valoOdottaa && Date.now() - valoOdottaa < 5000) {
+    const i = omaIndeksi();
+    viestit = viestit.filter(v => { const p = v && v.parser;
+      if (!p || p.type !== 1 || p.objectId !== i || !Array.isArray(p.values) || !Array.isArray(p.wiredIds)) return true;
+      valoOdottaa = 0; const r = p.values.find(x => x && x.id === RATA_MUUTTUJA); const arvo = r ? r.value : 0;
+      valot.arvo = arvo; valot.paalla = arvo >= VALO_RAJA; tila.loki.push({ valot: 'luettu', arvo, paalla: valot.paalla });
+      valoPakota(); return false; });
+    if (!viestit.length) return; } } catch (x) { tila.loki.push({ valot: 'virhe', viesti: String(x) }); }
+    return alkup.apply(this, viestit); };
+  c.handleMessages = oma; valoYhteys = c; valoOma = oma; valoAlkup = alkup; return c;
+};
+const valoKysy = () => { try {
+  const c = valoKoukku(), i = omaIndeksi(); if (!c || i == null || typeof c.sendRawPacket !== 'function') return false;
+  valoOdottaa = Date.now(); valot.kysytty++; c.sendRawPacket(7012, [1, i], 'valot656'); return true;
+} catch (x) { tila.loki.push({ valot: 'virhe', viesti: String(x) }); return false; } };
+valot.kysy = valoKysy;
+let valoYrit = 0;
+const valoAloitus = setInterval(() => { if (valoKysy() || ++valoYrit > 30) clearInterval(valoAloitus); }, 1000);
+const valoAjastin = setInterval(valoPakota, 500);
+// kp 10:53 "tarkistus vaan sisäänkirjauksessa ei riitä ... voi tulla teleportin kautta": muuttuja luetaan uudestaan 15 s välein.
+const valoKysely = setInterval(valoKysy, 15000);
+
 const vayla = e0 && e0.events;
 const kuule = ev => { try { if (!ev || ev.chatType == null || !SANA.test(String(ev.message || '').trim())) return;
   const s = sessio(), u = s && s.userDataManager && s.userDataManager.getUserDataByIndex(ev.objectId);
@@ -143,6 +188,9 @@ if (vayla && vayla.addEventListener) vayla.addEventListener('RSCE_CHAT_EVENT', k
 
 return () => {
   clearInterval(ajastus);
+  clearInterval(valoAloitus); clearInterval(valoAjastin); clearInterval(valoKysely);
+  try { if (valoYhteys && valoYhteys.handleMessages === valoOma) { if (valoAlkup === Object.getPrototypeOf(valoYhteys).handleMessages) delete valoYhteys.handleMessages; else valoYhteys.handleMessages = valoAlkup; } } catch (x) {}
+  for (const [id, s] of valot.alkup) { try { const o = e0.getRoomObject(huone, id, 10); if (o) e0.updateRoomObjectFloor(huone, id, o.getLocation(), o.getDirection(), s, null); } catch (x) {} }
   if (vayla && vayla.removeEventListener) vayla.removeEventListener('RSCE_CHAT_EVENT', kuule);
   if (kehys) { cancelAnimationFrame(kehys); clearTimeout(kehys); }
   try { const a = autoAlku && e0.getRoomObject(huone, AUTO, 10); if (a) e0.updateRoomObjectFloor(huone, AUTO, new V(autoAlku.x, autoAlku.y, autoAlku.z), new V(autoAlku.d), a.getState(0), null); } catch (x) {}
