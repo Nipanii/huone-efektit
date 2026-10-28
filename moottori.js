@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Huoneskriptit (moottori)
-// @version      0.6.7
+// @version      0.6.8
 // @match        https://kupla.cc/*
 // @grant        none
 // ==/UserScript==
@@ -28,7 +28,7 @@
 //   itsensä roomEngine.activeRoomId:stä (pelin oma, -1 kun sessio päättyy) jos huone on silti mennyt ristiin.
 // Konsolissa: huoneskriptit.ajossa (mitä ajetaan) · huoneskriptit.loki · huoneskriptit.paivita(true) (hae ja käynnistä uudelleen)
 (() => {
-  const hs = { versio: '0.6.7', huone: 0, ajossa: new Map(), loki: [], pysaytetty: false };   // versio: myös 0.4.x:n itsepäivitys lukee tämän
+  const hs = { versio: '0.6.8', huone: 0, ajossa: new Map(), loki: [], pysaytetty: false };   // versio: myös 0.4.x:n itsepäivitys lukee tämän
   const POHJA = 'https://nipanii.github.io/huone-efektit/';
   const uudempi = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number);
     for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); return false; };
@@ -206,6 +206,9 @@
   //   AvatarVisualization.updateIgnoreHiddenState laskee näkyvyyden mallista seuraavassa ruudussa.
   //   hs.oma(huone) = oma huoneindeksi myös ennen ownRoomIndexiä (käyttäjä-id tai nimi kuten clientin IsOwnRoomUser), skripteille.
   //   hs.itse = { korjattu, viimeisin, tarkista } (todennus: tarkista() ajaa yhden kierroksen heti).
+  //   TAHALLINEN PIILOTUS (0.6.8, kp 00:40 "jos toinen huone haluu piilottaa pelaajan?"): skripti joka OIKEASTI haluaa piilottaa
+  //   pelaajan itseltään (näkymättömyys tms.) kutsuu huoneskriptit.itse.salli('<syy>') ennen piilotusta ja itse.kiella() kun loppuu.
+  //   Lupa koskee vain sitä huonetta jossa se annettiin ja raukeaa itsestään huoneen vaihtuessa, ettei unohtunut lupa vuoda.
   const MYKKA = 6;   // ObjectAvatarMutedUpdateMessage IGNORED 2 | HIDDEN 4
   const omaArvo = (o, k) => { const d = o && Object.getOwnPropertyDescriptor(o, k); return d && !d.get ? d.value : undefined; };
   hs.oma = (r) => { const e = window.NitroDevTools && window.NitroDevTools.roomEngine; if (!e || !(r > 0)) return null;
@@ -216,8 +219,11 @@
     for (const o of e.getRoomObjects(r, 100) || []) { const u = o && ud.getUserDataByIndex(o.id);
       if (u && ((id > 0 && Number(u.webID) === id) || (nimi && String(u.name || '').trim().toLowerCase() === nimi))) return o.id; }
     return null; };
-  const ITSE = hs.itse = { korjattu: 0, viimeisin: null };
+  const ITSE = hs.itse = { korjattu: 0, viimeisin: null, sallittu: null };
+  ITSE.salli = (syy) => { ITSE.sallittu = { huone: hs.huone, syy: String(syy || 'ei syytä'), aika: new Date().toTimeString().slice(0, 8) }; merkitse({ itse: 'piilotus sallittu', ...ITSE.sallittu }); };
+  ITSE.kiella = () => { if (ITSE.sallittu) merkitse({ itse: 'piilotuslupa pois', huone: ITSE.sallittu.huone }); ITSE.sallittu = null; };
   ITSE.tarkista = () => { const r = hs.huone; if (hs.pysaytetty || !(r > 0) || !hs.ajossa.size) return false;
+    if (ITSE.sallittu) { if (ITSE.sallittu.huone === r) return false; ITSE.sallittu = null; }
     const e = window.NitroDevTools && window.NitroDevTools.roomEngine, i = hs.oma(r); if (!e || i == null) return false;
     const o = e.getRoomObject(r, i, 100); if (!o || !o.model) return false;
     let m = 0; try { m = o.model.getValue('figure_is_muted') || 0; } catch (x) {}
