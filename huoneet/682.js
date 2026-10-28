@@ -190,13 +190,36 @@ const piirra = () => { piirto = 0; if (!putki) return;
   const R = Math.max(90, Math.min(170, Math.min(w, h) * 0.2)), x = w / 2, y = h / 2;
   g.fillStyle = 'rgba(4,4,8,0.97)'; g.fillRect(0, 0, w, h);
   g.globalCompositeOperation = 'destination-out'; g.beginPath(); g.arc(x, y, R, 0, Math.PI * 2); g.fill();
-  for (const el of document.querySelectorAll('.nitro-infostand-container')) { const r = el.getBoundingClientRect(); if (r.width && r.height) g.fillRect(r.left - 4, r.top - 4, r.width + 8, r.height + 8); }
   g.globalCompositeOperation = 'source-over';
+  // Lens: cool tint over the aperture, then the existing dark vignette at the edge
+  const t = g.createRadialGradient(x, y, 0, x, y, R); t.addColorStop(0, 'rgba(180,210,255,0.04)'); t.addColorStop(1, 'rgba(120,150,200,0.10)');
+  g.fillStyle = t; g.beginPath(); g.arc(x, y, R, 0, Math.PI * 2); g.fill();
   const v = g.createRadialGradient(x, y, R * 0.55, x, y, R); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,0.55)');
   g.fillStyle = v; g.beginPath(); g.arc(x, y, R, 0, Math.PI * 2); g.fill();
-  g.lineWidth = 9; g.strokeStyle = '#5a4120'; g.beginPath(); g.arc(x, y, R + 3, 0, Math.PI * 2); g.stroke();
-  g.lineWidth = 2; g.strokeStyle = '#b8924a'; g.beginPath(); g.arc(x, y, R - 1, 0, Math.PI * 2); g.stroke();
-  g.lineWidth = 1; g.strokeStyle = 'rgba(200,220,200,0.25)'; g.beginPath(); g.moveTo(x - R * 0.85, y); g.lineTo(x + R * 0.85, y); g.moveTo(x, y - R * 0.85); g.lineTo(x, y + R * 0.85); g.stroke();
+  // Glass reflections, clipped to the aperture: soft arc upper-left, small glint, faint reflection lower-right
+  g.save(); g.beginPath(); g.arc(x, y, R, 0, Math.PI * 2); g.clip();
+  const hl = g.createLinearGradient(x - R * 0.57, y - R * 0.57, x, y); hl.addColorStop(0, 'rgba(255,255,255,0.18)'); hl.addColorStop(1, 'rgba(255,255,255,0)');
+  g.lineCap = 'round'; g.lineWidth = R * 0.16; g.strokeStyle = hl; g.beginPath(); g.arc(x, y, R * 0.8, Math.PI * 1.1, Math.PI * 1.5); g.stroke();
+  g.lineWidth = R * 0.06; g.strokeStyle = 'rgba(255,255,255,0.06)'; g.beginPath(); g.arc(x, y, R * 0.82, Math.PI * 0.15, Math.PI * 0.5); g.stroke();
+  g.fillStyle = 'rgba(255,255,255,0.35)'; g.beginPath(); g.arc(x - R * 0.42, y - R * 0.42, R * 0.06, 0, Math.PI * 2); g.fill();
+  g.restore();
+  // Brass tube rim: thick metallic ring just outside the aperture (inner edge at R), dark inner lip, two bright band lines
+  const ro = R * 1.12, rg = g.createLinearGradient(x - ro, y - ro, x + ro, y + ro);
+  rg.addColorStop(0, '#4a3415'); rg.addColorStop(0.35, '#d8b062'); rg.addColorStop(0.65, '#7a5a24'); rg.addColorStop(1, '#3a2810');
+  g.lineWidth = R * 0.12; g.strokeStyle = rg; g.beginPath(); g.arc(x, y, R + R * 0.06, 0, Math.PI * 2); g.stroke();
+  g.lineWidth = 3; g.strokeStyle = 'rgba(0,0,0,0.6)'; g.beginPath(); g.arc(x, y, R + 1, 0, Math.PI * 2); g.stroke();
+  g.lineWidth = 1; g.strokeStyle = 'rgba(255,230,170,0.45)';
+  g.beginPath(); g.arc(x, y, R + R * 0.03, 0, Math.PI * 2); g.stroke();
+  g.beginPath(); g.arc(x, y, R + R * 0.11, 0, Math.PI * 2); g.stroke();
+  // Small centre mark (clicks go to the exact centre): plus with a 3 px gap, dark outline under a light stroke
+  g.beginPath(); g.moveTo(x - 13, y); g.lineTo(x - 3, y); g.moveTo(x + 3, y); g.lineTo(x + 13, y);
+  g.moveTo(x, y - 13); g.lineTo(x, y - 3); g.moveTo(x, y + 3); g.lineTo(x, y + 13);
+  g.lineWidth = 3; g.strokeStyle = 'rgba(0,0,0,0.5)'; g.stroke();
+  g.lineWidth = 1.5; g.strokeStyle = 'rgba(255,255,255,0.55)'; g.stroke();
+  // Infostand-kortit viimeisenä läpi, ettei messinkikehä tai lasi peitä niitä
+  g.globalCompositeOperation = 'destination-out';
+  for (const el of document.querySelectorAll('.nitro-infostand-container')) { const r = el.getBoundingClientRect(); if (r.width && r.height) g.fillRect(r.left - 4, r.top - 4, r.width + 8, r.height + 8); }
+  g.globalCompositeOperation = 'source-over';
   g.font = '13px sans-serif'; g.textAlign = 'center'; g.fillStyle = 'rgba(255,255,255,0.55)'; g.fillText('Esc tai kävele pois sulkee', w / 2, h - 18);
 };
 const pyyda = () => { if (!piirto) piirto = requestAnimationFrame(piirra); };
