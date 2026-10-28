@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Huoneskriptit (moottori)
-// @version      0.6.4
+// @version      0.6.5
 // @match        https://kupla.cc/*
 // @grant        none
 // ==/UserScript==
@@ -16,9 +16,15 @@
 // Kaikissa huoneissa ajettavat (0.6.2, kp 28.10. 15:07 "tarjoillaan automaattisesti moottorin kautta"): huoneet.json:n ylätason "kaikki": { "skriptit": [polut] }.
 //   Ne käynnistetään kerran (avain "*:polku"), huoneen vaihto ei pysäytä niitä, uudelleenkäynnistys vain kun haettu koodi muuttuu,
 //   pysäytys kun polku poistuu listasta tai moottori pysähtyy. Moottori ei tiedä niistä mitään muuta: käyttäjälogiikka on skriptissä.
+// Verho (0.6.5, I173, kp 28.10. 16:57:06 "verho VAIN huoneissa joilla on huoneskripti" · 16:57:15 myös lobby 656 · 17:50:22 "se piilotettu
+//   alue kerkee tosin vilahtaa. verho ei toimi?"): huoneeseen jolla on huoneskriptejä tullessa musta verho pelin kanvaksen päälle (sama
+//   paikka kuin 684:n pimeys, UI jää näkyviin) createRoomInstancessa ennen ensimmäistä ruutua. Pois kun skriptit on käynnistetty ja
+//   huoneen furnien määrä on pysynyt samana VERHO.vakaa ms (skriptien omat ajastimet ehtivät käsitellä ne), aikaisintaan VERHO.min,
+//   viimeistään VERHO.max. Furnit tulevat omana pakettinaan kartan jälkeen, siksi määrän vakaus eikä pelkkä skriptin käynnistys.
+//   hs.verho.viimeisin = { huone, ms, syy } (todennus). Huoneet ilman skriptejä: ei verhoa.
 // Konsolissa: huoneskriptit.ajossa (mitä ajetaan) · huoneskriptit.loki · huoneskriptit.paivita(true) (hae ja käynnistä uudelleen)
 (() => {
-  const hs = { versio: '0.6.4', huone: 0, ajossa: new Map(), loki: [], pysaytetty: false };   // versio: myös 0.4.x:n itsepäivitys lukee tämän
+  const hs = { versio: '0.6.5', huone: 0, ajossa: new Map(), loki: [], pysaytetty: false };   // versio: myös 0.4.x:n itsepäivitys lukee tämän
   const POHJA = 'https://nipanii.github.io/huone-efektit/';
   const uudempi = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number);
     for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); return false; };
@@ -102,8 +108,31 @@
   //   hidas" · "etkä hookkaa jotain pelin omaa actionia triggeriks"). createRoomInstance ajetaan kun huoneen kartta saapuu, ennen
   //   kuin huonetta piirretään, joten muistissa oleva skripti on käynnissä ennen ensimmäistä ruutua. removeRoomInstance pysäyttää.
   //   hs.mitta = ms createRoomInstance-kutsusta skriptien käynnistykseen (todennus).
+  const VERHO = hs.verho = { min: 400, vakaa: 400, max: 3000, viimeisin: null, _el: null, _ajastin: 0 };
+  const verhoPois = (syy) => { clearInterval(VERHO._ajastin); VERHO._ajastin = 0; const el = VERHO._el; VERHO._el = null; if (!el) return;
+    if (syy) VERHO.viimeisin = { huone: el._huone, ms: Math.round(performance.now() - el._t0), syy };
+    el.style.opacity = '0'; setTimeout(() => el.remove(), 180); };
+  const verhoPaalle = (r) => {
+    verhoPois(null);
+    const polut = (((lista && lista.huoneet) || {})[String(r)] || {}).skriptit || []; if (!polut.length) return;
+    const cv = [...document.querySelectorAll('canvas')].sort((a, b) => b.width * b.height - a.width * a.height)[0]; if (!cv || !cv.parentNode) return;
+    const el = document.createElement('div'); el._huone = r; el._t0 = performance.now();
+    el.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:100vh;pointer-events:none;z-index:1;background:#000;opacity:1;transition:opacity .15s';
+    cv.parentNode.insertBefore(el, cv.nextSibling); VERHO._el = el;
+    const e = window.NitroDevTools && window.NitroDevTools.roomEngine; let ed = -1, vakaaAlkaen = 0;
+    VERHO._ajastin = setInterval(() => {
+      const nyt = performance.now(), kulunut = nyt - el._t0;
+      if (hs.huone !== r || VERHO._el !== el) return verhoPois('huone vaihtui');
+      if (kulunut >= VERHO.max) return verhoPois('aikaraja');
+      let n = 0; try { n = ((e && e.getRoomObjects(r, 10)) || []).length + ((e && e.getRoomObjects(r, 20)) || []).length; } catch (x) {}
+      if (n !== ed) { ed = n; vakaaAlkaen = nyt; return; }
+      const kaynnissa = polut.every(p => hs.ajossa.has(r + ':' + p) || !muisti.has(p));
+      if (kaynnissa && kulunut >= VERHO.min && nyt - vakaaAlkaen >= VERHO.vakaa) verhoPois('valmis, furneja ' + n);
+    }, 50);
+  };
   const vaihda = (r) => {
     const t0 = performance.now(); pysaytaKaikki(); hs.huone = r;
+    if (r > 0) { try { verhoPaalle(r); } catch (err) {} } else verhoPois('huoneesta pois');
     if (r > 0) { if (lista) aja(r, true); hs.mitta = Math.round((performance.now() - t0) * 10) / 10; merkitse({ huone: r, muistista: !!lista, ms: hs.mitta }); paivita(false); }
   };
   const kytke = () => {
@@ -162,6 +191,6 @@
   };
   addEventListener('keydown', hwKuule, true);
 
-  hs.pysayta = () => { hs.pysaytetty = true; clearInterval(hs._tiki); if (hs._palauta) hs._palauta(); pysaytaKaikki(true); removeEventListener('keydown', hwKuule, true);
+  hs.pysayta = () => { hs.pysaytetty = true; clearInterval(hs._tiki); verhoPois('moottori pysäytetty'); if (hs._palauta) hs._palauta(); pysaytaKaikki(true); removeEventListener('keydown', hwKuule, true);
     if (window.huoneskriptit === hs) delete window.huoneskriptit; };
 })();
