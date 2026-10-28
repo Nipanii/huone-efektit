@@ -234,7 +234,7 @@ const juhla = () => {
     l.ajo = requestAnimationFrame(askel); };
   l.ajo = requestAnimationFrame(askel);
 };
-tila.juhla = () => { banneri('☠ Testi selvisi läpi! ☠', 8000, 40); juhla(); };   // konsolista: huone681.juhla()
+tila.juhla = () => { banneri('☠ Testi selvisi läpi! ☠', 8000, 40); juhla(); };   // konsolista: miina.juhla()
 const vayla = window.NitroDevTools && window.NitroDevTools.roomEngine && window.NitroDevTools.roomEngine.events;
 const kuuleMaali = ev => { try {
   if (!ev || ev.chatType !== 1 || ev.objectId !== omaIndeksi()) return;
