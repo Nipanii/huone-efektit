@@ -152,29 +152,24 @@ let putki = null, hiiri = { x: innerWidth / 2, y: innerHeight / 2 }, viimKlikki 
 const vieressa = () => { const o = omaHahmo(), t = e.getRoomObject(huone, KAUKOPUTKI, 10); if (!o || !t) return false;
   const a = o.getLocation(), b = t.getLocation(); const dx = Math.abs(Math.round(a.x) - Math.round(b.x)), dy = Math.abs(Math.round(a.y) - Math.round(b.y));
   return Math.max(dx, dy) <= 1 && (dx + dy) > 0; };
-// Reunapanorointi (kp 18:19:09 "kameran pitäs liikkuu kaukoputken avulla myös" · 18:19:21 "zoomilla ei nyt näe zombeja kun ei voi zoomed in
-//   kuvaa liikuttaa sinne zombien luokse"): kun aukko on reunavyöhykkeellä (yli 45 % keskeltä), kamera liukuu siihen suuntaan, nopeus
-//   kasvaa reunaa kohti. Sama offset-kutsu kuin huoneen raahaus (RoomEngine.ts:1297). Liikkuma-ala ±PAN_MAX alkupaikasta.
-const PAN_KUOLLUT = 0.45, PAN_NOPEUS = 16, PAN_MAX = 2200;
-let panAlku = null, panX = 0, panY = 0;
-const panoroi = (w, h) => { try {
-  if (!panAlku) return false;
-  const nx = (hiiri.x - w / 2) / (w / 2), ny = (hiiri.y - h / 2) / (h / 2);
-  const askel = (n) => Math.abs(n) <= PAN_KUOLLUT ? 0 : Math.sign(n) * PAN_NOPEUS * Math.min(1, (Math.abs(n) - PAN_KUOLLUT) / (1 - PAN_KUOLLUT));
-  const ax = askel(nx), ay = askel(ny); if (!ax && !ay) return false;
-  const uX = Math.max(-PAN_MAX, Math.min(PAN_MAX, panX - ax)), uY = Math.max(-PAN_MAX, Math.min(PAN_MAX, panY - ay));
-  if (uX === panX && uY === panY) return false;
-  panX = uX; panY = uY;
-  const o = e.getRoomInstanceRenderingCanvasOffset(huone, 1); if (!o) return false;
-  e.setRoomInstanceRenderingCanvasOffset(huone, 1, new o.constructor(panAlku.x + panX, panAlku.y + panY));
-  return true;
-} catch (x) { lokiin({ panVirhe: String(x) }); return false; } };
+// Suurennuslasi (kp 18:19:09 "kameran pitäs liikkuu kaukoputken avulla myös" · 18:19:21 "zoomilla ei nyt näe zombeja kun ei voi zoomed in
+//   kuvaa liikuttaa sinne zombien luokse" · 18:20 "ei siis pitäs ollenkaa joutuu viemää reunoille" · 18:20:31-44 "draggaa huonetta automaattisesti
+//   vastakkaiseen suuntaan" · "kaukoputki silloin on keskitettynä ja zoomattuna ja liikkuu hiiren mukaan kun huone liikkuu"): aukko pysyy ruudun
+//   keskellä, ja kamera siirtyy joka hiiren liikkeellä niin, että keskellä näkyy suurennettuna se mikä zoomaamattomassa näkymässä oli hiiren
+//   kohdalla. Zoom ZOOM-kertainen ruudun keskeltä -> piste d keskeltä on zoomattuna ZOOM*d:ssä, siirto (keski - hiiri) * ZOOM tuo sen keskelle.
+//   Sama offset-kutsu kuin raahaus (RoomEngine.ts:1297). Ei animaatiosilmukkaa: toimii myös piilotetussa välilehdessä.
+let panAlku = null;
+const panoroi = () => { try {
+  if (!panAlku) return;
+  const o = e.getRoomInstanceRenderingCanvasOffset(huone, 1); if (!o) return;
+  const k = ZOOM, x = panAlku.x + (innerWidth / 2 - hiiri.x) * k, y = panAlku.y + (innerHeight / 2 - hiiri.y) * k;
+  if (Math.round(o.x) !== Math.round(x) || Math.round(o.y) !== Math.round(y)) e.setRoomInstanceRenderingCanvasOffset(huone, 1, new o.constructor(x, y));
+} catch (x) { lokiin({ panVirhe: String(x) }); } };
 const piirra = () => { piirto = 0; if (!putki) return;
   const c = putki, g = c.getContext('2d'), w = innerWidth, h = innerHeight, d = devicePixelRatio || 1;
-  const liikkui = panoroi(w, h);
   if (c.width !== Math.round(w * d) || c.height !== Math.round(h * d)) { c.width = Math.round(w * d); c.height = Math.round(h * d); }
   g.setTransform(d, 0, 0, d, 0, 0); g.globalCompositeOperation = 'source-over'; g.clearRect(0, 0, w, h);
-  const R = Math.max(90, Math.min(170, Math.min(w, h) * 0.2)), x = hiiri.x, y = hiiri.y;
+  const R = Math.max(90, Math.min(170, Math.min(w, h) * 0.2)), x = w / 2, y = h / 2;
   g.fillStyle = 'rgba(4,4,8,0.97)'; g.fillRect(0, 0, w, h);
   g.globalCompositeOperation = 'destination-out'; g.beginPath(); g.arc(x, y, R, 0, Math.PI * 2); g.fill();
   for (const el of document.querySelectorAll('.nitro-infostand-container')) { const r = el.getBoundingClientRect(); if (r.width && r.height) g.fillRect(r.left - 4, r.top - 4, r.width + 8, r.height + 8); }
@@ -184,11 +179,10 @@ const piirra = () => { piirto = 0; if (!putki) return;
   g.lineWidth = 9; g.strokeStyle = '#5a4120'; g.beginPath(); g.arc(x, y, R + 3, 0, Math.PI * 2); g.stroke();
   g.lineWidth = 2; g.strokeStyle = '#b8924a'; g.beginPath(); g.arc(x, y, R - 1, 0, Math.PI * 2); g.stroke();
   g.lineWidth = 1; g.strokeStyle = 'rgba(200,220,200,0.25)'; g.beginPath(); g.moveTo(x - R * 0.85, y); g.lineTo(x + R * 0.85, y); g.moveTo(x, y - R * 0.85); g.lineTo(x, y + R * 0.85); g.stroke();
-  g.font = '13px sans-serif'; g.textAlign = 'center'; g.fillStyle = 'rgba(255,255,255,0.55)'; g.fillText('Vie reunalle niin putki kääntyy · Esc tai kävele pois sulkee', w / 2, h - 18);
-  if (liikkui) pyyda();
+  g.font = '13px sans-serif'; g.textAlign = 'center'; g.fillStyle = 'rgba(255,255,255,0.55)'; g.fillText('Esc tai kävele pois sulkee', w / 2, h - 18);
 };
 const pyyda = () => { if (!piirto) piirto = requestAnimationFrame(piirra); };
-const liike = ev => { hiiri = { x: ev.clientX, y: ev.clientY }; if (putki) pyyda(); };
+const liike = ev => { hiiri = { x: ev.clientX, y: ev.clientY }; if (putki) { panoroi(); pyyda(); } };
 const nappain = ev => { if (ev.key === 'Escape' && putki) kaukoputki(false); };
 // Zoom 2 avatessa, edellinen takaisin suljettaessa (kp 18:10-18:13:56 "kaukoputkeen jonkun zoomin" · "zoom 2 ois hyvä" · "avaamiseen").
 //   Sama kutsu kuin :zoom 2 (useChatInputWidget.ts:111 -> RoomWidgetsView.tsx:23 -> RoomEngine.ts:472).
@@ -197,7 +191,7 @@ let zoomEnnen = null;
 const zoomaa = (on) => { try {
   if (on) { const o = e.getRoomInstanceRenderingCanvasOffset(huone, 1); zoomEnnen = { s: e.getRoomInstanceRenderingCanvasScale(huone, 1), o };
     e.setRoomInstanceRenderingCanvasScale(huone, 1, ZOOM);
-    const z = e.getRoomInstanceRenderingCanvasOffset(huone, 1); panAlku = z ? { x: z.x, y: z.y } : null; panX = 0; panY = 0; }
+    const z = e.getRoomInstanceRenderingCanvasOffset(huone, 1); panAlku = z ? { x: z.x, y: z.y } : null; panoroi(); }
   else if (zoomEnnen != null) { e.setRoomInstanceRenderingCanvasScale(huone, 1, zoomEnnen.s);
     if (zoomEnnen.o) e.setRoomInstanceRenderingCanvasOffset(huone, 1, zoomEnnen.o); zoomEnnen = null; panAlku = null; }
 } catch (x) { lokiin({ zoomVirhe: String(x) }); } };
