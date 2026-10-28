@@ -309,6 +309,7 @@ return () => {
   for (const d of laput) d.remove();
   if (koukkuYhteys && koukkuYhteys.handleMessages === koukkuOma) koukkuYhteys.handleMessages = koukkuAlkup;
   try { e.updateAreaHide(huone, REIKA, false, 0, 0, 0, 0, false); } catch (x) {}
+  for (const id of LAPI) try { const f = e.getRoomObject(huone, id, 10); if (f && f.model) f.model.setValue('furniture_wired_click_through', 0); } catch (x) {}
   for (const o of asetettu.keys()) try { o.model.setValue('furniture_wired_opacity', 1); o.model.setValue('furniture_wired_click_through', 0); } catch (x) {}
   for (const [id, m] of mykat) try { e.updateRoomObjectUserAction(huone, id, 'figure_is_muted', m.alkup); } catch (x) {}
   for (const o of [...botit.values()]) botPiiloon(o, false);
