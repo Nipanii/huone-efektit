@@ -122,9 +122,19 @@ const paivita = () => {
 //   Kaksi animaatiota (0, 1); robolla visualisointi seuraa tilaa 1. Oven ulkonäköä ei ole katsottu.
 const JAAKAAPPI = 442798;
 let jkAuki = false;
+// kp 19:43 "vaihdoit sen tilan vaa eri väriseks" · 19:44 "se on siis tavallisesti rikki … tehää nyt vaa scriptil se": tämän kalusteen
+//   grafiikassa on vain kaksi kuvaa (kiinni + toinen väri, 64_a_2_0/_1), avointa ovea ei ole. Radan jälkeen alkuperäinen piilotetaan
+//   (furniture_alpha_multiplier 0) ja samaan ruutuun lisätään VAIN OMAAN näkymään ktchn_fridge (3249, sama malli, tila 1 = ovi auki).
+const JK_KORVAAJA = 3249, JK_ID = -968201;
 const jaakaappi = () => { try { const f = e.getRoomObject(huone, JAAKAAPPI, 10); if (!f) return;
-  if (tila.valmis) { if (f.getState(0) !== 1) { f.setState(1, 0); if (!jkAuki) lokiin({ jaakaappi: 'auki' }); } jkAuki = true; }
-  else if (jkAuki) { f.setState(0, 0); jkAuki = false; } } catch (x) {} };
+  if (tila.valmis) { if (!jkAuki) { f.model.setValue('furniture_alpha_multiplier', 0);
+      if (!e.getRoomObject(huone, JK_ID, 10)) { const l = f.getLocation(), d = f.getDirection(), V = l.constructor, s = 1;
+        const od = { flags: 0, uniqueNumber: 0, uniqueSeries: 0, state: s, rarityLevel: -1, getLegacyString() { return String(s); },
+          writeRoomObjectModel(m) { m.setValue('furniture_data_format', 0); m.setValue('furniture_data', String(s)); }, initializeFromRoomObjectModel() {}, compare() { return false; }, getValue() { return ''; } };
+        e.addFurnitureFloor(huone, JK_ID, JK_KORVAAJA, new V(l.x, l.y, l.z), new V(d.x, 0, 0), 0, od, NaN, -1, 0, 0, '', true, false); }
+      lokiin({ jaakaappi: 'auki (korvaaja)' }); }
+    const k = e.getRoomObject(huone, JK_ID, 10); if (k && k.getState(0) !== 1) k.setState(1, 0); jkAuki = true; }
+  else if (jkAuki) { f.model.setValue('furniture_alpha_multiplier', 1); try { e.removeRoomObjectFloor(huone, JK_ID); } catch (x) {} jkAuki = false; } } catch (x) { lokiin({ jkVirhe: String(x) }); } };
 
 // ---- Muuttuja: ratoja_tehty >= 3 -> ei piilotusta (sama luku kuin 681.js:n arkku)
 // kaivun laukaisin on piilotettu sana (kp 19:26 "dig komento piti poistaa"): sanotriggerit 439498/439499 tilassa 1,1,0, viesti ei näy muille
@@ -199,16 +209,16 @@ const juhla = () => {
   const c = document.createElement('canvas'), w = c.width = innerWidth, h = c.height = innerHeight, g = c.getContext('2d');
   c.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:100vh;z-index:2147483050;pointer-events:none';
   document.body.appendChild(c); laput.add(c);
-  const V = ['#ff7a00', '#a24bff', '#7dff4a', '#ffd23f', '#ff3b3b', '#ffffff'], P = [], t0 = performance.now(), KESTO = 7000;
+  const V = ['#ff7a00', '#a24bff', '#7dff4a', '#ffd23f', '#ff3b3b', '#ffffff'], P = [], t0 = performance.now(), KESTO = 9000;   // Res 19:42 "vois tippuu hitaammin confetti": putoamisnopeus ~1/2.5, kesto 7 -> 9 s
   const rak = (x, y) => { const v = V[Math.random() * V.length | 0]; for (let i = 0; i < 70; i++) { const a = Math.random() * 6.283, n = 2 + Math.random() * 5;
     P.push({ x, y, vx: Math.cos(a) * n, vy: Math.sin(a) * n, e: 1, v, r: 2 + Math.random() * 2, k: 0 }); } };
-  for (let i = 0; i < 160; i++) P.push({ x: Math.random() * w, y: -20 - Math.random() * h * 0.6, vx: (Math.random() - 0.5) * 2, vy: 2 + Math.random() * 3, e: 1, v: V[i % V.length], r: 3 + Math.random() * 4, k: 1, kul: Math.random() * 6.283 });
+  for (let i = 0; i < 160; i++) P.push({ x: Math.random() * w, y: -20 - Math.random() * h * 0.4, vx: (Math.random() - 0.5) * 1.2, vy: 0.8 + Math.random() * 0.8, e: 1, v: V[i % V.length], r: 3 + Math.random() * 4, k: 1, kul: Math.random() * 6.283 });
   let seur = 0;
   const askel = nyt => { const t = nyt - t0; if (t > KESTO + 1500 || !c.isConnected) { c.remove(); laput.delete(c); return; }
     if (t < KESTO && t > seur) { rak(w * (0.15 + Math.random() * 0.7), h * (0.15 + Math.random() * 0.4)); seur = t + 450 + Math.random() * 400; }
     g.clearRect(0, 0, w, h); const haiv = t > KESTO ? 1 - (t - KESTO) / 1500 : 1;
     for (let i = P.length - 1; i >= 0; i--) { const q = P[i]; q.x += q.vx; q.y += q.vy;
-      if (q.k) { q.vy = Math.min(q.vy + 0.03, 4); q.kul += 0.1; q.vx += Math.sin(q.kul) * 0.05; } else { q.vy += 0.06; q.vx *= 0.985; q.vy *= 0.985; q.e -= 0.012; }
+      if (q.k) { q.vy = Math.min(q.vy + 0.01, 1.7); q.kul += 0.06; q.vx += Math.sin(q.kul) * 0.03; } else { q.vy += 0.06; q.vx *= 0.985; q.vy *= 0.985; q.e -= 0.012; }
       if (q.e <= 0 || q.y > h + 30) { P.splice(i, 1); continue; }
       g.globalAlpha = Math.max(0, Math.min(1, q.e * haiv)); g.fillStyle = q.v;
       if (q.k) { g.save(); g.translate(q.x, q.y); g.rotate(q.kul); g.fillRect(-q.r, -q.r / 2, q.r * 2, q.r); g.restore(); } else { g.beginPath(); g.arc(q.x, q.y, q.r, 0, 6.283); g.fill(); } }
