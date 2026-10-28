@@ -337,17 +337,15 @@ const lapioTarkista = () => {
     for (const id of KAIVUT) { const f = e.getRoomObject(huone, id, 10); if (!f) continue; const fl = f.getLocation(), fx = Math.round(fl.x), fy = Math.round(fl.y), [sx, sy] = koko(f);
       if (x >= fx && x < fx + sx && y >= fy && y < fy + sy) { kohde = id; kohdeKoko = [sx, sy]; break; } } }
   if (!kohde) { if (nappi) { nappi.remove(); nappi = null; } return; }
-  let p = null; try { p = e.getRoomObjectScreenLocation(huone, kohde, 10); } catch (x) {}
+  // nappi oman hahmon ruutuun, ei furnin origoon: 2x2-furnilla origo on eri ruutu kuin se jossa seisoo
+  let p = null; try { p = e.getRoomObjectScreenLocation(huone, o.id, 100); } catch (x) {}
   if (!p) return; const r = kangas() || { left: 0, top: 0 };
   if (!nappi) { nappi = document.createElement('button'); nappi.type = 'button'; nappi.title = 'Kaiva'; nappi.innerHTML = LAPIO_SVG;
     nappi.style.cssText = 'position:fixed;z-index:2147482000;width:40px;height:40px;border-radius:50%;border:2px solid #222;background:rgba(240,220,170,.95);' +
       'display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;transform:translate(-50%,-100%);box-shadow:0 2px 6px rgba(0,0,0,.5)';
     nappi.addEventListener('mousedown', ev => ev.stopPropagation()); nappi.addEventListener('click', ev => { ev.stopPropagation(); kaivu(); });
     document.body.appendChild(nappi); }
-  // furnin keskelle: ruutu (dx,dy) on ruudulla ((dx-dy)*32, (dx+dy)*16) * skaala
-  let k = 1; try { k = e.getRoomInstanceRenderingCanvasScale(huone, 1) || 1; } catch (x) {}
-  const dx = (kohdeKoko[0] - 1) / 2, dy = (kohdeKoko[1] - 1) / 2;
-  nappi.style.left = (r.left + p.x + (dx - dy) * 32 * k) + 'px'; nappi.style.top = (r.top + p.y + (dx + dy) * 16 * k - 30) + 'px';
+  nappi.style.left = (r.left + p.x) + 'px'; nappi.style.top = (r.top + p.y + 4) + 'px';
 };
 
 if (vayla && vayla.addEventListener) {
