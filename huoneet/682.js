@@ -386,20 +386,23 @@ const valittu = ev => { try {
   if (ev && putki && ev.category === 100) putkiValinta = true;
   if (!ev || ev.objectId !== KAUKOPUTKI || ev.category !== 10) return;
   const nyt = Date.now(); if (nyt - viimKlikki < 350) return; viimKlikki = nyt;
-  if (putki) { kavelyEsto = Date.now(); kaukoputki(false); } else if (vieressa()) { nielu = kavelyEsto = Date.now(); kavelyKoukku(); kaukoputki(true); }
+  if (putki) { kavelyEsto = Date.now(); kaukoputki(false); } else if (vieressa() && nyt - suljettu > 600) { nielu = kavelyEsto = Date.now(); kavelyKoukku(); kaukoputki(true); }
 } catch (x) {} };
 // kp 19:24 "jos painaa tota teleskooppia, nyt se klikkaus menee läpi ruutuun" · "hahmo kävelee pois sen luota" · "ei saa tapahtua jos klikkaus
 //   osuu teleskooppiin": avaus siirtää kameraa kesken painalluksen, joten saman painalluksen ylös/click osui ruutuun -> kävely. Niellään ne.
 // kp 19:54 "toimii vaa mulla … ettei hahmo kävele" · "PITÄÄ TOIMII KAIKILLA": DOM-nielu ei estä kävelyä muilla -> UNIT_WALK (3320) pudotetaan hetki putken avauksen jälkeen
-let kavelyEsto = 0, lahetys = null;
+let kavelyEsto = 0, suljettu = 0, lahetys = null;
 const kavelyKoukku = () => { if (lahetys) return; const c = yhteys(); if (!c || typeof c.send !== 'function') return;
   const kartta = dv(dv(c, '_messages'), '_messageIdByComposer'); if (!kartta || typeof kartta.get !== 'function') return;
   const orig = c.send; lahetys = { c, orig };
   // kävely voi lähteä ENNEN valintatapahtumaa -> putken vieressä kävelyä pidätetään 80 ms ja pudotetaan jos putki avautui sillä välin
   c.send = function (m, ...r) { try { if (m && kartta.get(m.constructor) === 3320) {
       if (Date.now() - kavelyEsto < 1200) { lokiin({ kavely: 'estetty' }); return; }
+      // zoomissa klikkaus osuu moottorin osumatestissä lattiaan eikä kaukoputkeen (mitattu robolla 20:09:17: suljenta käveli 10.73,10) -> putken ollessa auki klikkaus vain sulkee
+      if (putki) { kavelyEsto = suljettu = Date.now(); lokiin({ kavely: 'estetty (putki auki)' }); setTimeout(() => kaukoputki(false), 0); return; }
       if (vieressa()) { const t0 = Date.now(); setTimeout(() => { if (kavelyEsto >= t0 - 300) { lokiin({ kavely: 'estetty (ennen valintaa)' }); return; } orig.call(c, m, ...r); }, 80); return; } } } catch (x) {} return orig.call(this, m, ...r); }; };
 pois.push(() => { if (lahetys) { lahetys.c.send = lahetys.orig; lahetys = null; } });
+tila.kavelyVersio = 2;   // testimerkki: näkyykö uusi versio clientissa
 let nielu = 0;
 const niele = ev => { if (!nielu || !ev.isTrusted) return; if (Date.now() - nielu > 1000) { nielu = 0; return; }
   ev.stopImmediatePropagation(); ev.preventDefault(); if (ev.type === 'click') nielu = 0; };
