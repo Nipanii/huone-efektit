@@ -119,7 +119,7 @@ const paivita = () => {
 };
 
 // ---- Muuttuja: ratoja_tehty >= 3 -> ei piilotusta (sama luku kuin 681.js:n arkku)
-let odottaa = 0, koukkuYhteys = null, koukkuOma = null, koukkuAlkup = null;
+let odottaa = 0, lapioOdottaa = 0, koukkuYhteys = null, koukkuOma = null, koukkuAlkup = null;
 const koukku = () => {
   const c = yhteys(); if (!c || typeof c.handleMessages !== 'function') return null; if (koukkuYhteys === c) return c;
   const alkup = c.handleMessages;
@@ -129,7 +129,8 @@ const koukku = () => {
       if (!p || p.type !== 1 || p.objectId !== i || !Array.isArray(p.values) || !Array.isArray(p.wiredIds)) return true;
       odottaa = 0; tila.muuttujat = p.values.map(x => x && (x.id + '=' + x.value));
       const r = p.values.find(x => x && x.id === RATA_MUUTTUJA); const arvo = r ? r.value : 0;
-      tila.arvo = arvo; tila.valmis = arvo >= RATA_RAJA; lokiin({ muuttuja: 'luettu', arvo, valmis: tila.valmis }); paivita(); return false; });
+      tila.arvo = arvo; tila.valmis = arvo >= RATA_RAJA; lokiin({ muuttuja: 'luettu', arvo, valmis: tila.valmis }); paivita();
+      if (lapioOdottaa && Date.now() - lapioOdottaa < 5000) { lapioOdottaa = 0; if (!tila.valmis) lapioSaatu(); } return false; });
     if (!viestit.length) return; } } catch (x) { lokiin({ muuttuja: 'virhe', viesti: String(x) }); }
     return alkup.apply(this, viestit); };
   c.handleMessages = oma; koukkuYhteys = c; koukkuOma = oma; koukkuAlkup = alkup; return c;
@@ -171,21 +172,44 @@ const kuplaTyyli = on => { if (on && !kuplaCss) { kuplaCss = document.createElem
   else if (!on && kuplaCss) { kuplaCss.remove(); kuplaCss = null; } };
 const viimLapi = new Map();
 const laput = new Set();
-const banneri = teksti => {
+const banneri = (teksti, ms = 4000, px = 26) => {
   const d = document.createElement('div'); d.textContent = teksti;
-  d.style.cssText = 'position:fixed;left:50%;top:18%;transform:translate(-50%,0);z-index:2147483100;pointer-events:none;font:bold 26px sans-serif;' +
+  d.style.cssText = 'position:fixed;left:50%;top:18%;transform:translate(-50%,0);z-index:2147483100;pointer-events:none;font:bold ' + px + 'px sans-serif;' +
     'color:#fff;text-shadow:0 0 4px #000,0 0 4px #000,2px 2px 0 #000;white-space:nowrap;transition:opacity .6s';
   document.body.appendChild(d); laput.add(d);
-  setTimeout(() => { d.style.opacity = '0'; }, 4000); setTimeout(() => { d.remove(); laput.delete(d); }, 4700);
+  setTimeout(() => { d.style.opacity = '0'; }, ms); setTimeout(() => { d.remove(); laput.delete(d); }, ms + 700);
+};
+// kp 19:09 "pidennetään tota pääsi läpi viestiä" · "ois kiva jos olis joku isompi effect siitä" · "celebratory effects": konfetti + ilotulitus 7 s
+const juhla = () => {
+  const c = document.createElement('canvas'), w = c.width = innerWidth, h = c.height = innerHeight, g = c.getContext('2d');
+  c.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:100vh;z-index:2147483050;pointer-events:none';
+  document.body.appendChild(c); laput.add(c);
+  const V = ['#ff7a00', '#a24bff', '#7dff4a', '#ffd23f', '#ff3b3b', '#ffffff'], P = [], t0 = performance.now(), KESTO = 7000;
+  const rak = (x, y) => { const v = V[Math.random() * V.length | 0]; for (let i = 0; i < 70; i++) { const a = Math.random() * 6.283, n = 2 + Math.random() * 5;
+    P.push({ x, y, vx: Math.cos(a) * n, vy: Math.sin(a) * n, e: 1, v, r: 2 + Math.random() * 2, k: 0 }); } };
+  for (let i = 0; i < 160; i++) P.push({ x: Math.random() * w, y: -20 - Math.random() * h * 0.6, vx: (Math.random() - 0.5) * 2, vy: 2 + Math.random() * 3, e: 1, v: V[i % V.length], r: 3 + Math.random() * 4, k: 1, kul: Math.random() * 6.283 });
+  let seur = 0;
+  const askel = nyt => { const t = nyt - t0; if (t > KESTO + 1500 || !c.isConnected) { c.remove(); laput.delete(c); return; }
+    if (t < KESTO && t > seur) { rak(w * (0.15 + Math.random() * 0.7), h * (0.15 + Math.random() * 0.4)); seur = t + 450 + Math.random() * 400; }
+    g.clearRect(0, 0, w, h); const haiv = t > KESTO ? 1 - (t - KESTO) / 1500 : 1;
+    for (let i = P.length - 1; i >= 0; i--) { const q = P[i]; q.x += q.vx; q.y += q.vy;
+      if (q.k) { q.vy = Math.min(q.vy + 0.03, 4); q.kul += 0.1; q.vx += Math.sin(q.kul) * 0.05; } else { q.vy += 0.06; q.vx *= 0.985; q.vy *= 0.985; q.e -= 0.012; }
+      if (q.e <= 0 || q.y > h + 30) { P.splice(i, 1); continue; }
+      g.globalAlpha = Math.max(0, Math.min(1, q.e * haiv)); g.fillStyle = q.v;
+      if (q.k) { g.save(); g.translate(q.x, q.y); g.rotate(q.kul); g.fillRect(-q.r, -q.r / 2, q.r * 2, q.r); g.restore(); } else { g.beginPath(); g.arc(q.x, q.y, q.r, 0, 6.283); g.fill(); } }
+    requestAnimationFrame(askel); };
+  requestAnimationFrame(askel);
 };
 const vayla = e.events;
 const kuule = ev => { try {
   if (!ev || ev.chatType !== 1 || ev.objectId !== omaIndeksi()) return;
   const viesti = String(ev.message || '').trim();
-  if (LAPIO.test(viesti)) { if (tila.onLapio || tila.valmis) { piiloLapio = Date.now(); for (const ms of [30, 300, 1000]) setTimeout(kuplat, ms); return; } lapioSaatu(); return; }
+  if (LAPIO.test(viesti)) { if (tila.onLapio || tila.valmis) { piiloLapio = Date.now(); for (const ms of [30, 300, 1000]) setTimeout(kuplat, ms);
+    // kp 19:10 "ku laitan handitem pois ja ratavar 2 nii en voi uusiks ottaa lapparii": valmis voi olla vanha luku -> luetaan muuttuja uudestaan ja päätetään vastauksesta
+    if (!tila.onLapio && tila.valmis) { lapioOdottaa = Date.now(); kysy(); } return; } lapioSaatu(); return; }
   const m = MAALI.exec(viesti); if (!m) return;
   const nyt = Date.now(); if (nyt - (viimLapi.get(m[1]) || 0) < 10000) return; viimLapi.set(m[1], nyt);
-  lokiin({ lapi: m[1] }); banneri('☠ ' + m[1] + ' pääsi läpi! ☠');
+  lokiin({ lapi: m[1] }); banneri('☠ ' + m[1] + ' pääsi läpi! ☠', 8000, 40); juhla();
   if (m[1].toLowerCase() === omaNimi().toLowerCase()) setTimeout(kysy, 1500);
 } catch (x) { lokiin({ lapi: 'virhe', viesti: String(x) }); } };
 
