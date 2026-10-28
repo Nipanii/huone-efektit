@@ -405,13 +405,14 @@ const AVAIN = 'h682.lapio';
 try { tila.onLapio = sessionStorage.getItem(AVAIN) === '1'; } catch (x) {}
 const lapio = (on) => { tila.onLapio = !!on; try { on ? sessionStorage.setItem(AVAIN, '1') : sessionStorage.removeItem(AVAIN); } catch (x) {} lapioTarkista(); };
 tila.lapio = lapio;
-let lapioAika = 0;
+let lapioAika = 0, kasiAlussa = null;   // kp 21:41 Jerban/Res/null: lapio katosi oikeilla spoteilla, uudelleentulo korjasi. :handitem 0 vaatii cmd_hand_item
+//   (HandItemCommand.java:9), joten pelaajan ruoka jäi käteen ja 3 s tarkistus pudotti lapion joka kerta. Nyt pudotetaan vain kun käteen tulee UUSI tavara.
 const lapioSaatu = () => {
   if (tila.valmis) { lokiin({ lapio: 'ei, rata jo läpäisty' }); return; }
   const k = kasi();
   if (k === JAKOAVAIN) { piiloLapio = Date.now(); for (const ms of [30, 300, 1000]) setTimeout(kuplat, ms);   // ei banneria (kp 19:04 "too much" · "en pyytäny viestii siihe")
     lokiin({ lapio: 'ei, jakoavain kädessä' }); return; }
-  lapioAika = Date.now();
+  lapioAika = Date.now(); kasiAlussa = k;
   if (k) { try { const s = istunto(); s && s.sendChatMessage && s.sendChatMessage(':handitem 0', 0); } catch (x) {} lokiin({ lapio: 'kädessä ' + k + ' -> :handitem 0' }); }
   lokiin({ lapio: 'saatu' }); lapio(true); };
 const LAPIO_SVG = '<svg viewBox="0 0 32 32" width="26" height="26"><g transform="rotate(-35 16 16)"><rect x="10" y="1.5" width="12" height="4" rx="2" fill="#8a5a2b" stroke="#222" stroke-width="1.2"/><rect x="14.5" y="4" width="3" height="14" fill="#a06a35" stroke="#222" stroke-width="1.2"/><rect x="13.5" y="17" width="5" height="3" fill="#888" stroke="#222" stroke-width="1"/><path d="M9 20h14v4c0 4-3 7-7 7s-7-3-7-7z" fill="#cfd3d6" stroke="#222" stroke-width="1.4" stroke-linejoin="round"/></g></svg>';
@@ -421,7 +422,7 @@ const kangas = () => { let b = null, a = 0; for (const c of document.querySelect
 const koko = f => { try { const m = f.model, d = f.getDirection(), sx = m.getValue('furniture_size_x') || 1, sy = m.getValue('furniture_size_y') || 1;
   return d && Math.round(d.x) % 180 === 90 ? [sy, sx] : [sx, sy]; } catch (x) { return [1, 1]; } };
 const lapioTarkista = () => {
-  if (tila.onLapio && Date.now() - lapioAika > 3000) { const k = kasi(); if (k) { lokiin({ lapio: 'pois, kädessä ' + k }); tila.onLapio = false; try { sessionStorage.removeItem(AVAIN); } catch (x) {} } }
+  if (tila.onLapio) { const k = kasi(); if (kasiAlussa === null || !k) kasiAlussa = k; else if (k !== kasiAlussa && Date.now() - lapioAika > 3000) { lokiin({ lapio: 'pois, uusi kädessä ' + k }); tila.onLapio = false; try { sessionStorage.removeItem(AVAIN); } catch (x) {} } }
   // käsitavara omaan infokorttiin (palvelin ei tiedä lapiosta)
   const nimi = omaNimi();
   for (const el of document.querySelectorAll('.nitro-infostand')) {
