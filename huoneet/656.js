@@ -42,7 +42,9 @@ const kyytiAlku = (a, L) => { kyyti = new Map(); try { const sx = a.model.getVal
     kyyti.set(o.id, { x: l.x, y: l.y, z: l.z, dx: l.x - L.x, dy: l.y - L.y, asetettu: null }); }
   tila.loki.push({ kyyti: [...kyyti.keys()] }); } catch (x) { tila.loki.push({ kyyti: String(x) }); } };
 const kyytiSiirra = (x, y) => { for (const [oid, k] of kyyti) { try { const o = e0.getRoomObject(huone, oid, 100); if (!o) { kyyti.delete(oid); continue; }
-    const l = o.getLocation(); if (k.asetettu && Math.hypot(l.x - k.asetettu[0], l.y - k.asetettu[1]) > 0.6) { kyyti.delete(oid); continue; }
+    // Palvelimen tilapäivitys (esim. kyytiläinen puhuu, 28.10. 23:50 robo putosi Oliverin ja jukuhomman ruudulla) palauttaa hahmon
+    // istumapaikalleen k.x,k.y: se on yhä kyydissä. Vain muualle siirtynyt (käveli pois) pudotetaan.
+    const l = o.getLocation(); if (k.asetettu && Math.hypot(l.x - k.asetettu[0], l.y - k.asetettu[1]) > 0.6 && Math.hypot(l.x - k.x, l.y - k.y) > 0.6) { kyyti.delete(oid); continue; }
     const p = new V(x + k.dx, y + k.dy, k.z); e0.updateRoomObjectUserLocation(huone, oid, p, p, false, 0, o.getDirection(), o.getDirection().x, true); k.asetettu = [p.x, p.y];
   } catch (x) { kyyti.delete(oid); } } };
 const kyytiLoppu = () => { for (const [oid, k] of kyyti) { try { const o = e0.getRoomObject(huone, oid, 100); if (!o) continue; const p = new V(k.x, k.y, k.z);
