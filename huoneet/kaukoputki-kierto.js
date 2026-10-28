@@ -7,7 +7,8 @@
 //   (kameran kääntö: geometry.direction + depthVector + _effectDirection + location kiertokeskipisteen ympäri; seinät/maisema
 //   _typeVisibility[1,3] pois; seinäesineet alpha 0; moniruutuiset paikallisesti takakulmaan, 400 ms korjaus).
 // Puhekuplat: kaikki piiloon putken ajaksi (kuten 682) -> kääntö ja kuplat eivät ole koskaan ruudulla yhtä aikaa (huonekierron #831).
-// Avaus: oma hahmo viereisessä ruudussa + klikkaus kaukoputkeen. Sulku: Esc, tuplaklikkaus lattiaan, klikkaus putkeen, kävely pois.
+// Avaus: klikkaus kaukoputkeen mistä tahansa (656:n putki on katolla z 7.2, sen viereen ei pääse kävelemään, mitattu 01:09).
+//   Sulku: Esc, tuplaklikkaus lattiaan, klikkaus putkeen, oma hahmo liikkuu.
 //   Sulkiessa kamera, zoom, offset, seinät ja kalusteiden paikat palautetaan täsmälleen avaushetken tilaan.
 // RAJAT: 2-suuntaiset kalusteet näyttävät käännettynä väärältä (rakenteellinen, ROTATE.md vika 3). Seinät eivät näy käännetyssä näkymässä.
 //   Kävely on estetty putken ollessa auki (pelin pinnan klikkaus laskee oletuskulmalla). Vain pelaajille joilla huoneskriptimoottori on.
@@ -32,9 +33,8 @@ const yhteys = () => {
   etsi(dv(e, '_roomSessionManager'), 0); return c; };
 const pois = [];
 const rad = a => a / 180 * Math.PI;
-const vieressa = () => { const o = omaHahmo(), t = e.getRoomObject(huone, A.putki, 10); if (!o || !t) return false;
-  const a = o.getLocation(), b = t.getLocation(); const dx = Math.abs(Math.round(a.x) - Math.round(b.x)), dy = Math.abs(Math.round(a.y) - Math.round(b.y));
-  return Math.max(dx, dy) <= 1 && (dx + dy) > 0; };
+const ruutu = () => { const o = omaHahmo(); if (!o) return null; const l = o.getLocation(); return Math.round(l.x) + ',' + Math.round(l.y); };
+let avausRuutu = null;
 
 // ---- Kameran kääntö (huonekierto 1.9.1 aseta(), vain tämä client, 0 pakettia)
 let kierto = null;   // { cv, g, V, d0, l0, e0, o, L, s0, of0, seinat, alpha: Map, siirrot: Map }
@@ -182,7 +182,7 @@ const kavelyKoukku = () => { if (lahetys) return; const c = yhteys(); if (!c || 
   const oma = function (m, ...r) { try { if (m && kartta.get(m.constructor) === 3320) {
       if (Date.now() - kavelyEsto < 1200) { lokiin({ kavely: 'estetty' }); return; }
       if (putki) { const nyt = Date.now(); kavelyEsto = nyt; if (nyt - lattiaKlikki < 500) { lattiaKlikki = 0; suljettu = nyt; setTimeout(() => auki(false), 0); } else lattiaKlikki = nyt; return; }
-      if (vieressa()) { const t0 = Date.now(); setTimeout(() => { if (kavelyEsto >= t0 - 300) return; orig.call(c, m, ...r); }, 80); return; } } } catch (x) {} return orig.call(this, m, ...r); };
+    } } catch (x) {} return orig.call(this, m, ...r); };
   c.send = oma; lahetys = { c, orig, oma }; };
 pois.push(() => { if (lahetys && lahetys.c.send === lahetys.oma) lahetys.c.send = lahetys.orig; lahetys = null; });
 let nielu = 0;
@@ -201,7 +201,7 @@ const auki = (on) => {
     try { if (A.zoom !== 1) e.setRoomInstanceRenderingCanvasScale(huone, 1, A.zoom);
       const z = e.getRoomInstanceRenderingCanvasOffset(huone, 1); panAlku = z ? { x: z.x, y: z.y } : null;
       const b = e.getCanvasBoundingRectangle(1); panRaja = b && b.right > b.left ? { l: b.left, t: b.top, r: b.right, b: b.bottom } : null; } catch (x) { panRaja = null; lokiin({ zoomVirhe: String(x) }); }
-    hiiri = { x: innerWidth / 2, y: innerHeight / 2 }; panoroi(); pyyda(); lokiin({ putki: 'auki', kulma: kierto && kierto.kulma, zoom: A.zoom });
+    avausRuutu = ruutu(); hiiri = { x: innerWidth / 2, y: innerHeight / 2 }; panoroi(); pyyda(); lokiin({ putki: 'auki', kulma: kierto && kierto.kulma, zoom: A.zoom });
     try { const p = putki.requestPointerLock(); if (p && p.catch) p.catch(x => lokiin({ lukko: 'ei: ' + String(x).slice(0, 80) })); } catch (x) {}
   } else if (!on && putki) { if (document.pointerLockElement === putki) try { document.exitPointerLock(); } catch (x) {}
     oliLukittu = false; kuplaTyyli(false); putki.remove(); putki = null; if (kursori) { kursori.remove(); kursori = null; }
@@ -212,7 +212,7 @@ tila.auki = false; tila.avaa = auki;
 const valittu = ev => { try {
   if (!ev || ev.objectId !== A.putki || ev.category !== 10) return;
   const nyt = Date.now(); if (nyt - (tila.viimKlikki || 0) < 350) return; tila.viimKlikki = nyt;
-  if (putki) { kavelyEsto = nyt; auki(false); } else if (vieressa() && nyt - suljettu > 600) { nielu = kavelyEsto = nyt; kavelyKoukku(); auki(true); }
+  if (putki) { kavelyEsto = nyt; auki(false); } else if (nyt - suljettu > 600) { nielu = kavelyEsto = nyt; kavelyKoukku(); auki(true); }
 } catch (x) { lokiin({ valintaVirhe: String(x) }); } };
 const vayla = e.events;
 if (vayla && vayla.addEventListener) { vayla.addEventListener('REOE_SELECTED', valittu); pois.push(() => vayla.removeEventListener('REOE_SELECTED', valittu)); }
@@ -224,8 +224,8 @@ document.addEventListener('pointermove', liike, { capture: true, passive: true }
 document.addEventListener('pointerlockchange', lukko); pois.push(() => document.removeEventListener('pointerlockchange', lukko));
 document.addEventListener('keydown', nappain, true); pois.push(() => document.removeEventListener('keydown', nappain, true));
 window.addEventListener('resize', pyyda); pois.push(() => window.removeEventListener('resize', pyyda));
-// 400 ms: kävely pois sulkee, moniruutuisten paikat korjataan palvelimen päivityksen jälkeen, kanvaksen vaihtuessa (huone ladattiin uudelleen) suljetaan
-const ajastin = setInterval(() => { if (!putki) return; if (!vieressa() || !kierto || kanvas() !== kierto.cv) { auki(false); return; } siirrot(false); pyyda(); }, 400);
+// 400 ms: oman hahmon liike sulkee, moniruutuisten paikat korjataan palvelimen päivityksen jälkeen, kanvaksen vaihtuessa (huone ladattiin uudelleen) suljetaan
+const ajastin = setInterval(() => { if (!putki) return; if (ruutu() !== avausRuutu || !kierto || kanvas() !== kierto.cv) { auki(false); return; } siirrot(false); pyyda(); }, 400);
 
 return () => { clearInterval(ajastin); auki(false); for (const f of pois) try { f(); } catch (x) {} if (piirto) cancelAnimationFrame(piirto);
   if (window.kaukoputkiKierto === tila) delete window.kaukoputkiKierto; };
