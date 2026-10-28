@@ -125,7 +125,8 @@ tila.aja = (ohi = 0) => { if (!e0 || (ajo && ajo.kaynnissa)) return false; const
 //   JAAHY ajon jälkeen ettei auto lähde heti uudestaan kaatuneiden päälle. LINJALLA = 3 on valittu luku, kp voi pyytää muun.
 // kp 28.10. 11:03 yv "auto tulee vaan jos 5 hahmoo linjalla ja max 3 kertaa tunnissa": LINJALLA 3 -> 5, jakso 15 -> 20 min
 //   (kellojakso = enintään yksi ajo per jakso, eli enintään 3 tunnissa).
-const LINJALLA = 5, JAAHY = 20 * 60000;   // kp 01:21:18 "muutaman kerran tunnis" + 01:21:25 "EI MUUTAMAN KERRAN MINUUTIS"
+// kp 28.10. 23:03:49 yv "auto tulee max 2x tunnis ellei käytä komentoa": jakso 20 -> 30 min (:auto ohittaa).
+const LINJALLA = 5, JAAHY = 30 * 60000;   // kp 01:21:18 "muutaman kerran tunnis" + 01:21:25 "EI MUUTAMAN KERRAN MINUUTIS"
 // Kellojakso (01:24): ajo kerran per JAAHY-jakso seinäkellosta, jolloin kaikki clientit lähtevät samassa jaksossa yhtä aikaa ja
 //   koodin uudelleenlataus ei nollaa jäähyä pitkäksi aikaa. Reuna-ehto poistettu: porukka seisoo tiellä koko ajan (15 hahmoa), joten tie ei tyhjene.
 // 28.10. 10:35 (kp "oon nähny sen monta kertaa jo 5 min sisään" · "huoneeseen tullessa kai tekee sen"): -1 alussa = jokainen
