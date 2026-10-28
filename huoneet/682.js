@@ -145,6 +145,7 @@ const kysyAloitus = setInterval(() => { if (kysy() || ++kysyYrit > 30) clearInte
 // ---- Läpäisyilmoitus kaikille (sama kuin 681.js: show_message 443482 "%user% pääsi radan 3 läpi!" näkyvyys 1 kuiskataan jokaiselle)
 const MAALI = /^(.+) pääsi radan (\d+) läpi!$/;
 const LAPIO = /^Löysit lapion/;
+const JAKOAVAIN = 1035;   // handitem-nimet.json
 // Wired-viestikuplat pois kun ne eivät kuulu tilanteeseen (kp 18:39 "EDELLEEN tulee 'Näet teleskoopilla …' ennen kaukoputken painamista" ·
 //   "tulee heti kun kävelee viereen" · 18:46:39 "ettei tuu uudestaan tää löysit lapion viesti" · "tai scriptiin ei oikeestaan välii"):
 //   kaukoputkiviesti vain putken ollessa auki, lapioviesti vain ensimmäisellä kerralla. Wired-viesti on chat-bubble-34 omassa bubble-containerissa.
@@ -153,6 +154,8 @@ const KAUKOVIESTI = /Näet teleskoopilla/i;
 const kuplaNahty = new WeakMap();
 const nahty = el => { let t = kuplaNahty.get(el); if (t == null) { t = Date.now(); kuplaNahty.set(el, t); } return t; };
 const kuplaPiiloon = el => { try { const t = el.textContent || '';
+  if (/:\s*dig\s*↩?\s*$/i.test(t)) { if (el.style.display !== 'none') el.style.display = 'none'; return; }
+  if (/Kaiva sanomalla/.test(t)) for (const n of el.querySelectorAll('*')) if (!n.children.length && /Kaiva sanomalla/.test(n.textContent)) n.textContent = n.textContent.replace(/\s*Kaiva sanomalla\s*'dig'\.?/, '');
   if ((KAUKOVIESTI.test(t) && !tila.putkiAuki) || (/Löysit lapion/.test(t) && Math.abs(nahty(el) - piiloLapio) < 3000)) { if (el.style.display !== 'none') el.style.display = 'none'; } } catch (x) {} };
 // Puhekuplat paikalleen putken ajaksi (kp 18:50:22 "puhekuplat pitäs lukita paikalleen jotenkin kun käyttää kaukoputkea"): chat-widget siirtää
 //   kuplia vaakasuunnassa kameran mukana, ja putki panoroi joka hiiren liikkeellä. Putken auetessa jokaisen kuplan style.left talteen ja
@@ -313,7 +316,10 @@ tila.lapio = lapio;
 let lapioAika = 0;
 const lapioSaatu = () => {
   if (tila.valmis) { lokiin({ lapio: 'ei, rata jo läpäisty' }); return; }
-  const k = kasi(); lapioAika = Date.now();
+  const k = kasi();
+  if (k === JAKOAVAIN) { piiloLapio = Date.now(); for (const ms of [30, 300, 1000]) setTimeout(kuplat, ms); banneri('Jakoavain kädessä: lapiota ei voi ottaa');
+    lokiin({ lapio: 'ei, jakoavain kädessä' }); return; }
+  lapioAika = Date.now();
   if (k) { try { const s = istunto(); s && s.sendChatMessage && s.sendChatMessage(':handitem 0', 0); } catch (x) {} lokiin({ lapio: 'kädessä ' + k + ' -> :handitem 0' }); }
   lokiin({ lapio: 'saatu' }); lapio(true); };
 const LAPIO_SVG = '<svg viewBox="0 0 32 32" width="26" height="26"><g transform="rotate(-35 16 16)"><rect x="10" y="1.5" width="12" height="4" rx="2" fill="#8a5a2b" stroke="#222" stroke-width="1.2"/><rect x="14.5" y="4" width="3" height="14" fill="#a06a35" stroke="#222" stroke-width="1.2"/><rect x="13.5" y="17" width="5" height="3" fill="#888" stroke="#222" stroke-width="1"/><path d="M9 20h14v4c0 4-3 7-7 7s-7-3-7-7z" fill="#cfd3d6" stroke="#222" stroke-width="1.4" stroke-linejoin="round"/></g></svg>';
