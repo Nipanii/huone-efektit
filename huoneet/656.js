@@ -30,6 +30,23 @@ const veriLatakko = (x, y, z) => { try { const id = veriId--;
 const veriLatakot = (x, y, z) => { veriLatakko(x, y, z); for (let i = 0; i < 3; i++) veriLatakko(x + (Math.random() * 2 - 1), y + (Math.random() * 2 - 1), z); };   // Shorp 01:25:39 "enemmän verta"
 const kaatuneet = new Map();   // oid -> { g, x, y, z, maassa, loppuu, talteen, ohi }
 let ajo = null, autoAlku = null, omaAlhaalla = false, lahetysYhteys = null, lahetysOma = null, lahetysAlkup = null;
+// Kyyti (kp 28.10. 23:39:40 "jos istuu autos nii pysyy auton kyydis auton mukana"): ajon alussa auton päällä (jalanjälki, z >= 0,5)
+//   olevat hahmot liikkuvat auton mukana samalla etäisyydellä eivätkä kaadu. Jos palvelin siirtää kyytiläistä kesken (käveli pois),
+//   hän putoaa kyydistä. Lopussa paluu alkupaikkaan (= palvelimen paikka, koska auto palaa lähtöön).
+//   Jalanjälki 28.10. 23:42 robon clientista: koko 2x3, suunta 90 -> x 38-40, y 17-18; istujat z 1,3 (sz 1,3).
+let kyyti = new Map();   // oid -> { x, y, z, dx, dy, asetettu }
+const kyytiAlku = (a, L) => { kyyti = new Map(); try { const sx = a.model.getValue('furniture_size_x') || 1, sy = a.model.getValue('furniture_size_y') || 1,
+    kaanto = Math.round(a.getDirection().x / 90) % 2 === 1, lx = kaanto ? sy : sx, ly = kaanto ? sx : sy;
+  for (const o of e0.getRoomObjects(huone, 100) || []) { if (o.id < 0 || !o.model || !o.model.getValue('figure')) continue; const l = o.getLocation();
+    if (l.x < L.x - 0.5 || l.x > L.x + lx - 0.5 || l.y < L.y - 0.5 || l.y > L.y + ly - 0.5 || l.z < 0.5) continue;
+    kyyti.set(o.id, { x: l.x, y: l.y, z: l.z, dx: l.x - L.x, dy: l.y - L.y, asetettu: null }); }
+  tila.loki.push({ kyyti: [...kyyti.keys()] }); } catch (x) { tila.loki.push({ kyyti: String(x) }); } };
+const kyytiSiirra = (x, y) => { for (const [oid, k] of kyyti) { try { const o = e0.getRoomObject(huone, oid, 100); if (!o) { kyyti.delete(oid); continue; }
+    const l = o.getLocation(); if (k.asetettu && Math.hypot(l.x - k.asetettu[0], l.y - k.asetettu[1]) > 0.6) { kyyti.delete(oid); continue; }
+    const p = new V(x + k.dx, y + k.dy, k.z); e0.updateRoomObjectUserLocation(huone, oid, p, p, false, 0, o.getDirection(), o.getDirection().x, true); k.asetettu = [p.x, p.y];
+  } catch (x) { kyyti.delete(oid); } } };
+const kyytiLoppu = () => { for (const [oid, k] of kyyti) { try { const o = e0.getRoomObject(huone, oid, 100); if (!o) continue; const p = new V(k.x, k.y, k.z);
+    e0.updateRoomObjectUserLocation(huone, oid, p, p, false, 0, o.getDirection(), o.getDirection().x, true); } catch (x) {} } kyyti = new Map(); };
 
 const yhteys = () => {
   const dv = (o, k) => { const d = o && Object.getOwnPropertyDescriptor(o, k); return d && !d.get ? d.value : undefined; };
@@ -98,13 +115,15 @@ const kuvaa = () => {
     let x = REITTI[REITTI.length - 1][0], y = REITTI[REITTI.length - 1][1], liike = 0;
     for (const s of ajo.o) { if (t < s.t0) break; const u = Math.min(1, (t - s.t0) / (s.t1 - s.t0)); x = s.ax + (s.bx - s.ax) * u; y = s.ay + (s.by - s.ay) * u; liike = u < 1 ? Math.sign(s.bx - s.ax) : 0; }
     if (a) e0.updateRoomObjectFloor(huone, AUTO, new V(x, y, autoAlku.z), new V(90), a.getState(0), null);
-    if (liike) for (const o of e0.getRoomObjects(huone, 100) || []) { if (o.id < 0 || !o.model || !o.model.getValue('figure')) continue;
+    if (kyyti.size) kyytiSiirra(x, y);
+    if (liike) for (const o of e0.getRoomObjects(huone, 100) || []) { if (o.id < 0 || !o.model || !o.model.getValue('figure') || kyyti.has(o.id)) continue;
       const k = kaatuneet.get(o.id), L = k ? { x: k.x, y: k.y } : o.getLocation(); if (L.y < KAISTA[0] || L.y > KAISTA[1]) continue;
       if (Math.abs(L.x - (x + 0.5)) > LEVEYS) continue;
       if (k && (k.lento && !k.maassa || nyt - (k.osui || 0) < 1200)) continue;
       lennata(o.id, L.y >= y + 0.5 ? 1 : -1, liike); const kk = kaatuneet.get(o.id); if (kk) kk.osui = nyt; }
     if (t >= ajo.kesto) { ajo.kaynnissa = false; tila.ajossa = false;
       if (a) e0.updateRoomObjectFloor(huone, AUTO, new V(autoAlku.x, autoAlku.y, autoAlku.z), new V(autoAlku.d), a.getState(0), null);
+      kyytiLoppu();
       for (const k of kaatuneet.values()) if (k.maassa) k.loppuu = Math.max(k.loppuu, nyt + 1500);
       tila.loki.push({ ajo: 'valmis', t: new Date().toTimeString().slice(0, 8) }); } }
   if (kaatuneet.size) paivitaKaatuneet(nyt);
@@ -115,7 +134,7 @@ const seuraava = () => { kehys = document.hidden ? setTimeout(kuvaa, 30) : reque
 tila.aja = (ohi = 0) => { if (!e0 || (ajo && ajo.kaynnissa)) return false; const a = e0.getRoomObject(huone, AUTO, 10); if (!a) return false;
   if (!V) V = a.getLocation().constructor;
   const L = a.getLocation(); autoAlku = { x: L.x, y: L.y, z: L.z, d: a.getDirection().x }; REITTI[0] = [L.x, L.y]; REITTI[REITTI.length - 1] = [L.x, L.y];
-  kavelyEsto(); const s = osuudet(); if (ohi >= s.kesto) return false; ajo = { alku: performance.now() - ohi, o: s.o, kesto: s.kesto, kaynnissa: true }; tila.ajossa = true;
+  kyytiAlku(a, L); kavelyEsto(); const s = osuudet(); if (ohi >= s.kesto) return false; ajo = { alku: performance.now() - ohi, o: s.o, kesto: s.kesto, kaynnissa: true }; tila.ajossa = true;
   tila.loki.push({ ajo: 'alku', kesto: Math.round(s.kesto), t: new Date().toTimeString().slice(0, 8) }); if (!kehys) seuraava(); return true; };
 
 // Ajastettu käynnistys ilman tööt-sanaa (kp 28.10. 00:15:25 yv "ei, pistä päälle ilman tööt"): kaikki clientit alkavat samasta kellonajasta
@@ -222,6 +241,7 @@ return () => {
   clearInterval(koukkuAjastin);
   try { if (typeof ksPois === 'function') ksPois(); if (ks) ks.unsubscribe(AIHE); } catch (x) {}
   if (kehys) { cancelAnimationFrame(kehys); clearTimeout(kehys); }
+  kyytiLoppu();
   try { const a = autoAlku && e0.getRoomObject(huone, AUTO, 10); if (a) e0.updateRoomObjectFloor(huone, AUTO, new V(autoAlku.x, autoAlku.y, autoAlku.z), new V(autoAlku.d), a.getState(0), null); } catch (x) {}
   for (const id of veret) { try { e0.removeRoomObjectFloor(huone, id); } catch (x) {} } veret.clear();
   for (const k of kaatuneet.values()) { try { e0.removeRoomObjectUser(huone, k.g); } catch (x) {} palauta(k.talteen); } kaatuneet.clear(); omaAlhaalla = false;
