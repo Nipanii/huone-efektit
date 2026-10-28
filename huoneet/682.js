@@ -36,6 +36,7 @@ const ALUE = { x0: 0, x1: 7, y0: 25, y1: 40, zMin: 20 };
 const WIRED = /^wf_(trg|act|cnd|xtra|slc|var)_/;
 const REIKA = 6820;
 const KAUKOPUTKI = 432401;
+const LAPI = [431443, 431429];   // Kaupunki sarake, Kaupunki aita kaukoputken vieressä: klikkaus läpi
 const KAIVUT = [432388, 432308, 432379, 432383, 432359, 432385, 432303, 432378, 432304, 432386, 432358, 432387, 432384, 432389, 432381,
   432380, 432377, 432306, 432302, 432374, 432376, 432375, 432357];   // wf_cnd_trggrer_on_frn 439570 (1,14) + 439571 (1,15)
 const RATA_MUUTTUJA = 'room:442825', RATA_RAJA = 3;
@@ -102,6 +103,9 @@ const paivita = () => {
     aseta(o, n); if (!n) piilossa++;
   }
   tila.piilossa = piilossa;
+  // Kaupunki sarake + Kaupunki aita peittävät kaukoputken viereiset ruudut (kp yv 18:38 "noista pitää sit mennä click läpi" · "vaikee kävellä
+  //   kaukoputken eteen"): klikkaus läpi, näkyvyys ennallaan. Sama mallikenttä kuin alueen furneilla yllä.
+  for (const id of LAPI) { const f = e.getRoomObject(huone, id, 10); if (f && f.model && f.model.getValue('furniture_wired_click_through') !== 1) try { f.model.setValue('furniture_wired_click_through', 1); } catch (x) {} }
   const oma = omaIndeksi(); let h = 0; const nahdyt = new Set();
   for (const o of e.getRoomObjects(huone, 100) || []) {
     if (!o || !o.model || o.id === oma) continue; nahdyt.add(o.id);
