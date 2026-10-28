@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Huoneskriptit (moottori)
-// @version      0.6.6
+// @version      0.6.7
 // @match        https://kupla.cc/*
 // @grant        none
 // ==/UserScript==
@@ -28,7 +28,7 @@
 //   itsensä roomEngine.activeRoomId:stä (pelin oma, -1 kun sessio päättyy) jos huone on silti mennyt ristiin.
 // Konsolissa: huoneskriptit.ajossa (mitä ajetaan) · huoneskriptit.loki · huoneskriptit.paivita(true) (hae ja käynnistä uudelleen)
 (() => {
-  const hs = { versio: '0.6.6', huone: 0, ajossa: new Map(), loki: [], pysaytetty: false };   // versio: myös 0.4.x:n itsepäivitys lukee tämän
+  const hs = { versio: '0.6.7', huone: 0, ajossa: new Map(), loki: [], pysaytetty: false };   // versio: myös 0.4.x:n itsepäivitys lukee tämän
   const POHJA = 'https://nipanii.github.io/huone-efektit/';
   const uudempi = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number);
     for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); return false; };
@@ -197,6 +197,39 @@
   };
   addEventListener('keydown', hwKuule, true);
 
-  hs.pysayta = () => { hs.pysaytetty = true; clearInterval(hs._tiki); verhoPois('moottori pysäytetty'); if (hs._palauta) hs._palauta(); pysaytaKaikki(true); removeEventListener('keydown', hwKuule, true);
+  // Oma hahmo (0.6.7, kp 29.10. 00:15 "Bibble ei näe itteään" · 00:24 "Korjaa se ongelma pysyvästi" · 00:34 "Vastaava bugi ei sit saa
+  //   toistua kun tehdään loput huoneet"): huoneskripti ei saa koskaan piilottaa pelaajaa itseltään. 682.js mykisti oman hahmon
+  //   (figure_is_muted IGNORED|HIDDEN) kun ownRoomIndex oli vielä -1, koska Daybreak voi lähettää hahmolistan ennen omaa käyttäjätietoa
+  //   (IsOwnRoomUser.ts:14-17), eikä palauttanut sitä koskaan. Moottori valvoo tätä nyt kaikille skripteille, joten uusi huoneskripti
+  //   ei voi toistaa virhettä: 250 ms välein, kun jokin skripti on ajossa, oman hahmon mykistysbitit nollataan ja visualisoinnin
+  //   instanssikohtainen piilotusohitus (updateIgnoreHiddenState, kuten 682:n zombeilla) poistetaan, jolloin pelin oma
+  //   AvatarVisualization.updateIgnoreHiddenState laskee näkyvyyden mallista seuraavassa ruudussa.
+  //   hs.oma(huone) = oma huoneindeksi myös ennen ownRoomIndexiä (käyttäjä-id tai nimi kuten clientin IsOwnRoomUser), skripteille.
+  //   hs.itse = { korjattu, viimeisin, tarkista } (todennus: tarkista() ajaa yhden kierroksen heti).
+  const MYKKA = 6;   // ObjectAvatarMutedUpdateMessage IGNORED 2 | HIDDEN 4
+  const omaArvo = (o, k) => { const d = o && Object.getOwnPropertyDescriptor(o, k); return d && !d.get ? d.value : undefined; };
+  hs.oma = (r) => { const e = window.NitroDevTools && window.NitroDevTools.roomEngine; if (!e || !(r > 0)) return null;
+    const sm = omaArvo(e, '_roomSessionManager'), s = sm && sm.getSession && sm.getSession(r); if (!s) return null;
+    const i = s.ownRoomIndex; if (i != null && i >= 0) return i;
+    const ud = s.userDataManager, sd = omaArvo(e, '_sessionDataManager') || {}, id = Number(sd._userId || 0), nimi = String(sd._name || '').trim().toLowerCase();
+    if (!ud || !ud.getUserDataByIndex || (!id && !nimi)) return null;
+    for (const o of e.getRoomObjects(r, 100) || []) { const u = o && ud.getUserDataByIndex(o.id);
+      if (u && ((id > 0 && Number(u.webID) === id) || (nimi && String(u.name || '').trim().toLowerCase() === nimi))) return o.id; }
+    return null; };
+  const ITSE = hs.itse = { korjattu: 0, viimeisin: null };
+  ITSE.tarkista = () => { const r = hs.huone; if (hs.pysaytetty || !(r > 0) || !hs.ajossa.size) return false;
+    const e = window.NitroDevTools && window.NitroDevTools.roomEngine, i = hs.oma(r); if (!e || i == null) return false;
+    const o = e.getRoomObject(r, i, 100); if (!o || !o.model) return false;
+    let m = 0; try { m = o.model.getValue('figure_is_muted') || 0; } catch (x) {}
+    const v = o.visualization, ohitus = !!v && Object.prototype.hasOwnProperty.call(v, 'updateIgnoreHiddenState');
+    if (!(m & MYKKA) && !ohitus) return false;
+    if (m & MYKKA) try { e.updateRoomObjectUserAction(r, i, 'figure_is_muted', m & ~MYKKA); } catch (x) {}
+    if (ohitus) try { delete v.updateIgnoreHiddenState; for (const k of Object.keys(v)) if (k.startsWith('__piilo')) delete v[k]; } catch (x) {}
+    ITSE.korjattu++; ITSE.viimeisin = { huone: r, indeksi: i, mykistys: m, ohitus, aika: new Date().toTimeString().slice(0, 8) };
+    merkitse({ itse: 'oma hahmo palautettu näkyviin', huone: r, mykistys: m, ohitus, skriptit: [...hs.ajossa.keys()].join(' ') });
+    return true; };
+  hs._itseAjastin = setInterval(() => { try { ITSE.tarkista(); } catch (x) {} }, 250);
+
+  hs.pysayta = () => { hs.pysaytetty = true; clearInterval(hs._tiki); clearInterval(hs._itseAjastin); verhoPois('moottori pysäytetty'); if (hs._palauta) hs._palauta(); pysaytaKaikki(true); removeEventListener('keydown', hwKuule, true);
     if (window.huoneskriptit === hs) delete window.huoneskriptit; };
 })();
