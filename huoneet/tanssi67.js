@@ -17,7 +17,7 @@
 //   toisen pelaajan clientin näkymä, istuva/makaava hahmo, 656:n send-koukun kanssa siivousjärjestyksen kaikki permutaatiot.
 const e0 = window.NitroDevTools && window.NitroDevTools.roomEngine;
 const huone = () => (kupla && kupla.roomId && kupla.roomId()) || (e0 && e0.activeRoomId);
-const NIMI = 'dance.sixseven', ALIAS = 'dance.67', NUMERO = 67, VARA = 1, KESTO = 990, TAUKO = 800, AIHE = 'tanssi67', SANA = /^:67$/i;
+const NIMI = 'dance.sixseven', ALIAS = 'dance.67', NUMERO = 67, VARA = 1, KESTO = 2500, LASKU = 12, TAUKO = 800, AIHE = 'tanssi67', SANA = /^:67$/i;
 const tila = window.tanssi67 = { versio: 'tanssi67', loki: [], rekisteroity: false };
 // Oliverin kehykset tiiviisti: [leftarm, torso, head, rightarm], kukin 'T<kehys>,dx,dy,dd', T = D Default · C CarryItem · T Talk.
 const OSAT = ['leftarm', 'torso', 'head', 'rightarm'], TOIMINTO = { D: 'Default', C: 'CarryItem', T: 'Talk' };
@@ -53,7 +53,7 @@ let yritys = 0; const rekAjastin = setInterval(() => { if (rekisteroi() || ++yri
 
 // Soitto: paikallinen FIGURE_DANCE (ei pakettia), palautus KESTO ms jälkeen. Rajoitus 1 / 2 s lähettäjää kohti.
 const viimeksi = new Map(), soi = new Map();   // nimi -> aika · hahmo-id -> { ajastin, talteen }
-const lopeta = id => { const s = soi.get(id); if (!s) return; clearTimeout(s.ajastin); soi.delete(id);
+const lopeta = id => { const s = soi.get(id); if (!s) return; clearTimeout(s.ajastin); clearInterval(s.vahti); soi.delete(id);
   try { const o = e0.getRoomObject(huone(), id, 100); if (o && (o.model.getValue('figure_dance') || 0) === s.numero) e0.updateRoomObjectUserAction(huone(), id, 'figure_dance', s.talteen); } catch (x) {} };
 // kp 28.10. 23:57 "togglee on/off", sitten 29.10. 00:04 "laitetaanko loop pois" (Oliver: "emt miks 67 looppaa"): yksi :67 soittaa kerran (KESTO) ja loppuu itse; :67 kesken tanssin sammuttaa heti.
 const soita = (nimi, paalla = true) => { try {
@@ -66,7 +66,12 @@ const soita = (nimi, paalla = true) => { try {
   if (soi.has(o.id)) lopeta(o.id);
   const talteen = o.model.getValue('figure_dance') || 0;
   if (!e0.updateRoomObjectUserAction(huone(), o.id, 'figure_dance', numero)) { tila.loki.push({ ohi: n, syy: 'updateRoomObjectUserAction false' }); return false; }
-  soi.set(o.id, { numero, talteen, ajastin: setTimeout(() => lopeta(o.id), KESTO) });
+  // Oliver 29.10. 00:05 "lopeta loop ku kädet laskeutuu ekan kerran": avatarin _frameCounter on jatkuva (mitattu ~12/s) eikä nollaudu tanssin alussa,
+  // joten tanssi alkoi satunnaisesta kehyksestä. Nollataan se ja lopetetaan kun kehys LASKU (ensimmäinen kädet alas -kehys) on näkynyt. KESTO on varakatkaisu.
+  const ai = dv(o.visualization, '_avatarImage');
+  try { if (ai && typeof ai.resetAnimationFrameCounter === 'function') ai.resetAnimationFrameCounter(); else if (ai && typeof dv(ai, '_frameCounter') === 'number') ai._frameCounter = 0; } catch (x) {}
+  const vahti = setInterval(() => { try { const f = dv(ai, '_frameCounter'); if (typeof f === 'number' && f >= LASKU + 1) lopeta(o.id); } catch (x) {} }, 40);
+  soi.set(o.id, { numero, talteen, vahti, ajastin: setTimeout(() => lopeta(o.id), KESTO) });
   tila.loki.push({ soita: n, id: o.id, numero, talteen }); return true;
 } catch (x) { tila.loki.push({ soita: 'virhe', viesti: String(x) }); return false; } };
 tila.soita = soita;
