@@ -25,7 +25,9 @@ const fdata = (st) => ({ flags: 0, uniqueNumber: 0, uniqueSeries: 0, rarityLevel
   initializeFromRoomObjectModel() {}, parseWrapper() {}, getLegacyString() { return st; },
   compare() { return false; }, setString() {}, getValue() { return ''; } });
 const veriLatakko = (x, y, z) => { try { const id = veriId--;
-  if (!e0.addFurnitureFloorByTypeName(huone, id, VERI, new V(Math.round(x), Math.round(y), z || 0), new V(Math.floor(Math.random() * 4) * 90), 0, fdata('0'), NaN, -1, 0, -1, '', true, false)) return;
+  // kp 29.10. 00:00 "edellee veret penkin pääl": lentäjän z oli penkin/istuimen korkeus. Veri lattiatasoon (ruudun korkeus), jolloin penkki ja hahmot piirtyvät sen päälle.
+  const rx = Math.round(x), ry = Math.round(y); let lz = 0; try { const g = e0.getLegacyWallGeometry(huone); lz = g ? (g.getHeight(rx, ry) || 0) : 0; } catch (x2) {}
+  if (!e0.addFurnitureFloorByTypeName(huone, id, VERI, new V(rx, ry, lz), new V(Math.floor(Math.random() * 4) * 90), 0, fdata('0'), NaN, -1, 0, -1, '', true, false)) return;
   veret.add(id); setTimeout(() => { try { e0.removeRoomObjectFloor(huone, id); } catch (x) {} veret.delete(id); }, VERI_MS); } catch (x) { tila.loki.push({ veri: String(x) }); } };
 const veriLatakot = (x, y, z) => { veriLatakko(x, y, z); for (let i = 0; i < 3; i++) veriLatakko(x + (Math.random() * 2 - 1), y + (Math.random() * 2 - 1), z); };   // Shorp 01:25:39 "enemmän verta"
 const kaatuneet = new Map();   // oid -> { g, x, y, z, maassa, loppuu, talteen, ohi }
