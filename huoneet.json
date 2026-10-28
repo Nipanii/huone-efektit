@@ -1,22 +1,53 @@
 {
   "_ohje": "Huoneskriptit. Avain = huone-id, skriptit = polut tähän repoon. Moottori hakee tämän listan huoneeseen tullessa, ajaa huoneen skriptit ja pysäyttää ne kun huoneesta lähdetään. Skriptin muutos näkyy huoneessa oleville noin 15 s sisällä ilman version nostoa.",
   "huoneet": {
-    "656": {
-      "nimi": "Väliaikainen pila (auto)",
+    "650": {
+      "nimi": "Halloween rata 1/6",
       "skriptit": [
+        "huoneet/hween-wired.js",
+        "huoneet/650.js"
+      ]
+    },
+    "656": {
+      "nimi": "Halloween RATA 2026 (lobby)",
+      "skriptit": [
+        "huoneet/hween-wired.js",
         "huoneet/656.js"
       ]
     },
     "681": {
-      "nimi": "Miinarata",
+      "nimi": "Halloween rata 2/6 (miinarata)",
       "skriptit": [
+        "huoneet/hween-wired.js",
         "huoneet/681.js"
+      ]
+    },
+    "682": {
+      "nimi": "Halloween rata 3/6 (ruoka)",
+      "skriptit": [
+        "huoneet/hween-wired.js",
+        "huoneet/682.js"
+      ]
+    },
+    "683": {
+      "nimi": "Halloween rata 4/6",
+      "skriptit": [
+        "huoneet/hween-wired.js",
+        "huoneet/683.js"
       ]
     },
     "684": {
       "nimi": "Halloween rata 5/6 (pimeys)",
       "skriptit": [
+        "huoneet/hween-wired.js",
         "huoneet/684.js"
+      ]
+    },
+    "685": {
+      "nimi": "Halloween rata 6/6",
+      "skriptit": [
+        "huoneet/hween-wired.js",
+        "huoneet/685.js"
       ]
     }
   },

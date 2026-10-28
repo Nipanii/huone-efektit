@@ -393,38 +393,14 @@ let arkkuYrit = 0;
 const arkkuAloitus = setInterval(() => { if (arkkuKysy() || ++arkkuYrit > 30) clearInterval(arkkuAloitus); }, 1000);
 const arkkuAjastin = setInterval(arkkuPakota, 500);
 
-// Wiredit näkyvät vain kurkkupomolle, sonalle ja Resille (kp 27.10. 21:02 "täs huonees vaa minä sona ja res nähää wiredit",
-//   21:03 "jos teen :hidewireds et ne tulee näkyviin nii ne ei saa paljastua muille"). Palvelimen :hidewired on kaikki tai ei mitään
-//   (Habbo-Daybreak HideWiredCommand.java), joten muilla laatikot piilotetaan tässä clientissä: alpha 0 + klikkaus läpi
-//   (Nitro_Render_V3 FurnitureVisualization.ts:245). Vain wired-laatikot (wf_trg/act/cnd/xtra/slc/var), EI pelifurnit kuten wf_arrowplate.
-//   Nimi puuttuu -> piilotetaan (vika suljettuun suuntaan). RAJA: koskee vain pelaajia joilla tämä moottori on päällä.
-const WIRED_NAKYY = ['kurkkupomo', 'sona', 'res'];
-const WIRED_LUOKKA = /^wf_(trg|act|cnd|xtra|slc|var)_/;
-let wiredAjastin = null;
-const wiredPiilossa = new Set();
-try {
-  const sdm = e0 && e0._sessionDataManager;
-  const oma = String((sdm && sdm._name) || '').toLowerCase();
-  tila.wiredNakyy = WIRED_NAKYY.includes(oma);
-  if (e0 && !tila.wiredNakyy) {
-    const piilotaWired = () => { try {
-      for (const o of e0.getRoomObjects(huone, 10) || []) {
-        if (!WIRED_LUOKKA.test(String(o.type || '').toLowerCase()) || !o.model) continue;
-        if (o.model.getValue('furniture_alpha_multiplier') !== 0) o.model.setValue('furniture_alpha_multiplier', 0);
-        if (o.model.getValue('furniture_wired_click_through') !== 1) o.model.setValue('furniture_wired_click_through', 1);
-        wiredPiilossa.add(o);
-      } } catch (x) {} };
-    piilotaWired(); wiredAjastin = setInterval(piilotaWired, 100);
-  }
-} catch (x) {}
+// Wired-laatikoiden piilotus (vain rakentajat näkevät) on 28.10. alkaen yhteinen kaikille Halloween-huoneille: huoneet/hween-wired.js
+//   (kp 11:18 "kaikki hween huoneet pitää sit olla tää systeemi"). Tämän tiedoston oma 100 ms kysely poistettiin.
 
 // Pysäytys: moottori kutsuu tätä kun huoneesta lähdetään tai tämä tiedosto muuttuu. Kesken olevat räjähdykset ja lennot päättyvät itse.
 return () => {
   clearInterval(arkkuAloitus); clearInterval(arkkuAjastin);
   try { if (arkkuYhteys && arkkuYhteys.handleMessages === arkkuOma) { if (arkkuAlkup === Object.getPrototypeOf(arkkuYhteys).handleMessages) delete arkkuYhteys.handleMessages; else arkkuYhteys.handleMessages = arkkuAlkup; } } catch (x) {}
   try { const o = arkkuEnnen != null && e0 && e0.getRoomObject(huone, ARKKU, 10); if (o) e0.updateRoomObjectFloor(huone, ARKKU, o.getLocation(), o.getDirection(), arkkuEnnen, null); } catch (x) {}
-  clearInterval(wiredAjastin);
-  for (const o of wiredPiilossa) try { o.model.setValue('furniture_alpha_multiplier', 1); o.model.setValue('furniture_wired_click_through', 0); } catch (x) {}
   clearInterval(ajastin); clearTimeout(esilataus); lentavat.clear();
   for (const off of jakoPois) try { off(); } catch (x) {}
   for (const l of nakyvatLaput) { cancelAnimationFrame(l.ajo); l.d.remove(); } nakyvatLaput.clear();
