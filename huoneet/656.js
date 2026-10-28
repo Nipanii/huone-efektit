@@ -45,6 +45,7 @@ const omaIndeksi = () => { const s = sessio(), i = s && s.ownRoomIndex; return (
 const kavelyEsto = () => { const c = yhteys(); if (!c || typeof c.send !== 'function' || lahetysYhteys === c) return;
   const alkup = c.send;
   const oma = function (...k) { try { if (omaAlhaalla && this._messages) { k = k.filter(x => this._messages.getComposerId(x) !== 3320); if (!k.length) return true; } } catch (x) {}
+    try { const n = k.length; k = k.filter(x => !autoViesti(x)); if (k.length < n) { autoLaheta(); if (!k.length) return true; } } catch (x) {}
     return alkup.apply(this, k); };
   c.send = oma; lahetysYhteys = c; lahetysOma = oma; lahetysAlkup = alkup; };
 
@@ -191,6 +192,25 @@ const kuule = ev => { try { if (!ev || ev.chatType == null || !SANA.test(String(
   const s = sessio(), u = s && s.userDataManager && s.userDataManager.getUserDataByIndex(ev.objectId);
   if (!u || !LAUKAISIJAT.includes(String(u.name || '').toLowerCase())) return; tila.aja(); } catch (x) { tila.loki.push({ virhe: String(x) }); } };
 if (vayla && vayla.addEventListener) vayla.addEventListener('RSCE_CHAT_EVENT', kuule);
+// kp 22:16:09 "voi vitun tyhmä robo :auto komento näky kaikille" · "ja nyt se paljastu": oma ":auto" (chat, huuto, kuiskaus) pudotetaan
+//   lähetyksestä (send-koukku yllä) eikä mene palvelimelle, ja laukaisu kulkee Messenger-skriptien datakanavalla (window.kuplaScripts,
+//   sama kuin 681:n mitattu jako 27.10.) jokaiselle moottorilla varustetulle clientille. Lähettäjä saa oman kaikunsa ja ajaa siitä.
+//   Chat-kuuntelija yllä jää varaksi pelaajalle jolla ei ole moottoria (hänen :autonsa näkyy silloin kuten ennen).
+const ks = window.kuplaScripts, AIHE = 'h656.auto';
+const autoViesti = x => { const a = x && typeof x.getMessageArray === 'function' && x.getMessageArray(); return Array.isArray(a) && a.some(v => typeof v === 'string' && SANA.test(v.trim())); };
+const autoLaheta = () => { const oma = String((sessio() && sessio().userDataManager && (sessio().userDataManager.getUserDataByIndex(omaIndeksi()) || {}).name) || '').toLowerCase();
+  tila.loki.push({ auto: 'oma', oma, kanava: !!ks });
+  if (!LAUKAISIJAT.includes(oma)) return; if (!ks) { tila.aja(); return; }
+  try { ks.send(AIHE, JSON.stringify({ t: Date.now() })); } catch (x) { tila.loki.push({ auto: 'virhe', viesti: String(x) }); tila.aja(); } };
+let ksPois = null;
+if (ks) try { ks.subscribe(AIHE);
+  ksPois = ks.on('message', m => { try { if (!m || m.topic !== AIHE) return;
+    tila.loki.push({ auto: 'saatu', kenelta: m.senderName });
+    if (LAUKAISIJAT.includes(String(m.senderName || '').toLowerCase())) tila.aja(); } catch (x) {} });
+} catch (x) { tila.loki.push({ auto: 'kanava virhe', viesti: String(x) }); }
+// send-koukku asennetaan heti (ennen vain ajon alussa), 2 s välein koska uudelleenyhdistys tuo uuden yhteysolion.
+const koukkuAjastin = setInterval(() => { try { kavelyEsto(); } catch (x) {} }, 2000); try { kavelyEsto(); } catch (x) {}
+tila.autoKanava = () => autoLaheta();   // konsolista / robolta: pila.autoKanava()
 
 return () => {
   clearInterval(ajastus);
@@ -198,6 +218,8 @@ return () => {
   try { if (valoYhteys && valoYhteys.handleMessages === valoOma) { if (valoAlkup === Object.getPrototypeOf(valoYhteys).handleMessages) delete valoYhteys.handleMessages; else valoYhteys.handleMessages = valoAlkup; } } catch (x) {}
   for (const [id, s] of valot.alkup) { try { const o = e0.getRoomObject(huone, id, 10); if (o) e0.updateRoomObjectFloor(huone, id, o.getLocation(), o.getDirection(), s, null); } catch (x) {} }
   if (vayla && vayla.removeEventListener) vayla.removeEventListener('RSCE_CHAT_EVENT', kuule);
+  clearInterval(koukkuAjastin);
+  try { if (typeof ksPois === 'function') ksPois(); if (ks) ks.unsubscribe(AIHE); } catch (x) {}
   if (kehys) { cancelAnimationFrame(kehys); clearTimeout(kehys); }
   try { const a = autoAlku && e0.getRoomObject(huone, AUTO, 10); if (a) e0.updateRoomObjectFloor(huone, AUTO, new V(autoAlku.x, autoAlku.y, autoAlku.z), new V(autoAlku.d), a.getState(0), null); } catch (x) {}
   for (const id of veret) { try { e0.removeRoomObjectFloor(huone, id); } catch (x) {} } veret.clear();
