@@ -115,8 +115,16 @@ const paivita = () => {
   for (const id of [...mykat.keys()]) if (!nahdyt.has(id)) mykat.delete(id);
   for (const id of [...botit.keys()]) if (!nahdyt.has(id)) botit.delete(id);
   tila.hahmojaPiilossa = h;
-  putkiTarkista(); lapioTarkista();
+  putkiTarkista(); lapioTarkista(); jaakaappi();
 };
+// kp 19:33-19:34 "kun peli on läpäisty, jääkaapin ovi aukeaa" · "näkyy vaa itelle" · "jää auki jos on vetänyt radan": Jääkaappi
+//   (habbox_rosebury_cuisine10) tilaan 1 vain omassa clientissä (setState, ei pakettia), uudelleen joka kierroksella jos palvelin päivittää sen.
+//   Kaksi animaatiota (0, 1); robolla visualisointi seuraa tilaa 1. Oven ulkonäköä ei ole katsottu.
+const JAAKAAPPI = 442798;
+let jkAuki = false;
+const jaakaappi = () => { try { const f = e.getRoomObject(huone, JAAKAAPPI, 10); if (!f) return;
+  if (tila.valmis) { if (f.getState(0) !== 1) { f.setState(1, 0); if (!jkAuki) lokiin({ jaakaappi: 'auki' }); } jkAuki = true; }
+  else if (jkAuki) { f.setState(0, 0); jkAuki = false; } } catch (x) {} };
 
 // ---- Muuttuja: ratoja_tehty >= 3 -> ei piilotusta (sama luku kuin 681.js:n arkku)
 // kaivun laukaisin on piilotettu sana (kp 19:26 "dig komento piti poistaa"): sanotriggerit 439498/439499 tilassa 1,1,0, viesti ei näy muille
@@ -450,7 +458,7 @@ return () => {
   clearInterval(ajastin); clearInterval(kysyAloitus);
   for (const f of pois) try { f(); } catch (x) {}
   kuplaTyyli(false);
-  kaukoputki(false); if (piirto) cancelAnimationFrame(piirto);
+  kaukoputki(false); if (piirto) cancelAnimationFrame(piirto); if (jkAuki) { tila.valmis = false; jaakaappi(); }
   if (nappi) nappi.remove(); for (const el of document.querySelectorAll('.h682-lapio')) el.remove();
   for (const d of laput) d.remove();
   if (koukkuYhteys && koukkuYhteys.handleMessages === koukkuOma) koukkuYhteys.handleMessages = koukkuAlkup;
