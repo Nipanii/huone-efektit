@@ -56,6 +56,10 @@
         {
           "polku": "kayttajat/messenger/messenger-kuvaliite.user.js",
           "globaali": "__kuplaKuvaliite"
+        },
+        {
+          "polku": "kayttajat/messenger/ratavar.user.js",
+          "globaali": "__kuplaRatavar"
         }
       ]
     }
