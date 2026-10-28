@@ -48,7 +48,15 @@ const lokiin = (x) => { x.t = new Date().toTimeString().slice(0, 8); tila.loki.p
 
 const dv = (o, k) => { const d = o && Object.getOwnPropertyDescriptor(o, k); return d && !d.get ? d.value : undefined; };
 const istunto = () => { const sm = dv(e, '_roomSessionManager'); return sm && sm.getSession && sm.getSession(huone); };
-const omaIndeksi = () => { const s = istunto(); const i = s && s.ownRoomIndex; return (i == null || i < 0) ? null : i; };
+// Oma indeksi: ownRoomIndex on -1 hetken huoneeseen tullessa, koska Daybreak voi lähettää hahmolistan ennen omaa käyttäjätietoa
+//   (IsOwnRoomUser.ts:14-17). Silloin oma hahmo tunnistetaan käyttäjä-id:llä tai nimellä kuten clientin IsOwnRoomUser.
+//   Ilman tätä teleportilla alueelle tullut pelaaja mykistyi itseltään pysyvästi (kp 29.10. 00:15 "Bibble ei näe itteään").
+const omaIndeksi = () => { const s = istunto(); const i = s && s.ownRoomIndex; if (i != null && i >= 0) return i;
+  const ud = s && s.userDataManager, sd = dv(e, '_sessionDataManager') || {}, id = Number(sd._userId || 0), nimi = String(sd._name || '').trim().toLowerCase();
+  if (!ud || !ud.getUserDataByIndex || (!id && !nimi)) return null;
+  for (const o of e.getRoomObjects(huone, 100) || []) { const u = o && ud.getUserDataByIndex(o.id);
+    if (u && ((id > 0 && Number(u.webID) === id) || (nimi && String(u.name || '').trim().toLowerCase() === nimi))) return o.id; }
+  return null; };
 const omaHahmo = () => { const i = omaIndeksi(); return i == null ? null : e.getRoomObject(huone, i, 100); };
 const omaAlueella = () => { const o = omaHahmo(); return !!(o && sisalla(o.getLocation())); };
 const omaNimi = () => String((dv(e, '_sessionDataManager') || {})._name || '');
@@ -108,8 +116,15 @@ const paivita = () => {
   for (const id of LAPI) { const f = e.getRoomObject(huone, id, 10); if (f && f.model && f.model.getValue('furniture_wired_click_through') !== 1) try { f.model.setValue('furniture_wired_click_through', 1); } catch (x) {} }
   const oma = omaIndeksi(); let h = 0; const nahdyt = new Set();
   for (const o of e.getRoomObjects(huone, 100) || []) {
-    if (!o || !o.model || o.id === oma) continue; nahdyt.add(o.id);
-    const z = zombi(o), piiloon = z ? !tila.putkiAuki : (String(o.type) === 'user' && !tila.nakyy && sisalla(o.getLocation()));
+    if (!o || !o.model) continue; nahdyt.add(o.id);
+    // Oma hahmo ei ole koskaan piilossa itseltään: palautetaan oma mykistys ja nollataan myös aiemman ajon jättämä (vanha versio poisti
+    //   oman rivin mykat-listasta palauttamatta sitä). Jos omaa hahmoa ei vielä tunneta, ketään ei piiloteta (piilotus on kosmetiikkaa,
+    //   itsensä piilottaminen kaataa radan).
+    if (o.id === oma) { mykista(o, false); botPiiloon(o, false);
+      let nyt = 0; try { nyt = o.model.getValue('figure_is_muted') || 0; } catch (x) {}
+      if (nyt & MYKKA) try { e.updateRoomObjectUserAction(huone, o.id, 'figure_is_muted', nyt & ~MYKKA); lokiin({ oma: 'mykistys nollattu', oli: nyt }); } catch (x) {}
+      continue; }
+    const z = zombi(o), piiloon = z ? !tila.putkiAuki : (oma != null && String(o.type) === 'user' && !tila.nakyy && sisalla(o.getLocation()));
     if (z) botPiiloon(o, piiloon); else { mykista(o, piiloon); botPiiloon(o, false); } if (piiloon) h++;
   }
   for (const id of [...mykat.keys()]) if (!nahdyt.has(id)) mykat.delete(id);
