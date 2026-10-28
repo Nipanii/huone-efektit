@@ -56,8 +56,14 @@ main{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:
 
   function kortti(b) {
     const d = document.createElement('div'); d.className = 'b'; d.title = 'Klikkaa kopioidaksesi ' + b.id;
-    const img = new Image(); img.loading = 'lazy'; img.alt = ''; img.src = KUVA(b.id); // ACH_-pohja-avaimella (badge_name_ACH_X) ei ole omaa gifiä, kuvat ovat tasoittain ACH_X1..N: kokeillaan tasoa 1.
-    img.onerror = () => { if (!img.dataset.taso && /^ACH_/.test(b.id)) { img.dataset.taso = '1'; img.src = KUVA(b.id + '1'); } else d.classList.add('eikuvaa'); };
+    // Kuvaton avain (mitattu 28.10. otoksella: ~8 % muista, ~25 % ACH_): kokeillaan järjestyksessä välilyönnit pois ·
+    //   toisen hotellin tekstiavaimen pääte pois (X_HHCA, X_HHUK -> X) · _name pois · ACH_-pohjalle taso 1 (ACH_X -> ACH_X1).
+    const pohja = b.id.trim();
+    const ehdokkaat = [...new Set([pohja, pohja.replace(/_HH[A-Z]{2,3}$/, ''), pohja.replace(/_name$/i, '')]
+      .flatMap(x => /^ACH_/.test(x) && !/\d$/.test(x) ? [x, x + '1'] : [x]))].filter(x => x !== b.id);
+    const img = new Image(); img.loading = 'lazy'; img.alt = '';
+    img.onerror = () => { const seur = ehdokkaat.shift(); if (seur) img.src = KUVA(seur); else d.classList.add('eikuvaa'); };
+    img.src = KUVA(b.id);
     const id = document.createElement('div'); id.className = 'id'; id.textContent = b.id;
     const nimi = document.createElement('div'); nimi.className = 'nimi'; nimi.textContent = b.nimi;
     d.append(img, id, nimi);
