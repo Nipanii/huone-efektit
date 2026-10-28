@@ -151,9 +151,15 @@ const LAPIO = /^Löysit lapion/;
 let piiloLapio = 0;
 const KAUKOVIESTI = /Näet teleskoopilla/i;
 const kuplaPiiloon = el => { try { const t = el.textContent || '';
-  if ((KAUKOVIESTI.test(t) && !tila.putkiAuki) || (/Löysit lapion/.test(t) && Date.now() - piiloLapio < 4000)) el.style.display = 'none'; } catch (x) {} };
-const kuplaVahti = new MutationObserver(ms => { for (const m of ms) for (const n of m.addedNodes) if (n.nodeType === 1) {
-  if (n.classList.contains('bubble-container')) kuplaPiiloon(n); else for (const b of n.querySelectorAll ? n.querySelectorAll('.bubble-container') : []) kuplaPiiloon(b); } });
+  if ((KAUKOVIESTI.test(t) && !tila.putkiAuki) || (/Löysit lapion/.test(t) && Date.now() - piiloLapio < 4000)) { if (el.style.display !== 'none') el.style.display = 'none'; } } catch (x) {} };
+// Puhekuplat paikalleen putken ajaksi (kp 18:50:22 "puhekuplat pitäs lukita paikalleen jotenkin kun käyttää kaukoputkea"): chat-widget siirtää
+//   kuplia vaakasuunnassa kameran mukana, ja putki panoroi joka hiiren liikkeellä. Putken auetessa jokaisen kuplan style.left talteen ja
+//   palautetaan aina kun widget muuttaa sitä; putken aikana syntynyt kupla lukitaan ensimmäiseen paikkaansa. top saa elää (kuplat nousevat).
+//   Koko kuplajoukko käydään läpi joka muutoksella: kupla voi syntyä tyhjänä ja saada tekstinsä vasta myöhemmin (18:50 yksi jäi näkyviin).
+let kuplaLeft = new WeakMap();
+const kuplat = () => { for (const b of document.querySelectorAll('.bubble-container')) { kuplaPiiloon(b);
+  if (!tila.putkiAuki) continue; const l = kuplaLeft.get(b); if (l == null) kuplaLeft.set(b, b.style.left); else if (b.style.left !== l) b.style.left = l; } };
+const kuplaVahti = new MutationObserver(kuplat);
 const viimLapi = new Map();
 const laput = new Set();
 const banneri = teksti => {
@@ -287,7 +293,7 @@ const kaukoputki = (on) => {
     document.body.appendChild(putki); tila.putkiAuki = true; zoomaa(true); lokiin({ kaukoputki: 'auki' }); paivita(); pyyda();
     try { const p = putki.requestPointerLock(); if (p && p.catch) p.catch(x => lokiin({ lukko: 'ei: ' + String(x).slice(0, 80) })); } catch (x) { lokiin({ lukko: 'ei: ' + String(x).slice(0, 80) }); }
   } else if (!on && putki) { const p0 = putki; if (document.pointerLockElement === p0) try { document.exitPointerLock(); } catch (x) {}
-    oliLukittu = false; putki.remove(); putki = null; if (kursori) { kursori.remove(); kursori = null; } tila.putkiAuki = false; zoomaa(false); lokiin({ kaukoputki: 'kiinni' }); paivita(); }
+    oliLukittu = false; kuplaLeft = new WeakMap(); putki.remove(); putki = null; if (kursori) { kursori.remove(); kursori = null; } tila.putkiAuki = false; zoomaa(false); lokiin({ kaukoputki: 'kiinni' }); paivita(); }
 };
 tila.kaukoputki = kaukoputki;
 const putkiTarkista = () => { if (putki) { if (!vieressa()) kaukoputki(false); else pyyda(); } };
@@ -350,7 +356,7 @@ if (vayla && vayla.addEventListener) {
 } else lokiin({ vayla: 'roomEngine.events puuttuu' });
 for (const t of Object.keys(KESKELLE)) { window.addEventListener(t, keskelle, true); pois.push(() => window.removeEventListener(t, keskelle, true)); }
 document.addEventListener('pointermove', liike, { capture: true, passive: true }); pois.push(() => document.removeEventListener('pointermove', liike, { capture: true }));
-kuplaVahti.observe(document.body, { childList: true, subtree: true }); pois.push(() => kuplaVahti.disconnect());
+kuplaVahti.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['style'] }); pois.push(() => kuplaVahti.disconnect());
 document.addEventListener('pointerlockchange', lukko); pois.push(() => document.removeEventListener('pointerlockchange', lukko));
 document.addEventListener('keydown', nappain, true); pois.push(() => document.removeEventListener('keydown', nappain, true));
 window.addEventListener('resize', pyyda); pois.push(() => window.removeEventListener('resize', pyyda));
