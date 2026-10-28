@@ -150,8 +150,10 @@ const LAPIO = /^Löysit lapion/;
 //   kaukoputkiviesti vain putken ollessa auki, lapioviesti vain ensimmäisellä kerralla. Wired-viesti on chat-bubble-34 omassa bubble-containerissa.
 let piiloLapio = 0;
 const KAUKOVIESTI = /Näet teleskoopilla/i;
+const kuplaNahty = new WeakMap();
+const nahty = el => { let t = kuplaNahty.get(el); if (t == null) { t = Date.now(); kuplaNahty.set(el, t); } return t; };
 const kuplaPiiloon = el => { try { const t = el.textContent || '';
-  if ((KAUKOVIESTI.test(t) && !tila.putkiAuki) || (/Löysit lapion/.test(t) && Date.now() - piiloLapio < 4000)) { if (el.style.display !== 'none') el.style.display = 'none'; } } catch (x) {} };
+  if ((KAUKOVIESTI.test(t) && !tila.putkiAuki) || (/Löysit lapion/.test(t) && Math.abs(nahty(el) - piiloLapio) < 3000)) { if (el.style.display !== 'none') el.style.display = 'none'; } } catch (x) {} };
 // Puhekuplat paikalleen putken ajaksi (kp 18:50:22 "puhekuplat pitäs lukita paikalleen jotenkin kun käyttää kaukoputkea"): chat-widget siirtää
 //   kuplia vaakasuunnassa kameran mukana, ja putki panoroi joka hiiren liikkeellä. Putken auetessa jokaisen kuplan style.left talteen ja
 //   palautetaan aina kun widget muuttaa sitä; putken aikana syntynyt kupla lukitaan ensimmäiseen paikkaansa. top saa elää (kuplat nousevat).
@@ -173,7 +175,7 @@ const vayla = e.events;
 const kuule = ev => { try {
   if (!ev || ev.chatType !== 1 || ev.objectId !== omaIndeksi()) return;
   const viesti = String(ev.message || '').trim();
-  if (LAPIO.test(viesti)) { if (tila.onLapio || tila.valmis) { piiloLapio = Date.now(); return; } lapioSaatu(); return; }
+  if (LAPIO.test(viesti)) { if (tila.onLapio || tila.valmis) { piiloLapio = Date.now(); for (const ms of [30, 300, 1000]) setTimeout(kuplat, ms); return; } lapioSaatu(); return; }
   const m = MAALI.exec(viesti); if (!m) return;
   const nyt = Date.now(); if (nyt - (viimLapi.get(m[1]) || 0) < 10000) return; viimLapi.set(m[1], nyt);
   lokiin({ lapi: m[1] }); banneri('☠ ' + m[1] + ' pääsi läpi! ☠');
@@ -290,7 +292,7 @@ const kaukoputki = (on) => {
     putki = document.createElement('canvas');
     putki.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:100vh;z-index:2147483000;pointer-events:auto;cursor:none';
     kursori = document.createElement('style'); kursori.textContent = 'canvas{cursor:none!important}'; document.head.appendChild(kursori);
-    document.body.appendChild(putki); tila.putkiAuki = true; zoomaa(true); lokiin({ kaukoputki: 'auki' }); paivita(); pyyda();
+    document.body.appendChild(putki); tila.putkiAuki = true; kuplat(); zoomaa(true); lokiin({ kaukoputki: 'auki' }); paivita(); pyyda();
     try { const p = putki.requestPointerLock(); if (p && p.catch) p.catch(x => lokiin({ lukko: 'ei: ' + String(x).slice(0, 80) })); } catch (x) { lokiin({ lukko: 'ei: ' + String(x).slice(0, 80) }); }
   } else if (!on && putki) { const p0 = putki; if (document.pointerLockElement === p0) try { document.exitPointerLock(); } catch (x) {}
     oliLukittu = false; kuplaLeft = new WeakMap(); putki.remove(); putki = null; if (kursori) { kursori.remove(); kursori = null; } tila.putkiAuki = false; zoomaa(false); lokiin({ kaukoputki: 'kiinni' }); paivita(); }
