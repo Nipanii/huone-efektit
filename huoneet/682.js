@@ -79,6 +79,19 @@ const mykista = (o, on) => { const m = mykat.get(o.id);
     if ((nyt & MYKKA) !== MYKKA) try { e.updateRoomObjectUserAction(huone, o.id, 'figure_is_muted', alkup | MYKKA); } catch (x) {}
   } else if (m) { mykat.delete(o.id); if (m.o === o) try { e.updateRoomObjectUserAction(huone, o.id, 'figure_is_muted', m.alkup); } catch (x) {} }
 };
+// Zombibotit: client piilottaa figure_is_muted-lipun (IGNORED|HIDDEN) vain tyypille 'user' (AvatarVisualization.updateIgnoreHiddenState),
+//   joten rentable_bot-hahmon visualisointiin asetetaan instanssikohtainen ohitus, joka tyhjentää sprite-listan.
+const botit = new Map();   // id -> o
+const botPiiloon = (o, on) => { try { const v = o.visualization; if (!v) return;
+  if (on) {
+    botit.set(o.id, o); v.__piilo682 = true;
+    if (!Object.prototype.hasOwnProperty.call(v, 'updateIgnoreHiddenState')) v.updateIgnoreHiddenState = function () { const h = !!this.__piilo682; if (h === this._hiddenByIgnore) return; this._hiddenByIgnore = h; this.updateSpriteCounter++; };
+    v.updateIgnoreHiddenState();
+  } else {
+    if (!botit.has(o.id) && !Object.prototype.hasOwnProperty.call(v, 'updateIgnoreHiddenState')) return;
+    botit.delete(o.id); v.__piilo682 = false; v.updateIgnoreHiddenState(); delete v.updateIgnoreHiddenState; delete v.__piilo682;
+  }
+} catch (x) {} };
 
 const paivita = () => {
   tila.nakyy = tila.pakko == null ? (tila.valmis || omaAlueella()) : !!tila.pakko;
@@ -92,10 +105,11 @@ const paivita = () => {
   const oma = omaIndeksi(); let h = 0; const nahdyt = new Set();
   for (const o of e.getRoomObjects(huone, 100) || []) {
     if (!o || !o.model || o.id === oma) continue; nahdyt.add(o.id);
-    const piiloon = zombi(o) ? !tila.putkiAuki : (String(o.type) === 'user' && !tila.nakyy && sisalla(o.getLocation()));
-    mykista(o, piiloon); if (piiloon) h++;
+    const z = zombi(o), piiloon = z ? !tila.putkiAuki : (String(o.type) === 'user' && !tila.nakyy && sisalla(o.getLocation()));
+    if (z) botPiiloon(o, piiloon); else { mykista(o, piiloon); botPiiloon(o, false); } if (piiloon) h++;
   }
   for (const id of [...mykat.keys()]) if (!nahdyt.has(id)) mykat.delete(id);
+  for (const id of [...botit.keys()]) if (!nahdyt.has(id)) botit.delete(id);
   tila.hahmojaPiilossa = h;
   putkiTarkista(); lapioTarkista();
 };
@@ -272,5 +286,6 @@ return () => {
   try { e.updateAreaHide(huone, REIKA, false, 0, 0, 0, 0, false); } catch (x) {}
   for (const o of asetettu.keys()) try { o.model.setValue('furniture_wired_opacity', 1); o.model.setValue('furniture_wired_click_through', 0); } catch (x) {}
   for (const [id, m] of mykat) try { e.updateRoomObjectUserAction(huone, id, 'figure_is_muted', m.alkup); } catch (x) {}
+  for (const o of [...botit.values()]) botPiiloon(o, false);
   if (window.huone682 === tila) delete window.huone682;
 };
