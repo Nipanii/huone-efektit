@@ -386,7 +386,7 @@ const valittu = ev => { try {
   if (ev && putki && ev.category === 100) putkiValinta = true;
   if (!ev || ev.objectId !== KAUKOPUTKI || ev.category !== 10) return;
   const nyt = Date.now(); if (nyt - viimKlikki < 350) return; viimKlikki = nyt;
-  if (putki) kaukoputki(false); else if (vieressa()) { nielu = kavelyEsto = Date.now(); kavelyKoukku(); kaukoputki(true); }
+  if (putki) { kavelyEsto = Date.now(); kaukoputki(false); } else if (vieressa()) { nielu = kavelyEsto = Date.now(); kavelyKoukku(); kaukoputki(true); }
 } catch (x) {} };
 // kp 19:24 "jos painaa tota teleskooppia, nyt se klikkaus menee läpi ruutuun" · "hahmo kävelee pois sen luota" · "ei saa tapahtua jos klikkaus
 //   osuu teleskooppiin": avaus siirtää kameraa kesken painalluksen, joten saman painalluksen ylös/click osui ruutuun -> kävely. Niellään ne.
@@ -398,7 +398,7 @@ const kavelyKoukku = () => { if (lahetys) return; const c = yhteys(); if (!c || 
   // kävely voi lähteä ENNEN valintatapahtumaa -> putken vieressä kävelyä pidätetään 80 ms ja pudotetaan jos putki avautui sillä välin
   c.send = function (m, ...r) { try { if (m && kartta.get(m.constructor) === 3320) {
       if (Date.now() - kavelyEsto < 1200) { lokiin({ kavely: 'estetty' }); return; }
-      if (!putki && vieressa()) { const t0 = Date.now(); setTimeout(() => { if (kavelyEsto >= t0 - 300) { lokiin({ kavely: 'estetty (ennen valintaa)' }); return; } orig.call(c, m, ...r); }, 80); return; } } } catch (x) {} return orig.call(this, m, ...r); }; };
+      if (vieressa()) { const t0 = Date.now(); setTimeout(() => { if (kavelyEsto >= t0 - 300) { lokiin({ kavely: 'estetty (ennen valintaa)' }); return; } orig.call(c, m, ...r); }, 80); return; } } } catch (x) {} return orig.call(this, m, ...r); }; };
 pois.push(() => { if (lahetys) { lahetys.c.send = lahetys.orig; lahetys = null; } });
 let nielu = 0;
 const niele = ev => { if (!nielu || !ev.isTrusted) return; if (Date.now() - nielu > 1000) { nielu = 0; return; }
