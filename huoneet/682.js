@@ -309,11 +309,11 @@ const keskelle = ev => { try {
 } catch (x) { lokiin({ klikkiVirhe: String(x) }); } };
 // Zoom 2 avatessa, edellinen takaisin suljettaessa (kp 18:10-18:13:56 "kaukoputkeen jonkun zoomin" · "zoom 2 ois hyvä" · "avaamiseen").
 //   Sama kutsu kuin :zoom 2 (useChatInputWidget.ts:111 -> RoomWidgetsView.tsx:23 -> RoomEngine.ts:472).
-const ZOOM = 2;
+const ZOOM = 1;   // kp 19:21:55 "otetaan toi zoomi pois teleskoopista": ei suurennusta, kamera seuraa hiirtä edelleen (siirto 1:1)
 let zoomEnnen = null;
 const zoomaa = (on) => { try {
   if (on) { const o = e.getRoomInstanceRenderingCanvasOffset(huone, 1); zoomEnnen = { s: e.getRoomInstanceRenderingCanvasScale(huone, 1), o };
-    e.setRoomInstanceRenderingCanvasScale(huone, 1, ZOOM);
+    if (ZOOM !== 1) e.setRoomInstanceRenderingCanvasScale(huone, 1, ZOOM);
     const z = e.getRoomInstanceRenderingCanvasOffset(huone, 1); panAlku = z ? { x: z.x, y: z.y } : null; panoroi(); }
   else if (zoomEnnen != null) { e.setRoomInstanceRenderingCanvasScale(huone, 1, zoomEnnen.s);
     if (zoomEnnen.o) e.setRoomInstanceRenderingCanvasOffset(huone, 1, zoomEnnen.o); zoomEnnen = null; panAlku = null; }
