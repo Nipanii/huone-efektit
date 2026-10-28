@@ -228,8 +228,17 @@ const vieressa = () => { const o = omaHahmo(), t = e.getRoomObject(huone, KAUKOP
 //   kohdalla. Zoom ZOOM-kertainen ruudun keskeltä -> piste d keskeltä on zoomattuna ZOOM*d:ssä, siirto (keski - hiiri) * ZOOM tuo sen keskelle.
 //   Sama offset-kutsu kuin raahaus (RoomEngine.ts:1297). Ei animaatiosilmukkaa: toimii myös piilotetussa välilehdessä.
 let panAlku = null;
+// kp 19:27-19:28 "scope bugaa edellee" · "jos liikuttaa paljon" · "alkaa hyppii kamera" · "hyppii ja flickeraa jos liikuttaa esim paljon ylös":
+//   zoomin poisto palautti clientin oman kameranseurannan (updateRoomCamera ajaa vain skaalalla 1), joka veti kameraa takaisin omaan hahmoon
+//   panoroinnin vastaisesti. Putken ajaksi kameran kohde -1 (getRoomObject null -> ohitetaan), sulkiessa takaisin. A-B robolla: kohde -1 ->
+//   ruudulta pois siirretty huone pysyi (y 4502), kohde päällä -> kamera veti takaisin (y 223).
+let kameraKohde = null;
+const kameraSeuranta = (pois) => { try { const c = e.getRoomCamera(huone); if (!c) return;
+  if (pois) { if (c.targetId !== -1) { kameraKohde = c.targetId; c.targetId = -1; } }
+  else if (kameraKohde != null) { if (c.targetId === -1) c.targetId = kameraKohde; kameraKohde = null; }
+} catch (x) { lokiin({ kameraVirhe: String(x) }); } };
 const panoroi = () => { try {
-  if (!panAlku) return;
+  if (!panAlku) return; kameraSeuranta(true);
   const o = e.getRoomInstanceRenderingCanvasOffset(huone, 1); if (!o) return;
   const k = ZOOM, x = panAlku.x + (innerWidth / 2 - hiiri.x) * k, y = panAlku.y + (innerHeight / 2 - hiiri.y) * k;
   if (Math.round(o.x) !== Math.round(x) || Math.round(o.y) !== Math.round(y)) e.setRoomInstanceRenderingCanvasOffset(huone, 1, new o.constructor(x, y));
@@ -316,7 +325,7 @@ const zoomaa = (on) => { try {
     if (ZOOM !== 1) e.setRoomInstanceRenderingCanvasScale(huone, 1, ZOOM);
     const z = e.getRoomInstanceRenderingCanvasOffset(huone, 1); panAlku = z ? { x: z.x, y: z.y } : null; panoroi(); }
   else if (zoomEnnen != null) { e.setRoomInstanceRenderingCanvasScale(huone, 1, zoomEnnen.s);
-    if (zoomEnnen.o) e.setRoomInstanceRenderingCanvasOffset(huone, 1, zoomEnnen.o); zoomEnnen = null; panAlku = null; }
+    if (zoomEnnen.o) e.setRoomInstanceRenderingCanvasOffset(huone, 1, zoomEnnen.o); zoomEnnen = null; panAlku = null; kameraSeuranta(false); }
 } catch (x) { lokiin({ zoomVirhe: String(x) }); } };
 // Kursori piiloon putken ajaksi (kp 18:34:21 "hiiri elää omaa elämäänsä kaukoputki overlayssa, ei oo enää hidden"): aukko on keskellä, joten
 //   näkyvä kursori harhailisi mustan päällä.
