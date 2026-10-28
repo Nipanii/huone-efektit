@@ -323,12 +323,14 @@ const nappain = ev => { if (ev.key === 'Escape' && putki) kaukoputki(false); };
 //   piilossa ja missä tahansa, joten huonekanvakselle tuleva oikea painallus pysäytetään ja lähetetään uudestaan ruudun keskeltä. preventDefault
 //   pointerdownissa estää selaimen omat mousedown/up-tapahtumat, joten ne lähetetään itse samaan kohtaan. UI-elementit (infokortti, napit) eivät
 //   ole kanvaksia, joten niihin klikkaus menee normaalisti.
-const KESKELLE = { pointerdown: ['pointerdown', 'mousedown'], pointerup: ['pointerup', 'mouseup'], click: ['click'] };
+const KESKELLE = { pointerdown: ['pointerdown', 'mousedown'], pointerup: ['pointerup', 'mouseup'], click: ['click'], mousedown: ['pointerdown', 'mousedown'], mouseup: ['pointerup', 'mouseup'] };
+// kp 22:00 Jerban (Firefox) "en voi klikkaa", robolla (Chrome) toimi: jos selain antaa lukossa vain mousedown/up eikä pointer-tapahtumia,
+//   painallus ohjataan niistäkin. Estetty pointerdown estää selaimen omat mousedown/up, joten Chromessa ei tule tuplaa. Arvaus, Firefoxissa testaamatta.
 //   Ylös ja click ohjataan vain jos saman painalluksen alas ohjattiin: putken avannut painallus (alas ennen avausta) ei saa päästää irti keskeltä.
 let ohjattu = false;
 const keskelle = ev => { try {
   if (!putki || !ev.isTrusted || !(ev.target instanceof HTMLCanvasElement)) return;
-  if (ev.type === 'pointerdown') ohjattu = true; else if (!ohjattu) return; else if (ev.type === 'click') ohjattu = false;
+  if (ev.type === 'pointerdown' || ev.type === 'mousedown') ohjattu = true; else if (!ohjattu) return; else if (ev.type === 'click') ohjattu = false;
   ev.stopImmediatePropagation(); ev.preventDefault();
   const x = innerWidth / 2, y = innerHeight / 2;
   // Putki itse ottaa klikkaukset (kursori piilossa kaikkialla): kohde on se mikä on keskellä putken alla.
