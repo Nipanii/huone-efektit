@@ -52,6 +52,10 @@
         {
           "polku": "kayttajat/messenger/messenger-koko.user.js",
           "globaali": "__kuplaMessengerKoko"
+        },
+        {
+          "polku": "kayttajat/messenger/messenger-kuvaliite.user.js",
+          "globaali": "__kuplaKuvaliite"
         }
       ]
     }

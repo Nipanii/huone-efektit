@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         kupla: Messenger: ääni, kuvat, linkit ja kopiointi
 // @namespace    kupla
-// @version      0.1.5
+// @version      0.1.6
 // @description  Messengerin viesteihin: [voice:..] -toistonappi, kuvalinkeistä esikatselu (vain kuplan omat kuvapalvelut), toimivat linkit ja tekstin valinta + Kopioi-nappi.
 // @match        https://kupla.cc/*
 // @grant        none
@@ -17,6 +17,11 @@
 //   .kmm-add-span .km-txt:n LOPPUUN; Reactin tekstiä ei kosketa (paitsi #km2:ssa, jossa ei ole Reactia).
 // 0.1.5 kp 2026-10-28 14:13 "emojeiden käyttöä pitäs välttää koska device kohtasta miltä näyttää": äänisoiton ▶ ja ⏸ SVG-maskeina
 //   (IKONIT, currentColor), ei unicode-glyfejä. Kuuntele-aria-label ja toiminta ennallaan; "…" latauksessa ja "Kopioi"-teksti ennallaan.
+// 0.1.6 kp 2026-10-28 17:40-17:49 "samanlailla edellee ku live chat embed" · "puuttuu live chatin click upotus to expand" · 17:49:52 "Hide for me.
+//   käytetään vaan tekstiä hide": kuvan esikatselu = live chatin KuplaFixChatImagePreview.tsx: sumennettu + Reveal image -> klikkaus suurentaa
+//   (Esc/klikkaus sulkee) + hide (localStorage kuplafix.chatImagePreviews.hidden, sama avain kuin live chatissa, 250 viimeisintä).
+//   Kuvasääntö = live chatin getChatImageUrls (chatImages.ts:57-88): mikä tahansa https-kuva paitsi youtube/tiktok. Klipy-gifit jätetään
+//   pois kuten live chatissa (sen isSafeKlipyGifUrl ei ole luettu; tässä hostin nimi sisältää "klipy" = ARVIO).
 (() => {
   if (window.__kuplaMessengerMedia) return; window.__kuplaMessengerMedia = true;
   const DEF = 'https://kuplafix-voice-worker.kuplafix.workers.dev/upload';
@@ -33,16 +38,50 @@
     if (/^https?:\/\//i.test(p)) return p;
     return null;
   };
-  // sama sääntö kuin chatImages.ts getKuplaChatImageUrl: vain kuplan omat kuvapalvelut esikatsellaan automaattisesti (ei IP:n vuotoa vieraille)
+  // = live chatin getChatImageUrls (chatImages.ts:57-88). Ennen 0.1.6 vain kuplan omat kuvapalvelut.
   const kuvaOk = u => {
     try {
       const x = new URL(u); const h = x.hostname.toLowerCase();
-      if (x.protocol !== 'https:' || x.username || x.password || x.port || x.search || x.hash) return false;
-      if ((h === location.hostname.toLowerCase() || h.endsWith('.kupla.cc') || h.endsWith('.workers.dev')) && /^\/i\/[a-f0-9]{32}\.(?:png|jpe?g|gif|webp)$/i.test(x.pathname)) return true;
-      if (h === 'hokk.us' && /^\/gallery\/[A-Za-z0-9]{1,16}\/[0-9]{1,3}\.(?:png|jpe?g|gif|webp)$/i.test(x.pathname)) return true;
-      if (h === 'gachi.gay' && /^\/[A-Za-z0-9_-]+\.(?:png|jpe?g|gif|webp)$/i.test(x.pathname)) return true;
-    } catch (_) {}
-    return false;
+      if (x.protocol !== 'https:') return false;
+      if (h.includes('klipy')) return false;
+      if (h === 'youtube.com' || h.endsWith('.youtube.com') || h === 'youtu.be') return false;
+      if (h === 'tiktok.com' || h.endsWith('.tiktok.com')) return false;
+      return /.(?:png|jpe?g|gif|webp)$/i.test(x.pathname);
+    } catch (_) { return false; }
+  };
+  const PIILO = 'kuplafix.chatImagePreviews.hidden';
+  const piilossa = u => { try { const a = JSON.parse(localStorage.getItem(PIILO) || '[]'); return Array.isArray(a) && a.includes(u); } catch (_) { return false; } };
+  const piilota = (u, on) => { try { const a = JSON.parse(localStorage.getItem(PIILO) || '[]'); const s = new Set(Array.isArray(a) ? a.filter(x => typeof x === 'string') : []);
+    if (on) s.add(u); else s.delete(u); localStorage.setItem(PIILO, JSON.stringify([...s].slice(-250))); } catch (_) {} };
+  const suurenna = u => {
+    const d = document.createElement('div'); d.className = 'kmm-suuri'; d.setAttribute('role', 'dialog');
+    const im = document.createElement('img'); im.src = u; im.alt = ''; im.referrerPolicy = 'no-referrer'; d.appendChild(im);
+    const kiinni = () => { d.remove(); document.removeEventListener('keydown', esc, true); };
+    const esc = e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); kiinni(); } };
+    d.addEventListener('click', e => { e.stopPropagation(); kiinni(); });
+    for (const k of ['mousedown', 'mouseup', 'pointerdown', 'wheel']) d.addEventListener(k, e => e.stopPropagation());
+    document.addEventListener('keydown', esc, true); document.body.appendChild(d);
+  };
+  const esikatselu = u => {
+    const w = document.createElement('span'); w.className = 'kmm-kuvalaatikko';
+    const pys = e => { e.stopPropagation(); e.preventDefault(); };
+    const piirra = () => {
+      w.replaceChildren();
+      if (piilossa(u)) {
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'kmm-kuva-nayta'; b.textContent = 'show';
+        b.addEventListener('click', e => { pys(e); piilota(u, false); piirra(); }); w.appendChild(b); return;
+      }
+      const box = document.createElement('span'); box.className = 'kmm-esik';
+      const im = document.createElement('img'); im.src = u; im.alt = 'kuva'; im.loading = 'lazy'; im.decoding = 'async'; im.referrerPolicy = 'no-referrer';
+      im.onerror = () => { const s = document.createElement('span'); s.className = 'kmm-kuva-nayta'; s.textContent = 'Image preview unavailable'; w.replaceChildren(s); };
+      const rev = document.createElement('button'); rev.type = 'button'; rev.className = 'kmm-esik-rev'; rev.textContent = 'Reveal image';
+      rev.addEventListener('click', e => { pys(e); box.classList.add('auki'); rev.remove();
+        const h = document.createElement('button'); h.type = 'button'; h.className = 'kmm-esik-hide'; h.textContent = 'hide';
+        h.addEventListener('click', e2 => { pys(e2); piilota(u, true); piirra(); }); box.appendChild(h); });
+      im.addEventListener('click', e => { if (!box.classList.contains('auki')) return; pys(e); suurenna(u); });
+      box.append(im, rev); w.appendChild(box);
+    };
+    piirra(); return w;
   };
   // 0.1.5: ▶ ja ⏸ SVG-maskina (kp 14:13). viewBox 16, stroke 2, väri = currentColor.
   const IKONIT = { play: '<path d="M5 3l8 5-8 5z" fill="#000" stroke="none"/>', pause: '<path d="M5 3v10M11 3v10"/>' };
@@ -54,7 +93,15 @@
     s.textContent = '.km-txt,.km-txt *,#km2 .km-txt,#km2 .km-txt *{-webkit-user-select:text!important;user-select:text!important}' +
       '.km-txt a.km-link,#km2 .km-txt a.km-link{color:#0d6efd!important;text-decoration:underline;cursor:pointer}' +
       '.km-txt{position:relative}.kmm-add{display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center;vertical-align:middle;margin-left:6px;font-size:12px}' +
-      '.kmm-add .kmm-kuva{display:block;max-width:220px;max-height:170px;border-radius:6px;cursor:zoom-in}' +
+      // 0.1.6 = KuplaFixChatImagePreview.scss (live chat)
+      '.kmm-kuvalaatikko{display:block;width:100%}.kmm-esik{position:relative;display:block;width:min(240px,100%);height:150px;margin-top:5px;overflow:hidden;border:1px solid rgba(255,255,255,.24);border-radius:5px;background:rgba(0,0,0,.2)}' +
+      '.kmm-esik img{display:block;width:100%;height:100%;object-fit:contain;filter:blur(14px);transform:scale(1.04);transition:filter .16s ease,transform .16s ease}' +
+      '.kmm-esik.auki img{filter:none;transform:none;cursor:zoom-in}' +
+      '.kmm-esik-rev,.kmm-esik-hide{position:absolute;z-index:1;border:1px solid rgba(255,255,255,.55);border-radius:4px;color:#fff;background:rgba(0,0,0,.72);font:inherit;cursor:pointer}' +
+      '.kmm-esik-rev{inset:0;width:100%;font-weight:600}.kmm-esik-hide{top:5px;right:5px;padding:2px 6px;font-size:11px}' +
+      '.kmm-kuva-nayta{display:inline-block;margin-top:5px;padding:3px 7px;border:0;border-radius:4px;color:inherit;background:rgba(0,0,0,.2);font:inherit;font-size:12px;cursor:pointer}' +
+      '.kmm-suuri{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.85);cursor:zoom-out}' +
+      '.kmm-suuri img{max-width:95vw;max-height:95vh;object-fit:contain;box-shadow:0 0 24px #000}' +
       '.kmm-add .kmm-kopioi{opacity:0;cursor:pointer;border:0;border-radius:4px;padding:0 5px;font-size:11px;line-height:16px;background:rgba(255,255,255,.14);color:inherit}' +
       '.km-txt:hover .kmm-kopioi,.kmm-kopioi:focus{opacity:1}.kmm-kopioi::before{content:attr(data-l)}' +
       // Omissa viesteissä nappi pois tekstivirrasta (kp 28.10. 12:30 "kopioi nappi estää tekstiä menemästä oikeelle"): vasemmalle tekstistä,
@@ -123,9 +170,7 @@
       const kuvat = [];
       for (const m of t.matchAll(URL_RE)) { const u = siisti(m[0]); if (kuvaOk(u) && !kuvat.includes(u)) kuvat.push(u); }
       for (const u of kuvat.slice(0, 3)) {
-        const a = document.createElement('a'); a.href = u; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.style.display = 'block';
-        const im = document.createElement('img'); im.className = 'kmm-kuva'; im.src = u; im.loading = 'lazy'; im.referrerPolicy = 'no-referrer'; im.alt = 'kuva';
-        im.onerror = () => a.remove(); a.appendChild(im); add.appendChild(a);
+        add.appendChild(esikatselu(u));
       }
       if (t.trim()) {
         // Nimi CSS:n ::before-sisältönä, ei tekstisolmuna: muuten "Kopioi" tulee .km-txt:n innerTextiin (koko ketjun kopiointi, osoitus-overlay).
