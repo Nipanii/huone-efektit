@@ -119,6 +119,8 @@ const paivita = () => {
 };
 
 // ---- Muuttuja: ratoja_tehty >= 3 -> ei piilotusta (sama luku kuin 681.js:n arkku)
+// kaivun laukaisin on piilotettu sana (kp 19:26 "dig komento piti poistaa"): sanotriggerit 439498/439499 tilassa 1,1,0, viesti ei näy muille
+const KAIVUKOODI = '73514k';
 let odottaa = 0, lapioOdottaa = 0, koukkuYhteys = null, koukkuOma = null, koukkuAlkup = null;
 const koukku = () => {
   const c = yhteys(); if (!c || typeof c.handleMessages !== 'function') return null; if (koukkuYhteys === c) return c;
@@ -127,6 +129,9 @@ const koukku = () => {
   //   muuttujavastauksesta (myös :ratavarin oma takaisinluku, Wired Menu), ei vain omasta kysymyksestä. Vain oma kysymys niellään.
   const oma = function (...viestit) { try { const meille = odottaa && Date.now() - odottaa < 5000; let i;
     viestit = viestit.filter(v => { const p = v && v.parser;
+      // kp 19:34 "salainen kaivu komento ei pistä hahmon suuta liikkumaan" · "ei saa estää suun liikkumista jos sen jälkeen sanoo jotain":
+      //   palvelin kaiuttaa piilokoodin lähettäjälle kuiskauksena (2704, mitattu robolla 19:36:11) -> suu liikkuu. Niellään vain se yksi viesti.
+      if (p && typeof p.message === 'string' && p.message.trim().toLowerCase() === KAIVUKOODI) { if (i === undefined) i = omaIndeksi(); if (p.roomIndex === i) return false; }
       if (!p || p.type !== 1 || !Array.isArray(p.values) || !Array.isArray(p.wiredIds)) return true;
       if (i === undefined) i = omaIndeksi(); if (p.objectId !== i) return true;
       if (meille) odottaa = 0; tila.muuttujat = p.values.map(x => x && (x.id + '=' + x.value));
@@ -378,9 +383,7 @@ const lapioSaatu = () => {
   lokiin({ lapio: 'saatu' }); lapio(true); };
 const LAPIO_SVG = '<svg viewBox="0 0 32 32" width="26" height="26"><g transform="rotate(-35 16 16)"><rect x="10" y="1.5" width="12" height="4" rx="2" fill="#8a5a2b" stroke="#222" stroke-width="1.2"/><rect x="14.5" y="4" width="3" height="14" fill="#a06a35" stroke="#222" stroke-width="1.2"/><rect x="13.5" y="17" width="5" height="3" fill="#888" stroke="#222" stroke-width="1"/><path d="M9 20h14v4c0 4-3 7-7 7s-7-3-7-7z" fill="#cfd3d6" stroke="#222" stroke-width="1.4" stroke-linejoin="round"/></g></svg>';
 let nappi = null;
-// kaivun laukaisin on piilotettu sana (kp 19:26 "dig komento piti poistaa"): sanotriggerit 439498/439499 tilassa 1,1,0, viesti ei näy
-const KAIVUKOODI = '73514k';
-const kaivu = () => { try { const s = istunto(); if (s && s.sendChatMessage) { s.sendChatMessage(KAIVUKOODI, 0); lokiin({ kaivu: 'koodi' }); } } catch (x) { lokiin({ kaivu: 'virhe', viesti: String(x) }); } };
+const kaivu = () => { try { koukku(); const s = istunto(); if (s && s.sendChatMessage) { s.sendChatMessage(KAIVUKOODI, 0); lokiin({ kaivu: 'koodi' }); } } catch (x) { lokiin({ kaivu: 'virhe', viesti: String(x) }); } };
 const kangas = () => { let b = null, a = 0; for (const c of document.querySelectorAll('canvas')) { if (c === putki) continue; const r = c.getBoundingClientRect(); if (r.width * r.height > a) { a = r.width * r.height; b = r; } } return b; };
 const koko = f => { try { const m = f.model, d = f.getDirection(), sx = m.getValue('furniture_size_x') || 1, sy = m.getValue('furniture_size_y') || 1;
   return d && Math.round(d.x) % 180 === 90 ? [sy, sx] : [sx, sy]; } catch (x) { return [1, 1]; } };
