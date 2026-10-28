@@ -157,7 +157,7 @@ const kuule = ev => { try {
   if (LAPIO.test(viesti)) { lapioSaatu(); return; }
   const m = MAALI.exec(viesti); if (!m) return;
   const nyt = Date.now(); if (nyt - (viimLapi.get(m[1]) || 0) < 10000) return; viimLapi.set(m[1], nyt);
-  lokiin({ lapi: m[1] }); banneri('☠ ' + m[1] + ' selvisi läpi! ☠');
+  lokiin({ lapi: m[1] }); banneri('☠ ' + m[1] + ' pääsi läpi! ☠');
   if (m[1].toLowerCase() === omaNimi().toLowerCase()) setTimeout(kysy, 1500);
 } catch (x) { lokiin({ lapi: 'virhe', viesti: String(x) }); } };
 
