@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         kupla: Messenger-ikonit testi (salama Skriptit-välilehdelle, Toiminto- ja Osoita-napeille)
 // @namespace    kupla
-// @version      0.1.4
+// @version      0.1.5
 // @description  ESIKATSELU: Skriptit-välilehden [+] vaihtuu salama-ikoniksi, chatin Toiminto- ja Osoita-napit saavat ikonin (hover-teksti säilyy). Valinnat localStorage: 'ikonit-salama' = keltainen | valkoinen (oletus keltainen), 'ikonit-osoita' = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 (oletus 9 = hiiren osoitin, 8 = tähtäin). Valinta luetaan latauksessa.
 // @match        https://kupla.cc/*
 // @grant        none
@@ -43,7 +43,12 @@
   } catch (_) {}
   const O = OSOITA[osoita];
   const valkoinen = salama === 'valkoinen';
-  const NIMET = { toiminto: 'Toiminto', osoita: 'Osoita', ilmianna: 'Ilmianna' };
+  // 0.1.5: ryhmän Mykistä/Mykistetty + Jäsenet ikoneiksi (kp 15:34 "mykistä napille joku valmis mute icon pelin asseteista", 15:35 "Jäsenet napille vois kans ettii omaa icon").
+  // Kaiutin 29x20: DarkUI/src/assets/flash/settings/sound_on.png / sound_off.png (asetusten äänikuvakkeet). Jäsenet 13x11: DarkUI/src/assets/images/navigator/icons/room_group.png.
+  const AANI = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB0AAAAUCAYAAABxnDbHAAAACXBIWXMAABYlAAAWJQFJUiTwAAAF0WlUWHRYTUw6Y29tLmFkb2JlLnhtcAAAAAAAPD94cGFja2V0IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpyZVN6TlRjemtjOWQiPz4gPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iQWRvYmUgWE1QIENvcmUgNy4xLWMwMDAgNzkuOWNjYzRkZTkzLCAyMDIyLzAzLzE0LTE0OjA3OjIyICAgICAgICAiPiA8cmRmOlJERiB4bWxuczpyZGY9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkvMDIvMjItcmRmLXN5bnRheC1ucyMiPiA8cmRmOkRlc2NyaXB0aW9uIHJkZjphYm91dD0iIiB4bWxuczp4bXA9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC8iIHhtbG5zOnhtcE1NPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvbW0vIiB4bWxuczpzdEV2dD0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL3NUeXBlL1Jlc291cmNlRXZlbnQjIiB4bWxuczpkYz0iaHR0cDovL3B1cmwub3JnL2RjL2VsZW1lbnRzLzEuMS8iIHhtbG5zOnBob3Rvc2hvcD0iaHR0cDovL25zLmFkb2JlLmNvbS9waG90b3Nob3AvMS4wLyIgeG1wOkNyZWF0b3JUb29sPSJBZG9iZSBQaG90b3Nob3AgMjMuMyAoTWFjaW50b3NoKSIgeG1wOkNyZWF0ZURhdGU9IjIwMjItMDUtMDRUMDg6MjQ6NTYrMDI6MDAiIHhtcDpNZXRhZGF0YURhdGU9IjIwMjItMDUtMDRUMDg6MjQ6NTYrMDI6MDAiIHhtcDpNb2RpZnlEYXRlPSIyMDIyLTA1LTA0VDA4OjI0OjU2KzAyOjAwIiB4bXBNTTpJbnN0YW5jZUlEPSJ4bXAuaWlkOjg5Nzc4YzU4LTE1ZmEtNDdjZC1iNzZmLTAyNWM1ODkyNTExOCIgeG1wTU06RG9jdW1lbnRJRD0iYWRvYmU6ZG9jaWQ6cGhvdG9zaG9wOmRiOWQ1MzFkLTEyOGQtZDA0Ny04MjFhLWIxMWU4YThjYjRkMiIgeG1wTU06T3JpZ2luYWxEb2N1bWVudElEPSJ4bXAuZGlkOmNmMmFiNjMyLWI4Y2MtNDlmOS04ZmFkLTc3MDVlYWYxYWEwZCIgZGM6Zm9ybWF0PSJpbWFnZS9wbmciIHBob3Rvc2hvcDpDb2xvck1vZGU9IjMiPiA8eG1wTU06SGlzdG9yeT4gPHJkZjpTZXE+IDxyZGY6bGkgc3RFdnQ6YWN0aW9uPSJjcmVhdGVkIiBzdEV2dDppbnN0YW5jZUlEPSJ4bXAuaWlkOmNmMmFiNjMyLWI4Y2MtNDlmOS04ZmFkLTc3MDVlYWYxYWEwZCIgc3RFdnQ6d2hlbj0iMjAyMi0wNS0wNFQwODoyNDo1NiswMjowMCIgc3RFdnQ6c29mdHdhcmVBZ2VudD0iQWRvYmUgUGhvdG9zaG9wIDIzLjMgKE1hY2ludG9zaCkiLz4gPHJkZjpsaSBzdEV2dDphY3Rpb249InNhdmVkIiBzdEV2dDppbnN0YW5jZUlEPSJ4bXAuaWlkOjg5Nzc4YzU4LTE1ZmEtNDdjZC1iNzZmLTAyNWM1ODkyNTExOCIgc3RFdnQ6d2hlbj0iMjAyMi0wNS0wNFQwODoyNDo1NiswMjowMCIgc3RFdnQ6c29mdHdhcmVBZ2VudD0iQWRvYmUgUGhvdG9zaG9wIDIzLjMgKE1hY2ludG9zaCkiIHN0RXZ0OmNoYW5nZWQ9Ii8iLz4gPC9yZGY6U2VxPiA8L3htcE1NOkhpc3Rvcnk+IDwvcmRmOkRlc2NyaXB0aW9uPiA8L3JkZjpSREY+IDwveDp4bXBtZXRhPiA8P3hwYWNrZXQgZW5kPSJyIj8+E+KWGQAAAKtJREFUSIm1lUEOwCAIBNfG/3/Znmq3CCoWNvGihAEULK01BEs6LNKgJgAlZNi7EoCNFmgvBfqo0FLBUVDOUgYwPJqM8koViKAyyrtUJFTLks96thFQq6ym/kLdQOB8OHAruMVQbR5q0+UYJqFWmZZzdFMf/3UCZIi0mf0S1pDofrx3ulNey6YH7oHuvlTOStt3Qb33adrv9OlRL850wfgJsoDAW14LHA4EgBuLRSs75ulkRAAAAABJRU5ErkJggg==';
+  const MYKISTETTY = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB0AAAAUCAYAAABxnDbHAAAACXBIWXMAABYlAAAWJQFJUiTwAAAF0WlUWHRYTUw6Y29tLmFkb2JlLnhtcAAAAAAAPD94cGFja2V0IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpyZVN6TlRjemtjOWQiPz4gPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iQWRvYmUgWE1QIENvcmUgNy4xLWMwMDAgNzkuOWNjYzRkZTkzLCAyMDIyLzAzLzE0LTE0OjA3OjIyICAgICAgICAiPiA8cmRmOlJERiB4bWxuczpyZGY9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkvMDIvMjItcmRmLXN5bnRheC1ucyMiPiA8cmRmOkRlc2NyaXB0aW9uIHJkZjphYm91dD0iIiB4bWxuczp4bXA9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC8iIHhtbG5zOnhtcE1NPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvbW0vIiB4bWxuczpzdEV2dD0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL3NUeXBlL1Jlc291cmNlRXZlbnQjIiB4bWxuczpkYz0iaHR0cDovL3B1cmwub3JnL2RjL2VsZW1lbnRzLzEuMS8iIHhtbG5zOnBob3Rvc2hvcD0iaHR0cDovL25zLmFkb2JlLmNvbS9waG90b3Nob3AvMS4wLyIgeG1wOkNyZWF0b3JUb29sPSJBZG9iZSBQaG90b3Nob3AgMjMuMyAoTWFjaW50b3NoKSIgeG1wOkNyZWF0ZURhdGU9IjIwMjItMDUtMDRUMDg6MjM6NDkrMDI6MDAiIHhtcDpNZXRhZGF0YURhdGU9IjIwMjItMDUtMDRUMDg6MjM6NDkrMDI6MDAiIHhtcDpNb2RpZnlEYXRlPSIyMDIyLTA1LTA0VDA4OjIzOjQ5KzAyOjAwIiB4bXBNTTpJbnN0YW5jZUlEPSJ4bXAuaWlkOjkxYmE1YWEwLTA2MGItNGNjNC04MmY5LWI4YjUzMDc0M2IyZSIgeG1wTU06RG9jdW1lbnRJRD0iYWRvYmU6ZG9jaWQ6cGhvdG9zaG9wOmU3OWE1OTBjLTlkOGUtOTA0MC05NGUyLWZiMWYxZjdjNjZkZiIgeG1wTU06T3JpZ2luYWxEb2N1bWVudElEPSJ4bXAuZGlkOjliYmRiNjdjLWEyNmYtNDM0YS04YTE2LTk4N2I1NjA5OWJhMSIgZGM6Zm9ybWF0PSJpbWFnZS9wbmciIHBob3Rvc2hvcDpDb2xvck1vZGU9IjMiPiA8eG1wTU06SGlzdG9yeT4gPHJkZjpTZXE+IDxyZGY6bGkgc3RFdnQ6YWN0aW9uPSJjcmVhdGVkIiBzdEV2dDppbnN0YW5jZUlEPSJ4bXAuaWlkOjliYmRiNjdjLWEyNmYtNDM0YS04YTE2LTk4N2I1NjA5OWJhMSIgc3RFdnQ6d2hlbj0iMjAyMi0wNS0wNFQwODoyMzo0OSswMjowMCIgc3RFdnQ6c29mdHdhcmVBZ2VudD0iQWRvYmUgUGhvdG9zaG9wIDIzLjMgKE1hY2ludG9zaCkiLz4gPHJkZjpsaSBzdEV2dDphY3Rpb249InNhdmVkIiBzdEV2dDppbnN0YW5jZUlEPSJ4bXAuaWlkOjkxYmE1YWEwLTA2MGItNGNjNC04MmY5LWI4YjUzMDc0M2IyZSIgc3RFdnQ6d2hlbj0iMjAyMi0wNS0wNFQwODoyMzo0OSswMjowMCIgc3RFdnQ6c29mdHdhcmVBZ2VudD0iQWRvYmUgUGhvdG9zaG9wIDIzLjMgKE1hY2ludG9zaCkiIHN0RXZ0OmNoYW5nZWQ9Ii8iLz4gPC9yZGY6U2VxPiA8L3htcE1NOkhpc3Rvcnk+IDwvcmRmOkRlc2NyaXB0aW9uPiA8L3JkZjpSREY+IDwveDp4bXBtZXRhPiA8P3hwYWNrZXQgZW5kPSJyIj8+j7w+XQAAAMVJREFUSIm1lkkOQyEMQ0PF/a9MV6jGxCSpwBKLj0JeBobfxhh2WeywsUF/AGTINvd5ABwwDOaeQKcaDBd8C4pZcgDbpnlRXlYzCioLxR5FdqEy0BmlWyrQyWbJtlpez6kqq1QGyiD8ZmAqgGymClwGmq03kuqFAv0FRKhapM5dFbjY9GDRnMdzxrannrt+KrvXy5Cd8tXXbA+89Mp4JeUe47d84jLQUw9PYNnn6uWQ6WmobnqDIAT75Clj8zOG35XonF7TF9eGSDoZNsBFAAAAAElFTkSuQmCC';
+  const JASENET = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAA0AAAALCAIAAAAr0JA2AAAABnRSTlMAVQD/AAAgzXPHAAAACXBIWXMAAAsSAAALEgHS3X78AAAAX0lEQVR42mMI/c+AjOAAXRxNkWDvWwhCU0qiOjhAVofsAKiit4IVEARRCiT/bYYiiFIs6hZc+0+xOohSBlQAUcQAV/N/5klkBBL5PxMZQZUD5YCGwUmIOqBhcJKBeAAAzyaUZW/CQC4AAAAASUVORK5CYII=';
+  const NIMET = { toiminto: 'Toiminto', osoita: 'Osoita', ilmianna: 'Ilmianna', mykista: 'Mykistä', mykistetty: 'Mykistetty', jasenet: 'Jäsenet' };
   let lopetettu = false;
 
   const style = document.createElement('style'); style.id = 'kmi-tyyli';
@@ -59,6 +64,9 @@
     // 0.1.4: Ilmianna = Kupla Hubin punainen "!" (SupportToolsView.tsx:789 icon="!", scss 29x29, radius 4px, #a52f3b, valkoinen bold 15px). kp 14:53 "oisko toi siihen ilmoita tilalle?"
     '.km-btn[data-kmi="ilmianna"]{width:28px;min-width:28px;padding:0;border-radius:4px;background:#a52f3b;box-shadow:none}' +
     '.km-btn[data-kmi="ilmianna"]:hover{background:#b93a47}' +
+    '[data-kmi="mykista"]::before{width:29px;height:20px;background-image:url(' + AANI + ');filter:none}' +
+    '[data-kmi="mykistetty"]::before{width:29px;height:20px;background-image:url(' + MYKISTETTY + ');filter:none}' +
+    '[data-kmi="jasenet"]::before{width:13px;height:11px;background-image:url(' + JASENET + ');filter:none}' +
     '.km-btn[data-kmi="ilmianna"]::before{content:"!";width:auto;height:auto;background:none;color:#fff;font:700 15px/1 Arial,sans-serif;image-rendering:auto;filter:none;opacity:1}' +
     (valkoinen
       ? '.nitro-card.kupla-messenger .km-icon.scripts{filter:brightness(0) invert(1)}' + '[data-kmi]::before{filter:brightness(0) invert(1)}'
@@ -72,7 +80,7 @@
   const kasittele = b => {
     if (b.closest('.km-dialog')) return;
     const t = b.textContent.trim();
-    const laji = t === 'Toiminto' ? 'toiminto' : t === 'Osoita' ? 'osoita' : t === 'Ilmianna' && b.classList.contains('is-danger') ? 'ilmianna' : null;
+    const laji = t === 'Toiminto' ? 'toiminto' : t === 'Osoita' ? 'osoita' : t === 'Ilmianna' && b.classList.contains('is-danger') ? 'ilmianna' : t === 'Mykistä' ? 'mykista' : t === 'Mykistetty' ? 'mykistetty' : t === 'Jäsenet' ? 'jasenet' : null;
     if (!laji) return;
     if (b.getAttribute('data-kmi') !== laji) b.setAttribute('data-kmi', laji);
     const nimi = NIMET[laji];
@@ -88,7 +96,7 @@
   kaikki();
 
   window.__kuplaMessengerIkonit = {
-    versio: '0.1.4',
+    versio: '0.1.5',
     pois() {
       lopetettu = true;
       havainnoija.disconnect();

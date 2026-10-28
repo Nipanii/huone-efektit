@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         kupla: Messenger: avatarista ja nimestä profiili (yv)
 // @namespace    kupla
-// @version      0.1.0
+// @version      0.1.1
 // @description  Yksityisviestissä (yv) viestin avatarin tai nimen klikkaus avaa henkilön profiilin, kuten kanavissa ja ryhmissä jo natiivisti.
 // @match        https://kupla.cc/*
 // @grant        none
@@ -47,6 +47,14 @@
   function kohde(t) {
     if (!t || !t.closest) return null;
     const main = t.closest('.km-main[data-conversation-kind="private"][data-friend-id]'); if (!main) return null;
+    // 0.1.1: yläpalkin profiilikuva + nimi (MessengerThreadPane.tsx:193-196 .km-mh .km-av, .km-mh-title > b). kp 15:38 "yksityisviesti näkymässä yläpalkissa nimi + profiilikuva ei avaa profiilia".
+    const mh = t.closest('.km-mh');
+    if (mh && main.contains(mh)) {
+      const h = t.closest('.km-av') || t.closest('.km-mh-title > b');
+      if (!h || !mh.contains(h) || natiivi(h)) return null;
+      const fid = parseInt(main.getAttribute('data-friend-id'), 10);
+      return fid > 0 ? { id: fid, el: h } : null;
+    }
     const m = t.closest('.km-m'); if (!m || !main.contains(m)) return null;
     const el = t.closest('.km-av') || (t.closest('.km-who') && t.closest('.km-who > span:first-child'));
     if (!el || !m.contains(el)) return null;
@@ -58,7 +66,9 @@
   document.addEventListener('click', klik, true);
   const tyyli = document.createElement('style'); tyyli.id = 'kmp-tyyli';
   tyyli.textContent = '.km-main[data-friend-id] .km-m .km-av,.km-main[data-friend-id] .km-m .km-who > span:first-child{cursor:pointer}' +
-    '.km-main[data-friend-id] .km-m .km-who > span:first-child:hover{text-decoration:underline}';
+    '.km-main[data-friend-id] .km-m .km-who > span:first-child:hover{text-decoration:underline}' +
+    '.km-main[data-conversation-kind="private"][data-friend-id] .km-mh .km-av,.km-main[data-conversation-kind="private"][data-friend-id] .km-mh-title > b{cursor:pointer}' +
+    '.km-main[data-conversation-kind="private"][data-friend-id] .km-mh-title > b:hover{text-decoration:underline}';
   document.head.appendChild(tyyli);
-  window.__kuplaMessengerProfiili = { versio: '0.1.0', avaa: avaaProfiili, kohde, pois() { document.removeEventListener('click', klik, true); tyyli.remove(); delete window.__kuplaMessengerProfiili; } };
+  window.__kuplaMessengerProfiili = { versio: '0.1.1', avaa: avaaProfiili, kohde, pois() { document.removeEventListener('click', klik, true); tyyli.remove(); delete window.__kuplaMessengerProfiili; } };
 })();
