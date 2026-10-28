@@ -8,7 +8,7 @@
 //   _typeVisibility[1,3] pois; seinäesineet alpha 0; moniruutuiset paikallisesti takakulmaan, 400 ms korjaus).
 // Puhekuplat: kaikki piiloon putken ajaksi (kuten 682) -> kääntö ja kuplat eivät ole koskaan ruudulla yhtä aikaa (huonekierron #831).
 // Avaus: klikkaus kaukoputkeen mistä tahansa (656:n putki on katolla z 7.2, sen viereen ei pääse kävelemään, mitattu 01:09).
-//   Sulku: Esc, tuplaklikkaus lattiaan, klikkaus putkeen, oma hahmo liikkuu. Rulla zoomaa 1-4x (versio 2).
+//   Sulku: Esc, tuplaklikkaus lattiaan, klikkaus putkeen, oma hahmo liikkuu. Q/E kulma, +/- zoom 1-4x (versio 3; nuolet ja rulla ovat muiden lisäosien).
 //   Sulkiessa kamera, zoom, offset, seinät ja kalusteiden paikat palautetaan täsmälleen avaushetken tilaan.
 // RAJAT: 2-suuntaiset kalusteet näyttävät käännettynä väärältä (rakenteellinen, ROTATE.md vika 3). Seinät eivät näy käännetyssä näkymässä.
 //   Kävely on estetty putken ollessa auki (pelin pinnan klikkaus laskee oletuskulmalla). Vain pelaajille joilla huoneskriptimoottori on.
@@ -18,7 +18,7 @@ const huone = kupla.roomId();
 if (!e) return;
 const ASETUKSET = { 656: { putki: 438790, kulmat: [90, 270, 180], zoom: 2 } };   // kp 01:05 "Kokeillaan molemmat kulmat": nuolinäppäimet vaihtavat
 const A = ASETUKSET[huone]; if (!A) return;
-const tila = window.kaukoputkiKierto = { versio: 2, huone, auki: false, loki: [], zoom: A.zoom };
+const tila = window.kaukoputkiKierto = { versio: 3, huone, auki: false, loki: [], zoom: A.zoom };
 const lokiin = (x) => { x.t = new Date().toTimeString().slice(0, 8); tila.loki.push(x); if (tila.loki.length > 50) tila.loki.shift(); };
 const dv = (o, k) => { const d = o && Object.getOwnPropertyDescriptor(o, k); return d && !d.get ? d.value : undefined; };
 const hs = window.huoneskriptit;
@@ -157,20 +157,23 @@ const liike = ev => {
   if (lukittu()) { const w = innerWidth, h = innerHeight;
     hiiri = { x: Math.max(-w, Math.min(2 * w, hiiri.x + (ev.movementX || 0))), y: Math.max(-h, Math.min(2 * h, hiiri.y + (ev.movementY || 0))) }; }
   else hiiri = { x: ev.clientX, y: ev.clientY };
-  if (panRaja) { const cx = innerWidth / 2, cy = innerHeight / 2, k = tila.zoom;
+  // kp 01:37 "jokin estää liikuttamasta putkea vapaasti": panRaja-rajaus (avaushetken kanvasrajat) pois, ne eivät vastaa käännettyä näkymää
+  if (panRaja && false) { const cx = innerWidth / 2, cy = innerHeight / 2, k = tila.zoom;
     hiiri = { x: Math.max(cx - (cx - panRaja.l) / k, Math.min(cx - (cx - panRaja.r) / k, hiiri.x)), y: Math.max(cy - (cy - panRaja.t) / k, Math.min(cy - (cy - panRaja.b) / k, hiiri.y)) }; }
   if (putki) { panoroi(); pyyda(); } };
 let oliLukittu = false;
 const lukko = () => { if (lukittu()) oliLukittu = true; else if (oliLukittu) { oliLukittu = false; if (putki) auki(false); } };
-const nappain = ev => { if (!putki) return; if (ev.key === 'Escape') auki(false);
-  else if (ev.key === 'ArrowRight' || ev.key === 'ArrowLeft') { ev.preventDefault(); ev.stopImmediatePropagation(); vaihdaKulma(ev.key === 'ArrowRight' ? 1 : -1); } };
-// kp 29.10. 01:33 "saisko scroll to zoom kans": rulla vaihtaa zoomia portaittain, näkymä rakennetaan uudelleen kuten kulman vaihdossa
+// kp 29.10. 01:36 "nuolinäppäimet telee mun hahmoo kans" + "scroll on varattu toiselle scriptille": nuolet ja rulla ovat muiden
+//   lisäosien (supervoimat teleport-tila kuuntelee nuolia window-capturessa, ennen meitä). Siksi omat näppäimet: Q/E kulma, +/- zoom.
+const nappain = ev => { if (!putki) return; const k = ev.key;
+  if (k === 'Escape') { auki(false); return; }
+  const kulma = { q: -1, Q: -1, e: 1, E: 1 }[k], zoomaus = { '+': 1, '=': 1, '-': -1, '_': -1 }[k];
+  if (!kulma && !zoomaus) return; ev.preventDefault(); ev.stopImmediatePropagation();
+  if (kulma) vaihdaKulma(kulma); else zoomaa(zoomaus); };
+// kp 29.10. 01:33 "saisko scroll to zoom kans" -> näppäimillä (yllä). Näkymä rakennetaan uudelleen kuten kulman vaihdossa
 //   (vaihdaKulma(0) laskee keskuksen zoomittomasta alkunäkymästä). Zoom säilyy seuraavaan avaukseen saman sivulatauksen ajan.
 const ZOOMIT = [1, 2, 3, 4];   // mitattu 01:35: 1.5 -> skaala 1, moottori ottaa vain kokonaisluvut
-let rullaAika = 0;
-const rulla = ev => { if (!putki) return; ev.preventDefault(); ev.stopImmediatePropagation();
-  const nyt = Date.now(); if (nyt - rullaAika < 150 || !ev.deltaY) return; rullaAika = nyt;
-  const i = ZOOMIT.indexOf(tila.zoom), j = Math.max(0, Math.min(ZOOMIT.length - 1, (i < 0 ? 2 : i) + (ev.deltaY < 0 ? 1 : -1)));
+const zoomaa = suunta => { const i = ZOOMIT.indexOf(tila.zoom), j = Math.max(0, Math.min(ZOOMIT.length - 1, (i < 0 ? 1 : i) + suunta));
   if (ZOOMIT[j] === tila.zoom) return; tila.zoom = ZOOMIT[j]; lokiin({ zoom: tila.zoom }); vaihdaKulma(0); };
 // Klikkaus aukon keskelle (682.js:337-358)
 const KESKELLE = { pointerdown: ['pointerdown', 'mousedown'], pointerup: ['pointerup', 'mouseup'], click: ['click'], mousedown: ['pointerdown', 'mousedown'], mouseup: ['pointerup', 'mouseup'] };
@@ -192,12 +195,17 @@ const kuplaTyyli = on => { if (on && !kuplaCss) { kuplaCss = document.createElem
   else if (!on && kuplaCss) { kuplaCss.remove(); kuplaCss = null; } };
 
 // ---- Kävelyesto (682.js:401-416). Kääre asennetaan kerran ja on läpikulku kun putki on kiinni; poisto vain jos kukaan ei ole kääriytynyt päälle.
-let kavelyEsto = 0, suljettu = 0, lattiaKlikki = 0, lahetys = null;
+let kavelyEsto = 0, suljettu = 0, lattiaKlikki = 0, lahetys = null, kavelyViive = 0;
 const kavelyKoukku = () => { if (lahetys) return; const c = yhteys(); if (!c || typeof c.send !== 'function') return;
   const kartta = dv(dv(c, '_messages'), '_messageIdByComposer'); if (!kartta || typeof kartta.get !== 'function') return;
   const orig = c.send;
   const oma = function (m, ...r) { try { if (m && kartta.get(m.constructor) === 3320) {
       if (Date.now() - kavelyEsto < 1200) { lokiin({ kavely: 'estetty' }); return; }
+      // kp 01:36 "kaukoputken klikkaus liikuttaa hahmoo ku kaukoputki aukee": pelin kävely lähtee ENNEN REOE_SELECTEDia, joten
+      //   kiinni-tilassa kävely odottaa 150 ms; jos putki avautui sillä välin (kavelyEsto asetettu), kävely pudotetaan.
+      if (!putki) { const self = this; clearTimeout(kavelyViive);
+        kavelyViive = setTimeout(() => { kavelyViive = 0; if (Date.now() - kavelyEsto < 1200) { lokiin({ kavely: 'estetty (avausklikki)' }); return; } orig.call(self, m, ...r); }, 150);
+        return; }
       if (putki) { const nyt = Date.now(); kavelyEsto = nyt; if (nyt - lattiaKlikki < 500) { lattiaKlikki = 0; suljettu = nyt; setTimeout(() => auki(false), 0); } else lattiaKlikki = nyt; return; }
     } } catch (x) {} return orig.call(this, m, ...r); };
   c.send = oma; lahetys = { c, orig, oma }; };
@@ -214,7 +222,7 @@ const auki = (on) => {
     putki = document.createElement('canvas');
     putki.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:100vh;z-index:2147483000;pointer-events:auto;cursor:none';
     kursori = document.createElement('style'); kursori.textContent = 'canvas{cursor:none!important}'; document.head.appendChild(kursori);
-    document.body.appendChild(putki); tila.auki = true; kuplaTyyli(true); putki.addEventListener('wheel', rulla, { passive: false });
+    document.body.appendChild(putki); tila.auki = true; kuplaTyyli(true);
     try { if (tila.zoom !== 1) e.setRoomInstanceRenderingCanvasScale(huone, 1, tila.zoom);
       const z = e.getRoomInstanceRenderingCanvasOffset(huone, 1); panAlku = z ? { x: z.x, y: z.y } : null;
       const b = e.getCanvasBoundingRectangle(1); panRaja = b && b.right > b.left ? { l: b.left, t: b.top, r: b.right, b: b.bottom } : null; } catch (x) { panRaja = null; lokiin({ zoomVirhe: String(x) }); }
