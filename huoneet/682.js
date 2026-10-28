@@ -200,6 +200,7 @@ const juhla = () => {
     requestAnimationFrame(askel); };
   requestAnimationFrame(askel);
 };
+tila.juhla = () => { banneri('☠ Testi pääsi läpi! ☠', 8000, 40); juhla(); };   // konsolista: huone682.juhla()
 const vayla = e.events;
 const kuule = ev => { try {
   if (!ev || ev.chatType !== 1 || ev.objectId !== omaIndeksi()) return;
