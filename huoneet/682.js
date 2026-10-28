@@ -145,6 +145,15 @@ const kysyAloitus = setInterval(() => { if (kysy() || ++kysyYrit > 30) clearInte
 // ---- Läpäisyilmoitus kaikille (sama kuin 681.js: show_message 443482 "%user% pääsi radan 3 läpi!" näkyvyys 1 kuiskataan jokaiselle)
 const MAALI = /^(.+) pääsi radan (\d+) läpi!$/;
 const LAPIO = /^Löysit lapion/;
+// Wired-viestikuplat pois kun ne eivät kuulu tilanteeseen (kp 18:39 "EDELLEEN tulee 'Näet teleskoopilla …' ennen kaukoputken painamista" ·
+//   "tulee heti kun kävelee viereen" · 18:46:39 "ettei tuu uudestaan tää löysit lapion viesti" · "tai scriptiin ei oikeestaan välii"):
+//   kaukoputkiviesti vain putken ollessa auki, lapioviesti vain ensimmäisellä kerralla. Wired-viesti on chat-bubble-34 omassa bubble-containerissa.
+let piiloLapio = 0;
+const KAUKOVIESTI = /Näet teleskoopilla/i;
+const kuplaPiiloon = el => { try { const t = el.textContent || '';
+  if ((KAUKOVIESTI.test(t) && !tila.putkiAuki) || (/Löysit lapion/.test(t) && Date.now() - piiloLapio < 4000)) el.style.display = 'none'; } catch (x) {} };
+const kuplaVahti = new MutationObserver(ms => { for (const m of ms) for (const n of m.addedNodes) if (n.nodeType === 1) {
+  if (n.classList.contains('bubble-container')) kuplaPiiloon(n); else for (const b of n.querySelectorAll ? n.querySelectorAll('.bubble-container') : []) kuplaPiiloon(b); } });
 const viimLapi = new Map();
 const laput = new Set();
 const banneri = teksti => {
@@ -158,7 +167,7 @@ const vayla = e.events;
 const kuule = ev => { try {
   if (!ev || ev.chatType !== 1 || ev.objectId !== omaIndeksi()) return;
   const viesti = String(ev.message || '').trim();
-  if (LAPIO.test(viesti)) { lapioSaatu(); return; }
+  if (LAPIO.test(viesti)) { if (tila.onLapio || tila.valmis) { piiloLapio = Date.now(); return; } lapioSaatu(); return; }
   const m = MAALI.exec(viesti); if (!m) return;
   const nyt = Date.now(); if (nyt - (viimLapi.get(m[1]) || 0) < 10000) return; viimLapi.set(m[1], nyt);
   lokiin({ lapi: m[1] }); banneri('☠ ' + m[1] + ' pääsi läpi! ☠');
@@ -223,7 +232,18 @@ const piirra = () => { piirto = 0; if (!putki) return;
   g.font = '13px sans-serif'; g.textAlign = 'center'; g.fillStyle = 'rgba(255,255,255,0.55)'; g.fillText('Esc tai kävele pois sulkee', w / 2, h - 18);
 };
 const pyyda = () => { if (!piirto) piirto = requestAnimationFrame(piirra); };
-const liike = ev => { hiiri = { x: ev.clientX, y: ev.clientY }; if (putki) { panoroi(); pyyda(); } };
+// Hiiri lukitaan putkeen (Pointer Lock, kp 18:40-18:41 "hiiri näkyy edelleen … chat input alueelle" · "ei voi painaa zombeja kun hiiri on
+//   sellasella kielletyllä alueella" · "hiiri voi töksähtää edelleen ruudun reunoihin vaikka se ei näy"): lukittuna kursoria ei ole lainkaan,
+//   liike tulee movementX/Y:nä eikä ruudun reuna rajoita, ja kaikki klikkaukset osuvat putkeen -> keskelle. Raja ±1,5 ruutua ettei kamera karkaa.
+const lukittu = () => putki && document.pointerLockElement === putki;
+const liike = ev => {
+  if (lukittu()) { const w = innerWidth, h = innerHeight;
+    hiiri = { x: Math.max(-w, Math.min(2 * w, hiiri.x + (ev.movementX || 0))), y: Math.max(-h, Math.min(2 * h, hiiri.y + (ev.movementY || 0))) }; }
+  else hiiri = { x: ev.clientX, y: ev.clientY };
+  if (putki) { panoroi(); pyyda(); } };
+// Esc vapauttaa lukon selaimen puolella eikä keydownia tule, joten lukon katoaminen sulkee putken.
+let oliLukittu = false;
+const lukko = () => { if (lukittu()) oliLukittu = true; else if (oliLukittu) { oliLukittu = false; if (putki) kaukoputki(false); } };
 const nappain = ev => { if (ev.key === 'Escape' && putki) kaukoputki(false); };
 // Klikkaus aukon keskelle (kp 18:35:42 "aukon keskiosalla pitää pystyy click" · 18:36:28 "se ruksi voidaa pitää et voi click"): kursori on
 //   piilossa ja missä tahansa, joten huonekanvakselle tuleva oikea painallus pysäytetään ja lähetetään uudestaan ruudun keskeltä. preventDefault
@@ -233,12 +253,16 @@ const KESKELLE = { pointerdown: ['pointerdown', 'mousedown'], pointerup: ['point
 //   Ylös ja click ohjataan vain jos saman painalluksen alas ohjattiin: putken avannut painallus (alas ennen avausta) ei saa päästää irti keskeltä.
 let ohjattu = false;
 const keskelle = ev => { try {
-  if (!putki || !ev.isTrusted || !(ev.target instanceof HTMLCanvasElement) || ev.target === putki) return;
+  if (!putki || !ev.isTrusted || !(ev.target instanceof HTMLCanvasElement)) return;
   if (ev.type === 'pointerdown') ohjattu = true; else if (!ohjattu) return; else if (ev.type === 'click') ohjattu = false;
   ev.stopImmediatePropagation(); ev.preventDefault();
-  const x = innerWidth / 2, y = innerHeight / 2, s = { bubbles: true, cancelable: true, composed: true, clientX: x, clientY: y, screenX: x, screenY: y,
+  const x = innerWidth / 2, y = innerHeight / 2;
+  // Putki itse ottaa klikkaukset (kursori piilossa kaikkialla): kohde on se mikä on keskellä putken alla.
+  let kohde = ev.target;
+  if (kohde === putki) { putki.style.pointerEvents = 'none'; kohde = document.elementFromPoint(x, y); putki.style.pointerEvents = 'auto'; if (!kohde) return; }
+  const s = { bubbles: true, cancelable: true, composed: true, clientX: x, clientY: y, screenX: x, screenY: y,
     button: ev.button, buttons: ev.buttons, ctrlKey: ev.ctrlKey, shiftKey: ev.shiftKey, altKey: ev.altKey, metaKey: ev.metaKey, view: window };
-  for (const t of KESKELLE[ev.type]) ev.target.dispatchEvent(t.startsWith('pointer')
+  for (const t of KESKELLE[ev.type]) kohde.dispatchEvent(t.startsWith('pointer')
     ? new PointerEvent(t, { ...s, pointerId: ev.pointerId, pointerType: ev.pointerType, isPrimary: ev.isPrimary }) : new MouseEvent(t, s));
 } catch (x) { lokiin({ klikkiVirhe: String(x) }); } };
 // Zoom 2 avatessa, edellinen takaisin suljettaessa (kp 18:10-18:13:56 "kaukoputkeen jonkun zoomin" · "zoom 2 ois hyvä" · "avaamiseen").
@@ -258,10 +282,12 @@ let kursori = null;
 const kaukoputki = (on) => {
   if (on && !putki) {
     putki = document.createElement('canvas');
-    putki.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:100vh;z-index:2147483000;pointer-events:none';
+    putki.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:100vh;z-index:2147483000;pointer-events:auto;cursor:none';
     kursori = document.createElement('style'); kursori.textContent = 'canvas{cursor:none!important}'; document.head.appendChild(kursori);
     document.body.appendChild(putki); tila.putkiAuki = true; zoomaa(true); lokiin({ kaukoputki: 'auki' }); paivita(); pyyda();
-  } else if (!on && putki) { putki.remove(); putki = null; if (kursori) { kursori.remove(); kursori = null; } tila.putkiAuki = false; zoomaa(false); lokiin({ kaukoputki: 'kiinni' }); paivita(); }
+    try { const p = putki.requestPointerLock(); if (p && p.catch) p.catch(x => lokiin({ lukko: 'ei: ' + String(x).slice(0, 80) })); } catch (x) { lokiin({ lukko: 'ei: ' + String(x).slice(0, 80) }); }
+  } else if (!on && putki) { const p0 = putki; if (document.pointerLockElement === p0) try { document.exitPointerLock(); } catch (x) {}
+    oliLukittu = false; putki.remove(); putki = null; if (kursori) { kursori.remove(); kursori = null; } tila.putkiAuki = false; zoomaa(false); lokiin({ kaukoputki: 'kiinni' }); paivita(); }
 };
 tila.kaukoputki = kaukoputki;
 const putkiTarkista = () => { if (putki) { if (!vieressa()) kaukoputki(false); else pyyda(); } };
@@ -282,10 +308,12 @@ const lapioSaatu = () => {
   const k = kasi(); lapioAika = Date.now();
   if (k) { try { const s = istunto(); s && s.sendChatMessage && s.sendChatMessage(':handitem 0', 0); } catch (x) {} lokiin({ lapio: 'kädessä ' + k + ' -> :handitem 0' }); }
   lokiin({ lapio: 'saatu' }); lapio(true); };
-const LAPIO_SVG = '<svg viewBox="0 0 32 32" width="24" height="24"><path d="M21 4l7 7-2 2-2-2-7 7 1 1-6 6c-2 2-6 2-8 0s-2-6 0-8l6-6 1 1 7-7-2-2z" fill="#c9c9c9" stroke="#222" stroke-width="1.5" stroke-linejoin="round"/><path d="M12 14l6 6" stroke="#7a4b20" stroke-width="2.5"/></svg>';
+const LAPIO_SVG = '<svg viewBox="0 0 32 32" width="26" height="26"><g transform="rotate(-35 16 16)"><rect x="10" y="1.5" width="12" height="4" rx="2" fill="#8a5a2b" stroke="#222" stroke-width="1.2"/><rect x="14.5" y="4" width="3" height="14" fill="#a06a35" stroke="#222" stroke-width="1.2"/><rect x="13.5" y="17" width="5" height="3" fill="#888" stroke="#222" stroke-width="1"/><path d="M9 20h14v4c0 4-3 7-7 7s-7-3-7-7z" fill="#cfd3d6" stroke="#222" stroke-width="1.4" stroke-linejoin="round"/></g></svg>';
 let nappi = null;
 const kaivu = () => { try { const s = istunto(); if (s && s.sendChatMessage) { s.sendChatMessage('dig', 0); lokiin({ kaivu: 'dig' }); } } catch (x) { lokiin({ kaivu: 'virhe', viesti: String(x) }); } };
 const kangas = () => { let b = null, a = 0; for (const c of document.querySelectorAll('canvas')) { if (c === putki) continue; const r = c.getBoundingClientRect(); if (r.width * r.height > a) { a = r.width * r.height; b = r; } } return b; };
+const koko = f => { try { const m = f.model, d = f.getDirection(), sx = m.getValue('furniture_size_x') || 1, sy = m.getValue('furniture_size_y') || 1;
+  return d && Math.round(d.x) % 180 === 90 ? [sy, sx] : [sx, sy]; } catch (x) { return [1, 1]; } };
 const lapioTarkista = () => {
   if (tila.onLapio && Date.now() - lapioAika > 3000) { const k = kasi(); if (k) { lokiin({ lapio: 'pois, kädessä ' + k }); tila.onLapio = false; try { sessionStorage.removeItem(AVAIN); } catch (x) {} } }
   // käsitavara omaan infokorttiin (palvelin ei tiedä lapiosta)
@@ -297,10 +325,11 @@ const lapioTarkista = () => {
       r.style.cssText = 'border-top:1px solid rgba(255,255,255,.25);margin-top:4px;padding-top:4px;font-size:12px'; r.textContent = 'Kädessä: Lapio'; el.appendChild(r); }
     else if (rivi && !(tila.onLapio && oma)) rivi.remove();
   }
-  // kaivunappi: vain kun oma hahmo seisoo kaivukohdan x,y:ssä
-  let kohde = null; const o = omaHahmo();
+  // kaivunappi: kun oma hahmo seisoo millä tahansa kaivukohdan ruudulla (furni voi olla 2x1, käännettynä mitat vaihtuvat)
+  let kohde = null, kohdeKoko = [1, 1]; const o = omaHahmo();
   if (tila.onLapio && o) { const l = o.getLocation(), x = Math.round(l.x), y = Math.round(l.y);
-    for (const id of KAIVUT) { const f = e.getRoomObject(huone, id, 10); if (!f) continue; const fl = f.getLocation(); if (Math.round(fl.x) === x && Math.round(fl.y) === y) { kohde = id; break; } } }
+    for (const id of KAIVUT) { const f = e.getRoomObject(huone, id, 10); if (!f) continue; const fl = f.getLocation(), fx = Math.round(fl.x), fy = Math.round(fl.y), [sx, sy] = koko(f);
+      if (x >= fx && x < fx + sx && y >= fy && y < fy + sy) { kohde = id; kohdeKoko = [sx, sy]; break; } } }
   if (!kohde) { if (nappi) { nappi.remove(); nappi = null; } return; }
   let p = null; try { p = e.getRoomObjectScreenLocation(huone, kohde, 10); } catch (x) {}
   if (!p) return; const r = kangas() || { left: 0, top: 0 };
@@ -309,7 +338,10 @@ const lapioTarkista = () => {
       'display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;transform:translate(-50%,-100%);box-shadow:0 2px 6px rgba(0,0,0,.5)';
     nappi.addEventListener('mousedown', ev => ev.stopPropagation()); nappi.addEventListener('click', ev => { ev.stopPropagation(); kaivu(); });
     document.body.appendChild(nappi); }
-  nappi.style.left = (r.left + p.x) + 'px'; nappi.style.top = (r.top + p.y - 30) + 'px';
+  // furnin keskelle: ruutu (dx,dy) on ruudulla ((dx-dy)*32, (dx+dy)*16) * skaala
+  let k = 1; try { k = e.getRoomInstanceRenderingCanvasScale(huone, 1) || 1; } catch (x) {}
+  const dx = (kohdeKoko[0] - 1) / 2, dy = (kohdeKoko[1] - 1) / 2;
+  nappi.style.left = (r.left + p.x + (dx - dy) * 32 * k) + 'px'; nappi.style.top = (r.top + p.y + (dx + dy) * 16 * k - 30) + 'px';
 };
 
 if (vayla && vayla.addEventListener) {
@@ -318,6 +350,8 @@ if (vayla && vayla.addEventListener) {
 } else lokiin({ vayla: 'roomEngine.events puuttuu' });
 for (const t of Object.keys(KESKELLE)) { window.addEventListener(t, keskelle, true); pois.push(() => window.removeEventListener(t, keskelle, true)); }
 document.addEventListener('pointermove', liike, { capture: true, passive: true }); pois.push(() => document.removeEventListener('pointermove', liike, { capture: true }));
+kuplaVahti.observe(document.body, { childList: true, subtree: true }); pois.push(() => kuplaVahti.disconnect());
+document.addEventListener('pointerlockchange', lukko); pois.push(() => document.removeEventListener('pointerlockchange', lukko));
 document.addEventListener('keydown', nappain, true); pois.push(() => document.removeEventListener('keydown', nappain, true));
 window.addEventListener('resize', pyyda); pois.push(() => window.removeEventListener('resize', pyyda));
 
