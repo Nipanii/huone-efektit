@@ -12,7 +12,8 @@
       "nimi": "Halloween RATA 2026 (lobby)",
       "skriptit": [
         "huoneet/hween-wired.js",
-        "huoneet/656.js"
+        "huoneet/656.js",
+        "huoneet/kaukoputki-kierto.js"
       ]
     },
     "681": {
