@@ -150,6 +150,10 @@ const koukku = () => {
       // kp 19:34 "salainen kaivu komento ei pistä hahmon suuta liikkumaan" · "ei saa estää suun liikkumista jos sen jälkeen sanoo jotain":
       //   palvelin kaiuttaa piilokoodin lähettäjälle kuiskauksena (2704, mitattu robolla 19:36:11) -> suu liikkuu. Niellään vain se yksi viesti.
       if (p && typeof p.message === 'string' && p.message.trim().toLowerCase() === KAIVUKOODI) { if (i === undefined) i = omaIndeksi(); if (p.roomIndex === i) return false; }
+      // kp 19:38 "lapioo jos yrittää ottaa jakoavain kädes nii suu kans käy": kupla piilotettiin mutta viesti liikutti suuta.
+      //   Kun lapiota ei anneta (jakoavain kädessä / lapio jo kädessä), "Löysit lapion" ei ole tieto vaan pelkkä kaiku -> niellään.
+      if (p && typeof p.message === 'string' && LAPIO.test(p.message.trim()) && (tila.onLapio || kasi() === JAKOAVAIN)) { if (i === undefined) i = omaIndeksi(); if (p.roomIndex === i) { piiloLapio = Date.now(); lokiin({ lapio: 'kaiku niellty' }); return false; } }
+      if (p && typeof p.message === 'string' && tila.valmis && LUKKOVIESTI.test(p.message)) { if (i === undefined) i = omaIndeksi(); if (p.roomIndex === i) { lokiin({ lukko: 'niellty, rata läpi' }); return false; } }
       if (!p || p.type !== 1 || !Array.isArray(p.values) || !Array.isArray(p.wiredIds)) return true;
       if (i === undefined) i = omaIndeksi(); if (p.objectId !== i) return true;
       if (meille) odottaa = 0; tila.muuttujat = p.values.map(x => x && (x.id + '=' + x.value));
@@ -177,12 +181,13 @@ const JAKOAVAIN = 1035;   // handitem-nimet.json
 //   kaukoputkiviesti vain putken ollessa auki, lapioviesti vain ensimmäisellä kerralla. Wired-viesti on chat-bubble-34 omassa bubble-containerissa.
 let piiloLapio = 0;
 const KAUKOVIESTI = /Näet teleskoopilla/i;
+const LUKKOVIESTI = /Jääkaapin ovessa on/i;   // kp 19:58 osoitti 427445: "tuota ei saa näyttää jos on päässyt läpi"
 const kuplaNahty = new WeakMap();
 const nahty = el => { let t = kuplaNahty.get(el); if (t == null) { t = Date.now(); kuplaNahty.set(el, t); } return t; };
 const kuplaPiiloon = el => { try { const t = el.textContent || '';
   if (/:\s*(dig|73514k)\s*↩?\s*$/i.test(t)) { if (el.style.display !== 'none') el.style.display = 'none'; return; }
   if (/Kaiva sanomalla/.test(t)) for (const n of el.querySelectorAll('*')) if (!n.children.length && /Kaiva sanomalla/.test(n.textContent)) n.textContent = n.textContent.replace(/\s*Kaiva sanomalla\s*'dig'\.?/, '');
-  if ((KAUKOVIESTI.test(t) && !tila.putkiAuki) || (/Löysit lapion/.test(t) && Math.abs(nahty(el) - piiloLapio) < 3000)) { if (el.style.display !== 'none') el.style.display = 'none'; } } catch (x) {} };
+  if ((KAUKOVIESTI.test(t) && !tila.putkiAuki) || (LUKKOVIESTI.test(t) && tila.valmis) || (/Löysit lapion/.test(t) && Math.abs(nahty(el) - piiloLapio) < 3000)) { if (el.style.display !== 'none') el.style.display = 'none'; } } catch (x) {} };
 // Puhekuplat paikalleen putken ajaksi (kp 18:50:22 "puhekuplat pitäs lukita paikalleen jotenkin kun käyttää kaukoputkea"): chat-widget siirtää
 //   kuplia vaakasuunnassa kameran mukana, ja putki panoroi joka hiiren liikkeellä. Putken auetessa jokaisen kuplan style.left talteen ja
 //   palautetaan aina kun widget muuttaa sitä; putken aikana syntynyt kupla lukitaan ensimmäiseen paikkaansa. top saa elää (kuplat nousevat).
