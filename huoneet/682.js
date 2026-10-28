@@ -171,12 +171,20 @@ const piirra = () => { piirto = 0; if (!putki) return;
 const pyyda = () => { if (!piirto) piirto = requestAnimationFrame(piirra); };
 const liike = ev => { hiiri = { x: ev.clientX, y: ev.clientY }; if (putki) pyyda(); };
 const nappain = ev => { if (ev.key === 'Escape' && putki) kaukoputki(false); };
+// Zoom 2 avatessa, edellinen takaisin suljettaessa (kp 18:10-18:13:56 "kaukoputkeen jonkun zoomin" · "zoom 2 ois hyvä" · "avaamiseen").
+//   Sama kutsu kuin :zoom 2 (useChatInputWidget.ts:111 -> RoomWidgetsView.tsx:23 -> RoomEngine.ts:472).
+const ZOOM = 2;
+let zoomEnnen = null;
+const zoomaa = (on) => { try {
+  if (on) { zoomEnnen = e.getRoomInstanceRenderingCanvasScale(huone, 1); e.setRoomInstanceRenderingCanvasScale(huone, 1, ZOOM); }
+  else if (zoomEnnen != null) { e.setRoomInstanceRenderingCanvasScale(huone, 1, zoomEnnen); zoomEnnen = null; }
+} catch (x) { lokiin({ zoomVirhe: String(x) }); } };
 const kaukoputki = (on) => {
   if (on && !putki) {
     putki = document.createElement('canvas');
     putki.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:100vh;z-index:2147483000;pointer-events:none';
-    document.body.appendChild(putki); tila.putkiAuki = true; lokiin({ kaukoputki: 'auki' }); paivita(); pyyda();
-  } else if (!on && putki) { putki.remove(); putki = null; tila.putkiAuki = false; lokiin({ kaukoputki: 'kiinni' }); paivita(); }
+    document.body.appendChild(putki); tila.putkiAuki = true; zoomaa(true); lokiin({ kaukoputki: 'auki' }); paivita(); pyyda();
+  } else if (!on && putki) { putki.remove(); putki = null; tila.putkiAuki = false; zoomaa(false); lokiin({ kaukoputki: 'kiinni' }); paivita(); }
 };
 tila.kaukoputki = kaukoputki;
 const putkiTarkista = () => { if (putki) { if (!vieressa()) kaukoputki(false); else pyyda(); } };
