@@ -86,8 +86,17 @@ const asetaKulma = (kulma) => { const k = kierto, cv = k.cv, g = k.g, V = k.V, k
   siirrot(false); pidaKeskella(cv, V, keski); };
 tila.kulmaNro = 0;
 const vaihdaKulma = (suunta) => { if (!kierto || !putki) return; tila.kulmaNro = (tila.kulmaNro + suunta + A.kulmat.length) % A.kulmat.length;
-  asetaKulma(A.kulmat[tila.kulmaNro]);
-  try { const o = e.getRoomInstanceRenderingCanvasOffset(huone, 1); if (o) { const z = A.zoom; panAlku = { x: o.x - (innerWidth / 2 - hiiri.x) * z, y: o.y - (innerHeight / 2 - hiiri.y) * z }; } } catch (x) {}
+  // Keskipiste lasketaan vain zoomittomasta alkunäkymästä (mitattu 01:11: zoomattuna laskettu keskus vei 180/270 huoneen ulkopuolelle)
+  const k = kierto, V = k.V; try {
+    e.setRoomInstanceRenderingCanvasScale(huone, 1, k.s0 == null ? 1 : k.s0);
+    const of = e.getRoomInstanceRenderingCanvasOffset(huone, 1); if (of) e.setRoomInstanceRenderingCanvasOffset(huone, 1, new of.constructor(k.of0.x, k.of0.y));
+    k.cv._screenOffsetX = k.of0.x; k.cv._screenOffsetY = k.of0.y;
+    k.g.direction = new V(k.d0.x, k.d0.y, k.d0.z); k.g.setDepthVector(new V(k.d0.x, k.d0.y, 5)); k.g.location = new V(k.l0.x, k.l0.y, k.l0.z);
+    siirrot(true); k.kulma = null;
+    asetaKulma(A.kulmat[tila.kulmaNro]);
+    if (A.zoom !== 1) e.setRoomInstanceRenderingCanvasScale(huone, 1, A.zoom);
+    const z = e.getRoomInstanceRenderingCanvasOffset(huone, 1); panAlku = z ? { x: z.x, y: z.y } : null; panoroi();
+  } catch (x) { lokiin({ kulmaVirhe: String(x) }); }
   lokiin({ kulma: kierto.kulma }); pyyda(); };
 tila.vaihdaKulma = vaihdaKulma;
 const palautaKierto = () => { if (!kierto) return; const k = kierto; try {
