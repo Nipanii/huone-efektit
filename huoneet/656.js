@@ -1,7 +1,7 @@
 // Huone 656: väliaikainen Halloween-pila (kp 28.10. 00:07:31 yv "tee läpäl väliaikanen script et toi auto ajaa kaikkien yli tietä
 //   pitkin ees taas muutaman kerran ja kaikki hahmot jää hetkeks maahan makaa eikä voi liikkua", 00:07:50 "vähä halloween pilaa",
 //   00:08:10 "sit pois päältä hetken päästä kun tehnyt työnsä", 00:09:20 "jos otat mallii miinoista et hahmot ragdollaa vähä").
-// Laukaisu: kurkkupomo sanoo huoneessa "tööt" -> jokainen moottorilla varustettu client ajaa saman ajon samaan aikaan. Konsolista: pila.aja().
+// Laukaisu: kurkkupomo, Res, sona tai robo sanoo huoneessa ":auto" (21:57, ennen "tööt") -> jokainen moottorilla varustettu client ajaa saman ajon samaan aikaan. Konsolista: pila.aja().
 // Auto 438129 (army15_ltdhumvee) ajaa tietä (cpunk_c15_road, x 15-40, y 13-18; kp osoitti päät 00:08:32-00:08:56) edestakaisin.
 //   Kaikki paikallista: palvelimella auto ei liiku eikä kukaan kaadu. Näkyy vain pelaajille joilla huone-efektit on päällä.
 // Suunta: humveen kirjastossa on vain kaksi kuvaa, keula oikealle-alas (+x, suunnat 0/2) ja vasemmalle-alas (+y, 4/6)
@@ -10,12 +10,13 @@
 //   ja jos auto ajaa uudestaan yli, lentää taas. Oma hahmo ei voi kävellä makuun aikana (UNIT_WALK 3320 jätetään lähettämättä).
 const e0 = window.NitroDevTools && window.NitroDevTools.roomEngine;
 const huone = (kupla && kupla.roomId && kupla.roomId()) || (e0 && e0.activeRoomId);
-const AUTO = 438129, LAUKAISIJAT = ['kurkkupomo', 'herra-robotti'], SANA = /^t[öo]{2,}t!*$/i;
+const AUTO = 438129, LAUKAISIJAT = ['kurkkupomo', 'res', 'sona', 'herra-robotti'], SANA = /^:auto!*$/i;
 const REITTI = [[38, 17], [15, 16], [40, 16], [15, 16], [38, 17]];   // auton alkupaikka 38,17 -> länsipää -> itäpää -> länsipää -> takaisin
 const NOPEUS = 7, TAUKO = 600, LEPO = 4000, KAISTA = [12.5, 19.5], LEVEYS = 1.6;
 const tila = window.pila = { versio: 'huone-656', huone, ajossa: false, loki: [] };
 let haamuId = -950001;
-const V = e0 && e0.getRoomObjects(huone, 100)[0] && e0.getRoomObjects(huone, 100)[0].getLocation().constructor;
+// V (Vector3d-luokka) luetaan hahmosta; jos huoneessa ei ollut hahmoja skriptin käynnistyessä, se otetaan autosta ajon alussa.
+let V = e0 && e0.getRoomObjects(huone, 100)[0] && e0.getRoomObjects(huone, 100)[0].getLocation().constructor;
 // Veri (kp 28.10. 01:22:37 "mis veri"): laskeutuessa paikallinen hp_blood (Verta maassa) hahmon alle, poistuu VERI_MS jälkeen.
 const VERI = 'hp_blood', VERI_MS = 90000, veret = new Set(); let veriId = -955001;
 tila.veri = (...a) => veriLatakko(...a);
@@ -110,7 +111,8 @@ const kuvaa = () => {
 };
 let kehys = null;
 const seuraava = () => { kehys = document.hidden ? setTimeout(kuvaa, 30) : requestAnimationFrame(kuvaa); };
-tila.aja = (ohi = 0) => { if (!e0 || !V || (ajo && ajo.kaynnissa)) return false; const a = e0.getRoomObject(huone, AUTO, 10); if (!a) return false;
+tila.aja = (ohi = 0) => { if (!e0 || (ajo && ajo.kaynnissa)) return false; const a = e0.getRoomObject(huone, AUTO, 10); if (!a) return false;
+  if (!V) V = a.getLocation().constructor;
   const L = a.getLocation(); autoAlku = { x: L.x, y: L.y, z: L.z, d: a.getDirection().x }; REITTI[0] = [L.x, L.y]; REITTI[REITTI.length - 1] = [L.x, L.y];
   kavelyEsto(); const s = osuudet(); if (ohi >= s.kesto) return false; ajo = { alku: performance.now() - ohi, o: s.o, kesto: s.kesto, kaynnissa: true }; tila.ajossa = true;
   tila.loki.push({ ajo: 'alku', kesto: Math.round(s.kesto), t: new Date().toTimeString().slice(0, 8) }); if (!kehys) seuraava(); return true; };
@@ -180,7 +182,11 @@ const valoAjastin = setInterval(valoPakota, 500);
 // kp 10:53 "tarkistus vaan sisäänkirjauksessa ei riitä ... voi tulla teleportin kautta": muuttuja luetaan uudestaan 15 s välein.
 const valoKysely = setInterval(valoKysy, 15000);
 
-const vayla = e0 && e0.events;
+// kp 28.10. 21:57:09 yv "tee :auto komento, toimii mulla resillä ja sonalla". kp:n clientissa 21:56
+//   kuuntelija oli, 3 tööttiä, 0 ajoa. Väylä EI ollut syy: RSCE_CHAT_EVENT tulee sekä RoomSessionManagerin että roomEnginen väylälle
+//   (mitattu robon clientissa 682:ssa). Epäilty syy (mittaamatta): V oli undefined, jos huoneessa ei ollut hahmoja skriptin käynnistyessä,
+//   ja aja() palautti false -> korjattu yllä. Tuntematon :komento palaa CommandHandler.handleCommand:ista false -> menee chattiin kaikille.
+const vayla = (e0 && e0._roomSessionManager && e0._roomSessionManager.events) || (e0 && e0.events);
 const kuule = ev => { try { if (!ev || ev.chatType == null || !SANA.test(String(ev.message || '').trim())) return;
   const s = sessio(), u = s && s.userDataManager && s.userDataManager.getUserDataByIndex(ev.objectId);
   if (!u || !LAUKAISIJAT.includes(String(u.name || '').toLowerCase())) return; tila.aja(); } catch (x) { tila.loki.push({ virhe: String(x) }); } };
