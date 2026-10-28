@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Huoneskriptit (moottori)
-// @version      0.6.5
+// @version      0.6.6
 // @match        https://kupla.cc/*
 // @grant        none
 // ==/UserScript==
@@ -22,9 +22,13 @@
 //   huoneen furnien määrä on pysynyt samana VERHO.vakaa ms (skriptien omat ajastimet ehtivät käsitellä ne), aikaisintaan VERHO.min,
 //   viimeistään VERHO.max. Furnit tulevat omana pakettinaan kartan jälkeen, siksi määrän vakaus eikä pelkkä skriptin käynnistys.
 //   hs.verho.viimeisin = { huone, ms, syy } (todennus). Huoneet ilman skriptejä: ei verhoa.
+// Esikatseluhuoneet (0.6.6, kp 28.10. 19:03 "huonescriptit ei saa feilaa"): pelin RoomPreviewer (katalogi, inventaario) luo oman
+//   createRoomInstancen id:llä >= 0x7FFF0000. Moottori luuli sitä huoneen vaihdoksi: 682 pysähtyi 18:56:04 (huone 2147418113) ja
+//   esikatselun sulkeutuessa huone oli 0, vaikka kp oli koko ajan 682:ssa. Nyt esikatselu-id:t ohitetaan, ja 15 s tiki korjaa
+//   itsensä roomEngine.activeRoomId:stä (pelin oma, -1 kun sessio päättyy) jos huone on silti mennyt ristiin.
 // Konsolissa: huoneskriptit.ajossa (mitä ajetaan) · huoneskriptit.loki · huoneskriptit.paivita(true) (hae ja käynnistä uudelleen)
 (() => {
-  const hs = { versio: '0.6.5', huone: 0, ajossa: new Map(), loki: [], pysaytetty: false };   // versio: myös 0.4.x:n itsepäivitys lukee tämän
+  const hs = { versio: '0.6.6', huone: 0, ajossa: new Map(), loki: [], pysaytetty: false };   // versio: myös 0.4.x:n itsepäivitys lukee tämän
   const POHJA = 'https://nipanii.github.io/huone-efektit/';
   const uudempi = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number);
     for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); return false; };
@@ -130,6 +134,7 @@
       if (kaynnissa && kulunut >= VERHO.min && nyt - vakaaAlkaen >= VERHO.vakaa) verhoPois('valmis, furneja ' + n);
     }, 50);
   };
+  const esikatselu = r => r >= 0x7FFF0000;   // RoomPreviewer-instanssit, ei oikea huone
   const vaihda = (r) => {
     const t0 = performance.now(); pysaytaKaikki(); hs.huone = r;
     if (r > 0) { try { verhoPaalle(r); } catch (err) {} } else verhoPois('huoneesta pois');
@@ -139,7 +144,7 @@
     const e = window.NitroDevTools && window.NitroDevTools.roomEngine; if (!e) return false; if (hs._palauta) return true;
     const omaLuo = Object.prototype.hasOwnProperty.call(e, 'createRoomInstance'), omaPoista = Object.prototype.hasOwnProperty.call(e, 'removeRoomInstance');
     const luo = e.createRoomInstance, poista = e.removeRoomInstance;
-    const uusiLuo = function (roomId) { const t = luo.apply(this, arguments); try { if (!hs.pysaytetty) vaihda(roomId); } catch (err) { console.warn('[huoneskriptit] huoneen vaihto', err); } return t; };
+    const uusiLuo = function (roomId) { const t = luo.apply(this, arguments); try { if (!hs.pysaytetty && !esikatselu(roomId)) vaihda(roomId); } catch (err) { console.warn('[huoneskriptit] huoneen vaihto', err); } return t; };
     const uusiPoista = function (roomId) { try { if (!hs.pysaytetty && roomId === hs.huone) vaihda(0); } catch (err) {} return poista.apply(this, arguments); };
     e.createRoomInstance = uusiLuo; e.removeRoomInstance = uusiPoista;
     hs._palauta = () => {   // vain jos kukaan ei ole kääriytynyt päälle
@@ -155,6 +160,7 @@
   hs._tiki = setInterval(async () => {
     if (hs.pysaytetty) return;
     if (!kytke()) return;
+    try { const a = window.NitroDevTools.roomEngine.activeRoomId; if (a > 0 && !esikatselu(a) && a !== hs.huone) { merkitse({ korjattu: 'huone ' + hs.huone + ' -> ' + a }); vaihda(a); } } catch (err) {}
     paivita(false);   // myös tyhjässä huoneessa: uusi huoneet.json-rivi käynnistyy ilman huoneen vaihtoa, ja muisti pysyy tuoreena
     try { const t = await hae('moottori.js'), v = ((t.match(/\/\/\s*@version\s+([^\r\n]+)/) || [])[1] || '').trim();
       if (v && !hs.pysaytetty && uudempi(v, hs.versio)) { const L = window.huoneEfektiLataaja; if (L) L.koodi = t; (0, eval)(t); console.info('[huoneskriptit] moottori päivitetty', v); } } catch (err) {}

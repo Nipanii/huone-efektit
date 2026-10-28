@@ -317,7 +317,7 @@ let lapioAika = 0;
 const lapioSaatu = () => {
   if (tila.valmis) { lokiin({ lapio: 'ei, rata jo läpäisty' }); return; }
   const k = kasi();
-  if (k === JAKOAVAIN) { piiloLapio = Date.now(); for (const ms of [30, 300, 1000]) setTimeout(kuplat, ms); banneri('Jakoavain kädessä: lapiota ei voi ottaa');
+  if (k === JAKOAVAIN) { piiloLapio = Date.now(); for (const ms of [30, 300, 1000]) setTimeout(kuplat, ms);   // ei banneria (kp 19:04 "too much" · "en pyytäny viestii siihe")
     lokiin({ lapio: 'ei, jakoavain kädessä' }); return; }
   lapioAika = Date.now();
   if (k) { try { const s = istunto(); s && s.sendChatMessage && s.sendChatMessage(':handitem 0', 0); } catch (x) {} lokiin({ lapio: 'kädessä ' + k + ' -> :handitem 0' }); }
