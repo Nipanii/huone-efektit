@@ -123,15 +123,17 @@ let odottaa = 0, lapioOdottaa = 0, koukkuYhteys = null, koukkuOma = null, koukku
 const koukku = () => {
   const c = yhteys(); if (!c || typeof c.handleMessages !== 'function') return null; if (koukkuYhteys === c) return c;
   const alkup = c.handleMessages;
-  const oma = function (...viestit) { try { if (odottaa && Date.now() - odottaa < 5000) {
-    const i = omaIndeksi();
+  // kp 19:13 "var setter command on useless jos se pitää tapauskohtasesti päivittää" · "purkkaa": arvo päivitetään JOKAISESTA omasta
+  //   muuttujavastauksesta (myös :ratavarin oma takaisinluku, Wired Menu), ei vain omasta kysymyksestä. Vain oma kysymys niellään.
+  const oma = function (...viestit) { try { const meille = odottaa && Date.now() - odottaa < 5000; let i;
     viestit = viestit.filter(v => { const p = v && v.parser;
-      if (!p || p.type !== 1 || p.objectId !== i || !Array.isArray(p.values) || !Array.isArray(p.wiredIds)) return true;
-      odottaa = 0; tila.muuttujat = p.values.map(x => x && (x.id + '=' + x.value));
+      if (!p || p.type !== 1 || !Array.isArray(p.values) || !Array.isArray(p.wiredIds)) return true;
+      if (i === undefined) i = omaIndeksi(); if (p.objectId !== i) return true;
+      if (meille) odottaa = 0; tila.muuttujat = p.values.map(x => x && (x.id + '=' + x.value));
       const r = p.values.find(x => x && x.id === RATA_MUUTTUJA); const arvo = r ? r.value : 0;
-      tila.arvo = arvo; tila.valmis = arvo >= RATA_RAJA; lokiin({ muuttuja: 'luettu', arvo, valmis: tila.valmis }); paivita();
-      if (lapioOdottaa && Date.now() - lapioOdottaa < 5000) { lapioOdottaa = 0; if (!tila.valmis) lapioSaatu(); } return false; });
-    if (!viestit.length) return; } } catch (x) { lokiin({ muuttuja: 'virhe', viesti: String(x) }); }
+      tila.arvo = arvo; tila.valmis = arvo >= RATA_RAJA; lokiin({ muuttuja: meille ? 'luettu' : 'kuultu', arvo, valmis: tila.valmis }); paivita();
+      if (lapioOdottaa && Date.now() - lapioOdottaa < 5000) { lapioOdottaa = 0; if (!tila.valmis) lapioSaatu(); } return !meille; });
+    if (!viestit.length) return; } catch (x) { lokiin({ muuttuja: 'virhe', viesti: String(x) }); }
     return alkup.apply(this, viestit); };
   c.handleMessages = oma; koukkuYhteys = c; koukkuOma = oma; koukkuAlkup = alkup; return c;
 };
