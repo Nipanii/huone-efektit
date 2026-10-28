@@ -198,6 +198,22 @@ const piirra = () => { piirto = 0; if (!putki) return;
 const pyyda = () => { if (!piirto) piirto = requestAnimationFrame(piirra); };
 const liike = ev => { hiiri = { x: ev.clientX, y: ev.clientY }; if (putki) { panoroi(); pyyda(); } };
 const nappain = ev => { if (ev.key === 'Escape' && putki) kaukoputki(false); };
+// Klikkaus aukon keskelle (kp 18:35:42 "aukon keskiosalla pitää pystyy click" · 18:36:28 "se ruksi voidaa pitää et voi click"): kursori on
+//   piilossa ja missä tahansa, joten huonekanvakselle tuleva oikea painallus pysäytetään ja lähetetään uudestaan ruudun keskeltä. preventDefault
+//   pointerdownissa estää selaimen omat mousedown/up-tapahtumat, joten ne lähetetään itse samaan kohtaan. UI-elementit (infokortti, napit) eivät
+//   ole kanvaksia, joten niihin klikkaus menee normaalisti.
+const KESKELLE = { pointerdown: ['pointerdown', 'mousedown'], pointerup: ['pointerup', 'mouseup'], click: ['click'] };
+//   Ylös ja click ohjataan vain jos saman painalluksen alas ohjattiin: putken avannut painallus (alas ennen avausta) ei saa päästää irti keskeltä.
+let ohjattu = false;
+const keskelle = ev => { try {
+  if (!putki || !ev.isTrusted || !(ev.target instanceof HTMLCanvasElement) || ev.target === putki) return;
+  if (ev.type === 'pointerdown') ohjattu = true; else if (!ohjattu) return; else if (ev.type === 'click') ohjattu = false;
+  ev.stopImmediatePropagation(); ev.preventDefault();
+  const x = innerWidth / 2, y = innerHeight / 2, s = { bubbles: true, cancelable: true, composed: true, clientX: x, clientY: y, screenX: x, screenY: y,
+    button: ev.button, buttons: ev.buttons, ctrlKey: ev.ctrlKey, shiftKey: ev.shiftKey, altKey: ev.altKey, metaKey: ev.metaKey, view: window };
+  for (const t of KESKELLE[ev.type]) ev.target.dispatchEvent(t.startsWith('pointer')
+    ? new PointerEvent(t, { ...s, pointerId: ev.pointerId, pointerType: ev.pointerType, isPrimary: ev.isPrimary }) : new MouseEvent(t, s));
+} catch (x) { lokiin({ klikkiVirhe: String(x) }); } };
 // Zoom 2 avatessa, edellinen takaisin suljettaessa (kp 18:10-18:13:56 "kaukoputkeen jonkun zoomin" · "zoom 2 ois hyvä" · "avaamiseen").
 //   Sama kutsu kuin :zoom 2 (useChatInputWidget.ts:111 -> RoomWidgetsView.tsx:23 -> RoomEngine.ts:472).
 const ZOOM = 2;
@@ -216,7 +232,7 @@ const kaukoputki = (on) => {
   if (on && !putki) {
     putki = document.createElement('canvas');
     putki.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:100vh;z-index:2147483000;pointer-events:none';
-    kursori = document.createElement('style'); kursori.textContent = '*{cursor:none!important}'; document.head.appendChild(kursori);
+    kursori = document.createElement('style'); kursori.textContent = 'canvas{cursor:none!important}'; document.head.appendChild(kursori);
     document.body.appendChild(putki); tila.putkiAuki = true; zoomaa(true); lokiin({ kaukoputki: 'auki' }); paivita(); pyyda();
   } else if (!on && putki) { putki.remove(); putki = null; if (kursori) { kursori.remove(); kursori = null; } tila.putkiAuki = false; zoomaa(false); lokiin({ kaukoputki: 'kiinni' }); paivita(); }
 };
@@ -273,6 +289,7 @@ if (vayla && vayla.addEventListener) {
   vayla.addEventListener('RSCE_CHAT_EVENT', kuule); pois.push(() => vayla.removeEventListener('RSCE_CHAT_EVENT', kuule));
   vayla.addEventListener('REOE_SELECTED', valittu); pois.push(() => vayla.removeEventListener('REOE_SELECTED', valittu));
 } else lokiin({ vayla: 'roomEngine.events puuttuu' });
+for (const t of Object.keys(KESKELLE)) { window.addEventListener(t, keskelle, true); pois.push(() => window.removeEventListener(t, keskelle, true)); }
 document.addEventListener('pointermove', liike, { capture: true, passive: true }); pois.push(() => document.removeEventListener('pointermove', liike, { capture: true }));
 document.addEventListener('keydown', nappain, true); pois.push(() => document.removeEventListener('keydown', nappain, true));
 window.addEventListener('resize', pyyda); pois.push(() => window.removeEventListener('resize', pyyda));
