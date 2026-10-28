@@ -165,7 +165,7 @@ const kuplaPiiloon = el => { try { const t = el.textContent || '';
 //   palautetaan aina kun widget muuttaa sitä; putken aikana syntynyt kupla lukitaan ensimmäiseen paikkaansa. top saa elää (kuplat nousevat).
 //   Koko kuplajoukko käydään läpi joka muutoksella: kupla voi syntyä tyhjänä ja saada tekstinsä vasta myöhemmin (18:50 yksi jäi näkyviin).
 let kuplaLeft = new WeakMap();
-const kuplat = () => { for (const b of document.querySelectorAll('.bubble-container')) { kuplaPiiloon(b);
+const kuplat = () => { if (tila.putkiAuki) pyyda(); for (const b of document.querySelectorAll('.bubble-container')) { kuplaPiiloon(b);
   if (!tila.putkiAuki) continue; const l = kuplaLeft.get(b); if (l == null) kuplaLeft.set(b, b.style.left); else if (b.style.left !== l) b.style.left = l; } };
 const kuplaVahti = new MutationObserver(kuplat);
 // kp 19:06 "piilotetaa kokonaa chat bubblet tossa teleskooppi näkymässä" · "kupla jäi siihen keskelle jummaa": kaukoputki auki = kaikki puhekuplat piiloon
@@ -239,7 +239,7 @@ const piirra = () => { piirto = 0; if (!putki) return;
   if (c.width !== Math.round(w * d) || c.height !== Math.round(h * d)) { c.width = Math.round(w * d); c.height = Math.round(h * d); }
   g.setTransform(d, 0, 0, d, 0, 0); g.globalCompositeOperation = 'source-over'; g.clearRect(0, 0, w, h);
   const R = Math.max(90, Math.min(170, Math.min(w, h) * 0.2)), x = w / 2, y = h / 2;
-  g.fillStyle = 'rgba(4,4,8,0.97)'; g.fillRect(0, 0, w, h);
+  g.fillStyle = 'rgb(4,4,8)'; g.fillRect(0, 0, w, h);
   g.globalCompositeOperation = 'destination-out'; g.beginPath(); g.arc(x, y, R, 0, Math.PI * 2); g.fill();
   g.globalCompositeOperation = 'source-over';
   // Lens: cool tint over the aperture, then the existing dark vignette at the edge
@@ -269,7 +269,7 @@ const piirra = () => { piirto = 0; if (!putki) return;
   g.lineWidth = 1.5; g.strokeStyle = 'rgba(255,255,255,0.55)'; g.stroke();
   // Infostand-kortit viimeisenä läpi, ettei messinkikehä tai lasi peitä niitä
   g.globalCompositeOperation = 'destination-out';
-  for (const el of document.querySelectorAll('.nitro-infostand-container')) { const r = el.getBoundingClientRect(); if (r.width && r.height) g.fillRect(r.left - 4, r.top - 4, r.width + 8, r.height + 8); }
+  for (const el of document.querySelectorAll('.nitro-infostand-container, .nitro-infostand, [class*="infostand"]')) { const r = el.getBoundingClientRect(); if (r.width && r.height) g.fillRect(r.left - 4, r.top - 4, r.width + 8, r.height + 8); }
   g.globalCompositeOperation = 'source-over';
   g.font = '13px sans-serif'; g.textAlign = 'center'; g.fillStyle = 'rgba(255,255,255,0.55)'; g.fillText('Esc tai kävele pois sulkee', w / 2, h - 18);
 };
