@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kuplan badget</title>
+<!-- kp 2026-10-28 15:53 "tee robo pagesiin sivu mistä voidaan selata kaikkia badgeja, pitää pystyy klikkaamalla kopsata niiden id. nimet kans esiin".
+     Data haetaan joka latauksella suoraan kuplasta (ExternalTexts.json badge_name_*, CORS *), joten lista on aina ajan tasalla.
+     Kuva: https://kupla.cc/nitro-assets/images/badges/<id>.gif (sama kuin renderer-config badge.asset.url). -->
+<style>
+:root{--bg:#16161d;--kortti:#22222c;--reuna:#33333f;--teksti:#e8e8ee;--himmea:#9a9aab;--korostus:#4c8dff}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--teksti);font:14px/1.4 system-ui,-apple-system,Segoe UI,sans-serif}
+header{position:sticky;top:0;z-index:2;background:var(--bg);border-bottom:1px solid var(--reuna);padding:12px 16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+h1{font-size:18px;margin:0 8px 0 0}
+input{flex:1;min-width:200px;background:var(--kortti);color:var(--teksti);border:1px solid var(--reuna);border-radius:6px;padding:8px 10px;font:inherit}
+#tila{color:var(--himmea);font-size:13px}
+main{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;padding:12px 16px}
+.b{background:var(--kortti);border:1px solid var(--reuna);border-radius:8px;padding:8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;min-height:120px}
+.b:hover{border-color:var(--korostus)}
+.b img{width:40px;height:40px;object-fit:contain;image-rendering:pixelated}
+.b.eikuvaa img{opacity:.15}
+.id{font:12px ui-monospace,Consolas,monospace;color:var(--korostus);word-break:break-all}
+.nimi{font-size:12px;word-break:break-word}
+.kuvaus{font-size:11px;color:var(--himmea);word-break:break-word}
+#lisaa{display:block;margin:8px auto 24px;background:var(--kortti);color:var(--teksti);border:1px solid var(--reuna);border-radius:6px;padding:8px 16px;font:inherit;cursor:pointer}
+#toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--korostus);color:#fff;padding:8px 14px;border-radius:6px;opacity:0;transition:opacity .2s;pointer-events:none}
+#toast.nakyy{opacity:1}
+</style>
+</head>
+<body>
+<header>
+  <h1>Kuplan badget</h1>
+  <input id="haku" type="search" placeholder="Hae id:llä, nimellä tai kuvauksella" autocomplete="off">
+  <span id="tila">Ladataan…</span>
+</header>
+<main id="lista"></main>
+<button id="lisaa" hidden>Näytä lisää</button>
+<div id="toast"></div>
+<script>
+(() => {
+  const TEKSTIT = 'https://kupla.cc/nitro-assets/gamedata/ExternalTexts.json';
+  const KUVA = id => 'https://kupla.cc/nitro-assets/images/badges/' + encodeURIComponent(id) + '.gif';
+  const SIVU = 300;
+  const lista = document.getElementById('lista'), haku = document.getElementById('haku'),
+        tila = document.getElementById('tila'), lisaa = document.getElementById('lisaa'), toast = document.getElementById('toast');
+  let kaikki = [], osumat = [], naytetty = 0, toastT = 0;
+
+  const ilmoita = t => { toast.textContent = t; toast.classList.add('nakyy'); clearTimeout(toastT); toastT = setTimeout(() => toast.classList.remove('nakyy'), 1400); };
+  const kopioi = async id => {
+    try { await navigator.clipboard.writeText(id); }
+    catch (e) { const t = document.createElement('textarea'); t.value = id; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); }
+    ilmoita('Kopioitu: ' + id);
+  };
+
+  function kortti(b) {
+    const d = document.createElement('div'); d.className = 'b'; d.title = 'Klikkaa kopioidaksesi ' + b.id;
+    const img = new Image(); img.loading = 'lazy'; img.alt = ''; img.src = KUVA(b.id); img.onerror = () => d.classList.add('eikuvaa');
+    const id = document.createElement('div'); id.className = 'id'; id.textContent = b.id;
+    const nimi = document.createElement('div'); nimi.className = 'nimi'; nimi.textContent = b.nimi;
+    d.append(img, id, nimi);
+    if (b.kuvaus) { const k = document.createElement('div'); k.className = 'kuvaus'; k.textContent = b.kuvaus; d.append(k); }
+    d.addEventListener('click', () => kopioi(b.id));
+    return d;
+  }
+
+  function nayta(lisaksi) {
+    if (!lisaksi) { lista.textContent = ''; naytetty = 0; }
+    const f = document.createDocumentFragment();
+    osumat.slice(naytetty, naytetty + SIVU).forEach(b => f.append(kortti(b)));
+    lista.append(f); naytetty = Math.min(naytetty + SIVU, osumat.length);
+    lisaa.hidden = naytetty >= osumat.length;
+    tila.textContent = osumat.length + ' / ' + kaikki.length + ' badgea' + (naytetty < osumat.length ? ' (näytetään ' + naytetty + ')' : '');
+  }
+
+  function suodata() {
+    const q = haku.value.trim().toLowerCase();
+    osumat = !q ? kaikki : kaikki.filter(b => b.id.toLowerCase().includes(q) || b.nimi.toLowerCase().includes(q) || b.kuvaus.toLowerCase().includes(q));
+    nayta(false);
+  }
+
+  let hakuT = 0;
+  haku.addEventListener('input', () => { clearTimeout(hakuT); hakuT = setTimeout(suodata, 150); });
+  lisaa.addEventListener('click', () => nayta(true));
+  new IntersectionObserver(e => { if (e[0].isIntersecting && !lisaa.hidden) nayta(true); }, { rootMargin: '600px' }).observe(lisaa);
+
+  fetch(TEKSTIT).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(t => {
+    for (const k in t) {
+      if (k.indexOf('badge_name_') !== 0) continue;
+      const id = k.slice(11);
+      kaikki.push({ id, nimi: String(t[k] || ''), kuvaus: String(t['badge_desc_' + id] || '') });
+    }
+    kaikki.sort((a, b) => a.id.localeCompare(b.id, 'fi', { numeric: true }));
+    const alku = new URLSearchParams(location.search).get('q'); if (alku) haku.value = alku;
+    suodata();
+  }).catch(e => { tila.textContent = 'Lataus epäonnistui: ' + e.message; });
+})();
+</script>
+</body>
+</html>
