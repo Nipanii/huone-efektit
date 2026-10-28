@@ -115,26 +115,19 @@ const paivita = () => {
   for (const id of [...mykat.keys()]) if (!nahdyt.has(id)) mykat.delete(id);
   for (const id of [...botit.keys()]) if (!nahdyt.has(id)) botit.delete(id);
   tila.hahmojaPiilossa = h;
-  putkiTarkista(); lapioTarkista();   // jaakaappi() pois: kp 19:59 "jääkaapin vaihtuminen ei oo ok" -> korjataan pajan kautta (B146)
+  putkiTarkista(); lapioTarkista(); jaakaappi();
 };
 // kp 19:33-19:34 "kun peli on läpäisty, jääkaapin ovi aukeaa" · "näkyy vaa itelle" · "jää auki jos on vetänyt radan": Jääkaappi
 //   (habbox_rosebury_cuisine10) tilaan 1 vain omassa clientissä (setState, ei pakettia), uudelleen joka kierroksella jos palvelin päivittää sen.
 //   Kaksi animaatiota (0, 1); robolla visualisointi seuraa tilaa 1. Oven ulkonäköä ei ole katsottu.
-const JAAKAAPPI = 442798;
+// kp 20:15 "robo voitko vaihtaa jääkaapin toisee tähä" · "wired ja script": kp vaihtoi 20:24 tilalle purablk_c16_fridge (443893, 1,38), jonka
+//   tila 1 = ovi auki (renderöity 8826-s1 + gw-tarkistus 20:17). Ovi pakotetaan VAIN OMAAN näkymään: radan läpäisseelle 1, muille 0 — myös jos
+//   joku tuplaklikkaa kaapin palvelimella auki, muut näkevät sen kiinni. Vanha 442798 + korvaajakikka (3249) poistettu.
+const JAAKAAPPI = 443893;
 let jkAuki = false;
-// kp 19:43 "vaihdoit sen tilan vaa eri väriseks" · 19:44 "se on siis tavallisesti rikki … tehää nyt vaa scriptil se": tämän kalusteen
-//   grafiikassa on vain kaksi kuvaa (kiinni + toinen väri, 64_a_2_0/_1), avointa ovea ei ole. Radan jälkeen alkuperäinen piilotetaan
-//   (furniture_alpha_multiplier 0) ja samaan ruutuun lisätään VAIN OMAAN näkymään ktchn_fridge (3249, sama malli, tila 1 = ovi auki).
-const JK_KORVAAJA = 3249, JK_ID = -968201;
 const jaakaappi = () => { try { const f = e.getRoomObject(huone, JAAKAAPPI, 10); if (!f) return;
-  if (tila.valmis) { if (!jkAuki) { f.model.setValue('furniture_alpha_multiplier', 0);
-      if (!e.getRoomObject(huone, JK_ID, 10)) { const l = f.getLocation(), d = f.getDirection(), V = l.constructor, s = 1;
-        const od = { flags: 0, uniqueNumber: 0, uniqueSeries: 0, state: s, rarityLevel: -1, getLegacyString() { return String(s); },
-          writeRoomObjectModel(m) { m.setValue('furniture_data_format', 0); m.setValue('furniture_data', String(s)); }, initializeFromRoomObjectModel() {}, compare() { return false; }, getValue() { return ''; } };
-        e.addFurnitureFloor(huone, JK_ID, JK_KORVAAJA, new V(l.x, l.y, l.z), new V(d.x, 0, 0), 0, od, NaN, -1, 0, 0, '', true, false); }
-      lokiin({ jaakaappi: 'auki (korvaaja)' }); }
-    const k = e.getRoomObject(huone, JK_ID, 10); if (k && k.getState(0) !== 1) k.setState(1, 0); jkAuki = true; }
-  else if (jkAuki) { f.model.setValue('furniture_alpha_multiplier', 1); try { e.removeRoomObjectFloor(huone, JK_ID); } catch (x) {} jkAuki = false; } } catch (x) { lokiin({ jkVirhe: String(x) }); } };
+  const halu = tila.valmis ? 1 : 0; if (f.getState(0) !== halu) f.setState(halu, 0);
+  if (tila.valmis !== jkAuki) { jkAuki = !!tila.valmis; lokiin({ jaakaappi: jkAuki ? 'auki' : 'kiinni' }); } } catch (x) { lokiin({ jkVirhe: String(x) }); } };
 
 // ---- Muuttuja: ratoja_tehty >= 3 -> ei piilotusta (sama luku kuin 681.js:n arkku)
 // kaivun laukaisin on piilotettu sana (kp 19:26 "dig komento piti poistaa"): sanotriggerit 439498/439499 tilassa 1,1,0, viesti ei näy muille
