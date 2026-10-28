@@ -209,12 +209,16 @@ const zoomaa = (on) => { try {
   else if (zoomEnnen != null) { e.setRoomInstanceRenderingCanvasScale(huone, 1, zoomEnnen.s);
     if (zoomEnnen.o) e.setRoomInstanceRenderingCanvasOffset(huone, 1, zoomEnnen.o); zoomEnnen = null; panAlku = null; }
 } catch (x) { lokiin({ zoomVirhe: String(x) }); } };
+// Kursori piiloon putken ajaksi (kp 18:34:21 "hiiri elää omaa elämäänsä kaukoputki overlayssa, ei oo enää hidden"): aukko on keskellä, joten
+//   näkyvä kursori harhailisi mustan päällä.
+let kursori = null;
 const kaukoputki = (on) => {
   if (on && !putki) {
     putki = document.createElement('canvas');
     putki.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:100vh;z-index:2147483000;pointer-events:none';
+    kursori = document.createElement('style'); kursori.textContent = '*{cursor:none!important}'; document.head.appendChild(kursori);
     document.body.appendChild(putki); tila.putkiAuki = true; zoomaa(true); lokiin({ kaukoputki: 'auki' }); paivita(); pyyda();
-  } else if (!on && putki) { putki.remove(); putki = null; tila.putkiAuki = false; zoomaa(false); lokiin({ kaukoputki: 'kiinni' }); paivita(); }
+  } else if (!on && putki) { putki.remove(); putki = null; if (kursori) { kursori.remove(); kursori = null; } tila.putkiAuki = false; zoomaa(false); lokiin({ kaukoputki: 'kiinni' }); paivita(); }
 };
 tila.kaukoputki = kaukoputki;
 const putkiTarkista = () => { if (putki) { if (!vieressa()) kaukoputki(false); else pyyda(); } };
