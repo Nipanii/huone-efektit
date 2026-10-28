@@ -205,20 +205,43 @@ if (!ks) tila.loki.push({ jako: 'ei kanavaa', syy: 'window.kuplaScripts puuttuu 
 // 23:27 korjattu: oli (d+) ilman kenoviivaa, joten mikään läpäisy ei osunut ja banneri ei koskaan näkynyt.
 const MAALI = /^(.+) pääsi radan (\d+) läpi!$/;
 const viimLapi = new Map();
-const banneri = teksti => {
+const banneri = (teksti, ms = 4000, px = 26) => {
   const d = document.createElement('div'); d.textContent = teksti;
-  d.style.cssText = 'position:fixed;left:50%;top:18%;transform:translate(-50%,0);z-index:99999;pointer-events:none;font:bold 26px sans-serif;' +
+  d.style.cssText = 'position:fixed;left:50%;top:18%;transform:translate(-50%,0);z-index:99999;pointer-events:none;font:bold ' + px + 'px sans-serif;' +
     'color:#fff;text-shadow:0 0 4px #000,0 0 4px #000,2px 2px 0 #000;white-space:nowrap;transition:opacity .6s';
   document.body.appendChild(d); const l = { d, ajo: 0 }; nakyvatLaput.add(l);
-  setTimeout(() => { d.style.opacity = '0'; }, 4000); setTimeout(() => { d.remove(); nakyvatLaput.delete(l); }, 4700);
+  setTimeout(() => { d.style.opacity = '0'; }, ms); setTimeout(() => { d.remove(); nakyvatLaput.delete(l); }, ms + 700);
 };
+// kp 22:15 "robo laita miina huoneesee samat kunnon onnittelut ku tokas" · "älä muuta tekstii": sama konfetti + ilotulitus kuin 682.js (9 s),
+//   banneri 8 s / 40 px, teksti "selvisi läpi" ennallaan.
+const juhla = () => {
+  const c = document.createElement('canvas'), w = c.width = innerWidth, h = c.height = innerHeight, g = c.getContext('2d');
+  c.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:100vh;z-index:99998;pointer-events:none';
+  document.body.appendChild(c); const l = { d: c, ajo: 0 }; nakyvatLaput.add(l);
+  const V = ['#ff7a00', '#a24bff', '#7dff4a', '#ffd23f', '#ff3b3b', '#ffffff'], P = [], t0 = performance.now(), KESTO = 9000;
+  const rak = (x, y) => { const v = V[Math.random() * V.length | 0]; for (let i = 0; i < 70; i++) { const a = Math.random() * 6.283, n = 2 + Math.random() * 5;
+    P.push({ x, y, vx: Math.cos(a) * n, vy: Math.sin(a) * n, e: 1, v, r: 2 + Math.random() * 2, k: 0 }); } };
+  for (let i = 0; i < 160; i++) P.push({ x: Math.random() * w, y: -20 - Math.random() * h * 0.4, vx: (Math.random() - 0.5) * 1.2, vy: 0.8 + Math.random() * 0.8, e: 1, v: V[i % V.length], r: 3 + Math.random() * 4, k: 1, kul: Math.random() * 6.283 });
+  let seur = 0;
+  const askel = nyt => { const t = nyt - t0; if (t > KESTO + 1500 || !c.isConnected) { c.remove(); nakyvatLaput.delete(l); return; }
+    if (t < KESTO && t > seur) { rak(w * (0.15 + Math.random() * 0.7), h * (0.15 + Math.random() * 0.4)); seur = t + 450 + Math.random() * 400; }
+    g.clearRect(0, 0, w, h); const haiv = t > KESTO ? 1 - (t - KESTO) / 1500 : 1;
+    for (let i = P.length - 1; i >= 0; i--) { const q = P[i]; q.x += q.vx; q.y += q.vy;
+      if (q.k) { q.vy = Math.min(q.vy + 0.01, 1.7); q.kul += 0.06; q.vx += Math.sin(q.kul) * 0.03; } else { q.vy += 0.06; q.vx *= 0.985; q.vy *= 0.985; q.e -= 0.012; }
+      if (q.e <= 0 || q.y > h + 30) { P.splice(i, 1); continue; }
+      g.globalAlpha = Math.max(0, Math.min(1, q.e * haiv)); g.fillStyle = q.v;
+      if (q.k) { g.save(); g.translate(q.x, q.y); g.rotate(q.kul); g.fillRect(-q.r, -q.r / 2, q.r * 2, q.r); g.restore(); } else { g.beginPath(); g.arc(q.x, q.y, q.r, 0, 6.283); g.fill(); } }
+    l.ajo = requestAnimationFrame(askel); };
+  l.ajo = requestAnimationFrame(askel);
+};
+tila.juhla = () => { banneri('☠ Testi selvisi läpi! ☠', 8000, 40); juhla(); };   // konsolista: huone681.juhla()
 const vayla = window.NitroDevTools && window.NitroDevTools.roomEngine && window.NitroDevTools.roomEngine.events;
 const kuuleMaali = ev => { try {
   if (!ev || ev.chatType !== 1 || ev.objectId !== omaIndeksi()) return;
   const m = MAALI.exec(String(ev.message || '').trim()); if (!m) return;
   const nyt = Date.now(); if (nyt - (viimLapi.get(m[1]) || 0) < 10000) return; viimLapi.set(m[1], nyt);
   tila.loki.push({ lapi: 'saatu', kuka: m[1], t: new Date().toTimeString().slice(0, 8) });
-  banneri('☠ ' + m[1] + ' selvisi läpi! ☠');
+  banneri('☠ ' + m[1] + ' selvisi läpi! ☠', 8000, 40); juhla();
   arkkuLapaisy(m[1]);
 } catch (x) { tila.loki.push({ lapi: 'virhe', viesti: String(x) }); } };
 if (vayla && vayla.addEventListener) { vayla.addEventListener('RSCE_CHAT_EVENT', kuuleMaali); jakoPois.push(() => vayla.removeEventListener('RSCE_CHAT_EVENT', kuuleMaali)); }
