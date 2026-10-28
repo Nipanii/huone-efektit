@@ -123,7 +123,10 @@ tila.aja = (ohi = 0) => { if (!e0 || !V || (ajo && ajo.kaynnissa)) return false;
 const LINJALLA = 3, JAAHY = 15 * 60000;   // kp 01:21:18 "muutaman kerran tunnis" + 01:21:25 "EI MUUTAMAN KERRAN MINUUTIS"
 // Kellojakso (01:24): ajo kerran per JAAHY-jakso seinäkellosta, jolloin kaikki clientit lähtevät samassa jaksossa yhtä aikaa ja
 //   koodin uudelleenlataus ei nollaa jäähyä pitkäksi aikaa. Reuna-ehto poistettu: porukka seisoo tiellä koko ajan (15 hahmoa), joten tie ei tyhjene.
-let viimJakso = -1;
+// 28.10. 10:35 (kp "oon nähny sen monta kertaa jo 5 min sisään" · "huoneeseen tullessa kai tekee sen"): -1 alussa = jokainen
+//   huoneeseen tulo / sivun lataus / skriptin uudelleenkäynnistys ajoi heti, koska tiellä on aina >= 3. Nyt alku = nykyinen jakso,
+//   joten ajo tulee vasta seuraavan 15 min jakson alussa, ja silloin kaikilla clienteillä yhtä aikaa.
+let viimJakso = Math.floor(Date.now() / JAAHY);
 const ajastus = setInterval(() => { try {
   if (tila.ajossa || (ajo && ajo.kaynnissa) || kaatuneet.size || Math.floor(Date.now() / JAAHY) === viimJakso) return;
   let n = 0; for (const o of e0.getRoomObjects(huone, 100) || []) { if (o.id < 0 || !o.model || !o.model.getValue('figure')) continue;
