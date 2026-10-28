@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         kupla: Messenger-kuplat A/B-testi (B123)
 // @namespace    kupla
-// @version      0.3.1
+// @version      0.3.2
 // @description  TESTI: kaikki viestit kupliin, kaksi tyyliä. A2 = läpikuultava, ohut reuna, terävä kulma lähettäjän puolella. C = täytetty väri, pyöreä, ei reunaa. Valinta localStorage 'kuplat-testi' = A2 | C (oletus A2).
 // @match        https://kupla.cc/*
 // @grant        none
@@ -14,7 +14,7 @@
 // Kaksi clienttiä vierekkäin: robon clientiin C (CDP), kp:lle oletus A2. Vain CSS, Reactin solmuihin ei kosketa.
 // Vaihto: localStorage['kuplat-testi'] = 'A2' tai 'C', sitten sivun päivitys.
 (() => {
-  if (window.__kuplaKuplatTesti) return; window.__kuplaKuplatTesti = true;
+  if (window.__kuplaKuplatTesti) return;
   // Yhteinen: muiden viestit kutistuvat tekstin levyisiksi (natiivisti .km-txt on täysleveä lohko), kupla enintään 78 %.
   // 0.3.1 kp 13:57 "nää pallot on liian kiinni toisissaan" (natiivi .km-row 36px + margin 1px = 2px pallojen väli) ja
   //   13:58 "ryhmä icon pallurassa on tyhmää tilaa" (natiivi is-group::before 16x14 36px pallossa, all_friends_icon.png 35x33).
@@ -35,4 +35,6 @@
   const s = document.getElementById('kuplat-testi') || document.createElement('style'); s.id = 'kuplat-testi';
   s.dataset.v = v; s.textContent = VALIT + POHJA + TYYLI[v];
   document.head.appendChild(s);
+  // 0.3.2: pois() hot-updatea varten (moottorin kayttajaskriptit, kp 28.10. "eikä tarvii f5").
+  window.__kuplaKuplatTesti = { versio: '0.3.2', pois() { const s = document.getElementById('kuplat-testi'); if (s) s.remove(); delete window.__kuplaKuplatTesti; } };
 })();

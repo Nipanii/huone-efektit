@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         kupla: Messenger-numero näkyy värillisenä
 // @namespace    kupla
-// @version      0.2.0
+// @version      0.2.1
 // @description  Työkalupalkin Viestit-ikonin lukemattomien numero ei harmaannu ikonin mukana vaan näkyy punaisena.
 // @match        https://kupla.cc/*
 // @grant        none
@@ -17,7 +17,6 @@
 //   NYT: Reactin solmuun EI koske kukaan; se piilotetaan paikallaan ja numero näytetään omassa kopiossa ikonin ulkopuolella.
 (() => {
   if (window.__kuplaMessengerNumero) return;
-  window.__kuplaMessengerNumero = true;
   if (!document.getElementById('kmn-tyyli')) {
     const s = document.createElement('style'); s.id = 'kmn-tyyli';
     s.textContent = '.toolbar-messenger-control{position:relative}' +
@@ -35,5 +34,8 @@
     if (kopio.textContent !== alkup.textContent) kopio.textContent = alkup.textContent;
   };
   paivita();
-  new MutationObserver(paivita).observe(document.body, { childList: true, subtree: true, characterData: true });
+  // 0.2.1: pois() hot-updatea varten (moottorin kayttajaskriptit, kp 28.10. "eikä tarvii f5").
+  const havaitsija = new MutationObserver(paivita);
+  havaitsija.observe(document.body, { childList: true, subtree: true, characterData: true });
+  window.__kuplaMessengerNumero = { versio: '0.2.1', pois() { havaitsija.disconnect(); document.querySelectorAll('.kmn-luku').forEach(n => n.remove()); const s = document.getElementById('kmn-tyyli'); if (s) s.remove(); delete window.__kuplaMessengerNumero; } };
 })();

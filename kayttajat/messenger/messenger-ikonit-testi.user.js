@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         kupla: Messenger-ikonit testi (salama Skriptit-välilehdelle, Toiminto- ja Osoita-napeille)
 // @namespace    kupla
-// @version      0.1.6
+// @version      0.1.7
 // @description  ESIKATSELU: Skriptit-välilehden [+] vaihtuu salama-ikoniksi, chatin Toiminto- ja Osoita-napit saavat ikonin (hover-teksti säilyy). Valinnat localStorage: 'ikonit-salama' = keltainen | valkoinen (oletus keltainen), 'ikonit-osoita' = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 (oletus 9 = hiiren osoitin, 8 = tähtäin). Valinta luetaan latauksessa.
 // @match        https://kupla.cc/*
 // @grant        none
@@ -66,9 +66,11 @@
     // 0.1.4: Ilmianna = Kupla Hubin punainen "!" (SupportToolsView.tsx:789 icon="!", scss 29x29, radius 4px, #a52f3b, valkoinen bold 15px). kp 14:53 "oisko toi siihen ilmoita tilalle?"
     '.km-btn[data-kmi="ilmianna"]{width:28px;min-width:28px;padding:0;border-radius:4px;background:#a52f3b;box-shadow:none}' +
     '.km-btn[data-kmi="ilmianna"]:hover{background:#b93a47}' +
-    '[data-kmi="mykista"]::before{width:25px;height:24px;background-image:url(' + AANI + ');filter:none}' +
-    '[data-kmi="mykistetty"]::before{width:25px;height:24px;background-image:url(' + MYKISTETTY + ');filter:none}' +
+    '[data-kmi="mykista"]::before{width:13px;height:12px;background-size:13px 12px;image-rendering:pixelated;background-image:url(' + AANI + ');filter:none}' +
+    '[data-kmi="mykistetty"]::before{width:13px;height:12px;background-size:13px 12px;image-rendering:pixelated;background-image:url(' + MYKISTETTY + ');filter:none}' +
     '[data-kmi="jasenet"]::before{width:13px;height:11px;background-image:url(' + JASENET + ');filter:none}' +
+    // 0.1.7 (kp 15:55 "siirrä toi roskis mute napin oikeelle puolelle ryhmästä"): flex-order, ei DOM-siirtoa (React omistaa järjestyksen).
+    ".km-mh-actions>[data-kmi=\"mykista\"],.km-mh-actions>[data-kmi=\"mykistetty\"]{order:1}.km-mh-actions>.km-btn:has(.km-icon.remove){order:2}.km-mh-actions>.km-btn.is-square:last-child{order:3}" +
     '.km-btn[data-kmi="ilmianna"]::before{content:"!";width:auto;height:auto;background:none;color:#fff;font:700 15px/1 Arial,sans-serif;image-rendering:auto;filter:none;opacity:1}' +
     (valkoinen
       ? '.nitro-card.kupla-messenger .km-icon.scripts{filter:brightness(0) invert(1)}' + '[data-kmi]::before{filter:brightness(0) invert(1)}'
@@ -79,8 +81,15 @@
   // 0.1.1: vain kirjoituskentän napit, ei koodidialogin Toiminto/Lisäosa-valintaa (MessengerCode.tsx:71 .km-code-actions).
   //   Natiivi title on pelkkä selitys ("Jaa koodi, jonka ..."), joten kun nimi ei enää näy napissa, title alkaa nimellä.
   //   React kirjoittaa titlen takaisin kun sen prop muuttuu (Osoita: failed), siksi havainnoija kuuntelee myös title-attribuuttia.
+  // 0.1.7 (kp 15:52 "ryhmässä ruksi sanoo sulje kanava eikä ryhmä"): natiivi MessengerChannelPane.tsx:136 käyttää samaa
+  //   'Sulje kanava' -tekstiä myös ryhmälle. Vain data-conversation-kind="group" -näkymässä, alkuperäinen palautuu pois():ssa.
+  const sulje = b => {
+    if (b.title !== 'Sulje kanava' || !b.closest('.km-main[data-conversation-kind="group"]')) return;
+    b.setAttribute('data-kmi-sulje', b.title); b.title = 'Sulje ryhmä'; b.setAttribute('aria-label', 'Sulje ryhmä');
+  };
   const kasittele = b => {
     if (b.closest('.km-dialog')) return;
+    sulje(b);
     const t = b.textContent.trim();
     const laji = t === 'Toiminto' ? 'toiminto' : t === 'Osoita' ? 'osoita' : t === 'Ilmianna' && b.classList.contains('is-danger') ? 'ilmianna' : t === 'Mykistä' ? 'mykista' : t === 'Mykistetty' ? 'mykistetty' : t === 'Jäsenet' ? 'jasenet' : null;
     if (!laji) return;
@@ -98,7 +107,7 @@
   kaikki();
 
   window.__kuplaMessengerIkonit = {
-    versio: '0.1.6',
+    versio: '0.1.7',
     pois() {
       lopetettu = true;
       havainnoija.disconnect();
@@ -106,7 +115,8 @@
       document.querySelectorAll('[data-kmi-t]').forEach(b => b.removeAttribute('title'));
       document.querySelectorAll('[data-kmi-alkup]').forEach(b => { b.title = b.getAttribute('data-kmi-alkup'); });
       document.querySelectorAll('[data-kmi-a]').forEach(b => b.removeAttribute('aria-label'));
-      for (const a of ['data-kmi', 'data-kmi-t', 'data-kmi-a', 'data-kmi-alkup']) document.querySelectorAll('[' + a + ']').forEach(el => el.removeAttribute(a));
+      document.querySelectorAll('[data-kmi-sulje]').forEach(b => { b.title = b.getAttribute('data-kmi-sulje'); b.setAttribute('aria-label', b.title); });
+      for (const a of ['data-kmi', 'data-kmi-t', 'data-kmi-a', 'data-kmi-alkup', 'data-kmi-sulje']) document.querySelectorAll('[' + a + ']').forEach(el => el.removeAttribute(a));
       delete window.__kuplaMessengerIkonit;
       return 'poistettu';
     }
