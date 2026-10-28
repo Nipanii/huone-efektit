@@ -1,0 +1,50 @@
+{
+  "_ohje": "Ryhma = nimi + kayttajat (id:t) + skriptit. Henkilo saa VAIN niiden ryhmien skriptit joissa hanen id:nsa on (yhdiste). polku = suhteessa Pagesin juureen, globaali = window-muuttuja jonka skripti asettaa (versionhallinta). Kayttajat: 1=Res, 282=kurkkupomo, 281=sona, 245=Herra-Robotti. Paivittyy 15 s valein, ei F5:ta.",
+  "ryhmat": [
+    {
+      "nimi": "messenger-testi",
+      "kayttajat": [
+        1,
+        282
+      ],
+      "skriptit": [
+        {
+          "polku": "kayttajat/messenger/messenger-lisaosanappi.user.js",
+          "globaali": "__kuplaLisaosaNappi"
+        },
+        {
+          "polku": "kayttajat/messenger/messenger-osoitus-rivit.user.js",
+          "globaali": "__kuplaOsoitusRivit"
+        },
+        {
+          "polku": "kayttajat/messenger/messenger-media.user.js",
+          "globaali": "__kuplaMessengerMedia"
+        },
+        {
+          "polku": "kayttajat/messenger/messenger-kuplat-testi.user.js",
+          "globaali": "__kuplaKuplatTesti"
+        },
+        {
+          "polku": "kayttajat/messenger/messenger-toiminnot-testi.user.js",
+          "globaali": "__kuplaToiminnotTesti"
+        },
+        {
+          "polku": "kayttajat/messenger/messenger-alas-testi.user.js",
+          "globaali": "__kuplaAlasTesti"
+        },
+        {
+          "polku": "kayttajat/messenger/messenger-numero.user.js",
+          "globaali": "__kuplaMessengerNumero"
+        },
+        {
+          "polku": "kayttajat/messenger/messenger-profiili.user.js",
+          "globaali": "__kuplaMessengerProfiili"
+        },
+        {
+          "polku": "kayttajat/messenger/messenger-ikonit-testi.user.js",
+          "globaali": "__kuplaMessengerIkonit"
+        }
+      ]
+    }
+  ]
+}

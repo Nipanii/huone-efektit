@@ -19,5 +19,11 @@
         "huoneet/684.js"
       ]
     }
+  },
+  "kaikki": {
+    "nimi": "Kaikissa huoneissa (moottori 0.6.2+): käyttäjäkohtaiset skriptit, ks. kayttajat/kayttajat.json",
+    "skriptit": [
+      "kayttajat/kayttajaskriptit.js"
+    ]
   }
 }
