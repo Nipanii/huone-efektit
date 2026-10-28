@@ -336,8 +336,13 @@ const putkiTarkista = () => { if (putki) { if (!vieressa()) kaukoputki(false); e
 const valittu = ev => { try {
   if (!ev || ev.objectId !== KAUKOPUTKI || ev.category !== 10) return;
   const nyt = Date.now(); if (nyt - viimKlikki < 350) return; viimKlikki = nyt;
-  if (putki) kaukoputki(false); else if (vieressa()) kaukoputki(true);
+  if (putki) kaukoputki(false); else if (vieressa()) { nielu = Date.now(); kaukoputki(true); }
 } catch (x) {} };
+// kp 19:24 "jos painaa tota teleskooppia, nyt se klikkaus menee läpi ruutuun" · "hahmo kävelee pois sen luota" · "ei saa tapahtua jos klikkaus
+//   osuu teleskooppiin": avaus siirtää kameraa kesken painalluksen, joten saman painalluksen ylös/click osui ruutuun -> kävely. Niellään ne.
+let nielu = 0;
+const niele = ev => { if (!nielu || !ev.isTrusted) return; if (Date.now() - nielu > 1000) { nielu = 0; return; }
+  ev.stopImmediatePropagation(); ev.preventDefault(); if (ev.type === 'click') nielu = 0; };
 
 // ---- Lapio: "Löysit lapion!" -> käsitavara "Lapio" omassa infokortissa + kaivunappi kaivukohdan päällä
 const AVAIN = 'h682.lapio';
@@ -400,6 +405,7 @@ if (vayla && vayla.addEventListener) {
   vayla.addEventListener('RSCE_CHAT_EVENT', kuule); pois.push(() => vayla.removeEventListener('RSCE_CHAT_EVENT', kuule));
   vayla.addEventListener('REOE_SELECTED', valittu); pois.push(() => vayla.removeEventListener('REOE_SELECTED', valittu));
 } else lokiin({ vayla: 'roomEngine.events puuttuu' });
+for (const t of ['pointerup', 'mouseup', 'click']) { window.addEventListener(t, niele, true); pois.push(() => window.removeEventListener(t, niele, true)); }
 for (const t of Object.keys(KESKELLE)) { window.addEventListener(t, keskelle, true); pois.push(() => window.removeEventListener(t, keskelle, true)); }
 document.addEventListener('pointermove', liike, { capture: true, passive: true }); pois.push(() => document.removeEventListener('pointermove', liike, { capture: true }));
 kuplaVahti.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['style'] }); pois.push(() => kuplaVahti.disconnect());
