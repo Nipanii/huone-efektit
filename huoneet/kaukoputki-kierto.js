@@ -18,7 +18,7 @@ const huone = kupla.roomId();
 if (!e) return;
 const ASETUKSET = { 656: { putki: 438790, kulmat: [90, 270, 180], zoom: 2 } };   // kp 01:05 "Kokeillaan molemmat kulmat": nuolinäppäimet vaihtavat
 const A = ASETUKSET[huone]; if (!A) return;
-const tila = window.kaukoputkiKierto = { versio: 3, huone, auki: false, loki: [], zoom: A.zoom };
+const tila = window.kaukoputkiKierto = { versio: 4, huone, auki: false, loki: [], zoom: A.zoom };
 const lokiin = (x) => { x.t = new Date().toTimeString().slice(0, 8); tila.loki.push(x); if (tila.loki.length > 50) tila.loki.shift(); };
 const dv = (o, k) => { const d = o && Object.getOwnPropertyDescriptor(o, k); return d && !d.get ? d.value : undefined; };
 const hs = window.huoneskriptit;
@@ -189,9 +189,11 @@ const keskelle = ev => { try {
   for (const t of KESKELLE[ev.type]) kohde.dispatchEvent(t.startsWith('pointer')
     ? new PointerEvent(t, { ...s, pointerId: ev.pointerId, pointerType: ev.pointerType, isPrimary: ev.isPrimary }) : new MouseEvent(t, s));
 } catch (x) { lokiin({ klikkiVirhe: String(x) }); } };
-// Puhekuplat piiloon putken ajaksi (682.js:205-208)
+// Puhekuplat piiloon putken ajaksi (682.js:205-208). kp 01:38 "tuo alue on jostain syystä see thru" (kuva: kaukoputken infokortti
+//   Osta/Siirrä/Käännä putken päällä): avausklikki avaa myös esineen infokortin (DarkUI .nitro-infostand-container), joka piirtyi
+//   putken yli läpikuultavana -> sekin piiloon putken ajaksi.
 let kuplaCss = null;
-const kuplaTyyli = on => { if (on && !kuplaCss) { kuplaCss = document.createElement('style'); kuplaCss.textContent = '.bubble-container{visibility:hidden!important}'; document.head.appendChild(kuplaCss); }
+const kuplaTyyli = on => { if (on && !kuplaCss) { kuplaCss = document.createElement('style'); kuplaCss.textContent = '.bubble-container,.nitro-infostand-container{visibility:hidden!important}'; document.head.appendChild(kuplaCss); }
   else if (!on && kuplaCss) { kuplaCss.remove(); kuplaCss = null; } };
 
 // ---- Kävelyesto (682.js:401-416). Kääre asennetaan kerran ja on läpikulku kun putki on kiinni; poisto vain jos kukaan ei ole kääriytynyt päälle.
