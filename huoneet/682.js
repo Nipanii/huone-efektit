@@ -339,12 +339,18 @@ const lapioTarkista = () => {
       r.style.cssText = 'border-top:1px solid rgba(255,255,255,.25);margin-top:4px;padding-top:4px;font-size:12px'; r.textContent = 'Kädessä: Lapio'; el.appendChild(r); }
     else if (rivi && !(tila.onLapio && oma)) rivi.remove();
   }
-  // kaivunappi: kun oma hahmo seisoo millä tahansa kaivukohdan ruudulla (furni voi olla 2x1, käännettynä mitat vaihtuvat)
-  let kohde = null, kohdeKoko = [1, 1]; const o = omaHahmo();
+  nappiTarkista();
+};
+// kaivunappi: kun oma hahmo seisoo millä tahansa kaivukohdan ruudulla (furni voi olla 2x1, käännettynä mitat vaihtuvat).
+// Ajetaan joka framella (kp 19:01 "lapparissa on joku tyhmä viive" · "se liikkuu hahmon mukana nykien" · "KIELLETTYÄ"):
+// kävellessä sijainti on murtoluku, joten nappi piiloon heti kun hahmo liikkuu ja esiin heti kun se pysähtyy ruutuun.
+const nappiTarkista = () => {
+  let kohde = null, kohdeKoko = [1, 1], liikkuu = false; const o = omaHahmo();
   if (tila.onLapio && o) { const l = o.getLocation(), x = Math.round(l.x), y = Math.round(l.y);
+    liikkuu = Math.abs(l.x - x) > 0.01 || Math.abs(l.y - y) > 0.01;
     for (const id of KAIVUT) { const f = e.getRoomObject(huone, id, 10); if (!f) continue; const fl = f.getLocation(), fx = Math.round(fl.x), fy = Math.round(fl.y), [sx, sy] = koko(f);
       if (x >= fx && x < fx + sx && y >= fy && y < fy + sy) { kohde = id; kohdeKoko = [sx, sy]; break; } } }
-  if (!kohde) { if (nappi) { nappi.remove(); nappi = null; } return; }
+  if (!kohde || liikkuu) { if (nappi && nappi.style.display !== 'none') nappi.style.display = 'none'; return; }
   // nappi oman hahmon ruutuun, ei furnin origoon: 2x2-furnilla origo on eri ruutu kuin se jossa seisoo
   let p = null; try { p = e.getRoomObjectScreenLocation(huone, o.id, 100); } catch (x) {}
   if (!p) return; const r = kangas() || { left: 0, top: 0 };
@@ -353,8 +359,11 @@ const lapioTarkista = () => {
       'display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;transform:translate(-50%,-100%);box-shadow:0 2px 6px rgba(0,0,0,.5)';
     nappi.addEventListener('mousedown', ev => ev.stopPropagation()); nappi.addEventListener('click', ev => { ev.stopPropagation(); kaivu(); });
     document.body.appendChild(nappi); }
-  nappi.style.left = (r.left + p.x) + 'px'; nappi.style.top = (r.top + p.y + 4) + 'px';
+  const L = (r.left + p.x) + 'px', T = (r.top + p.y + 4) + 'px';
+  if (nappi.style.left !== L) nappi.style.left = L; if (nappi.style.top !== T) nappi.style.top = T; if (nappi.style.display !== 'flex') nappi.style.display = 'flex';
 };
+let nappiRaf = 0;
+const nappiSilmukka = () => { nappiRaf = requestAnimationFrame(nappiSilmukka); try { nappiTarkista(); } catch (x) {} };
 
 if (vayla && vayla.addEventListener) {
   vayla.addEventListener('RSCE_CHAT_EVENT', kuule); pois.push(() => vayla.removeEventListener('RSCE_CHAT_EVENT', kuule));
@@ -369,6 +378,7 @@ window.addEventListener('resize', pyyda); pois.push(() => window.removeEventList
 
 paivita();
 const ajastin = setInterval(paivita, 250);
+nappiRaf = requestAnimationFrame(nappiSilmukka); pois.push(() => cancelAnimationFrame(nappiRaf));
 
 return () => {
   clearInterval(ajastin); clearInterval(kysyAloitus);
