@@ -166,7 +166,7 @@ const nappain = ev => { if (!putki) return; if (ev.key === 'Escape') auki(false)
   else if (ev.key === 'ArrowRight' || ev.key === 'ArrowLeft') { ev.preventDefault(); ev.stopImmediatePropagation(); vaihdaKulma(ev.key === 'ArrowRight' ? 1 : -1); } };
 // kp 29.10. 01:33 "saisko scroll to zoom kans": rulla vaihtaa zoomia portaittain, näkymä rakennetaan uudelleen kuten kulman vaihdossa
 //   (vaihdaKulma(0) laskee keskuksen zoomittomasta alkunäkymästä). Zoom säilyy seuraavaan avaukseen saman sivulatauksen ajan.
-const ZOOMIT = [1, 1.5, 2, 3, 4];
+const ZOOMIT = [1, 2, 3, 4];   // mitattu 01:35: 1.5 -> skaala 1, moottori ottaa vain kokonaisluvut
 let rullaAika = 0;
 const rulla = ev => { if (!putki) return; ev.preventDefault(); ev.stopImmediatePropagation();
   const nyt = Date.now(); if (nyt - rullaAika < 150 || !ev.deltaY) return; rullaAika = nyt;
