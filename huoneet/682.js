@@ -165,6 +165,10 @@ let kuplaLeft = new WeakMap();
 const kuplat = () => { for (const b of document.querySelectorAll('.bubble-container')) { kuplaPiiloon(b);
   if (!tila.putkiAuki) continue; const l = kuplaLeft.get(b); if (l == null) kuplaLeft.set(b, b.style.left); else if (b.style.left !== l) b.style.left = l; } };
 const kuplaVahti = new MutationObserver(kuplat);
+// kp 19:06 "piilotetaa kokonaa chat bubblet tossa teleskooppi näkymässä" · "kupla jäi siihen keskelle jummaa": kaukoputki auki = kaikki puhekuplat piiloon
+let kuplaCss = null;
+const kuplaTyyli = on => { if (on && !kuplaCss) { kuplaCss = document.createElement('style'); kuplaCss.textContent = '.bubble-container{visibility:hidden!important}'; document.head.appendChild(kuplaCss); }
+  else if (!on && kuplaCss) { kuplaCss.remove(); kuplaCss = null; } };
 const viimLapi = new Map();
 const laput = new Set();
 const banneri = teksti => {
@@ -295,10 +299,10 @@ const kaukoputki = (on) => {
     putki = document.createElement('canvas');
     putki.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:100vh;z-index:2147483000;pointer-events:auto;cursor:none';
     kursori = document.createElement('style'); kursori.textContent = 'canvas{cursor:none!important}'; document.head.appendChild(kursori);
-    document.body.appendChild(putki); tila.putkiAuki = true; kuplat(); zoomaa(true); lokiin({ kaukoputki: 'auki' }); paivita(); pyyda();
+    document.body.appendChild(putki); tila.putkiAuki = true; kuplaTyyli(true); kuplat(); zoomaa(true); lokiin({ kaukoputki: 'auki' }); paivita(); pyyda();
     try { const p = putki.requestPointerLock(); if (p && p.catch) p.catch(x => lokiin({ lukko: 'ei: ' + String(x).slice(0, 80) })); } catch (x) { lokiin({ lukko: 'ei: ' + String(x).slice(0, 80) }); }
   } else if (!on && putki) { const p0 = putki; if (document.pointerLockElement === p0) try { document.exitPointerLock(); } catch (x) {}
-    oliLukittu = false; kuplaLeft = new WeakMap(); putki.remove(); putki = null; if (kursori) { kursori.remove(); kursori = null; } tila.putkiAuki = false; zoomaa(false); lokiin({ kaukoputki: 'kiinni' }); paivita(); }
+    oliLukittu = false; kuplaLeft = new WeakMap(); kuplaTyyli(false); putki.remove(); putki = null; if (kursori) { kursori.remove(); kursori = null; } tila.putkiAuki = false; zoomaa(false); lokiin({ kaukoputki: 'kiinni' }); paivita(); }
 };
 tila.kaukoputki = kaukoputki;
 const putkiTarkista = () => { if (putki) { if (!vieressa()) kaukoputki(false); else pyyda(); } };
@@ -383,6 +387,7 @@ nappiRaf = requestAnimationFrame(nappiSilmukka); pois.push(() => cancelAnimation
 return () => {
   clearInterval(ajastin); clearInterval(kysyAloitus);
   for (const f of pois) try { f(); } catch (x) {}
+  kuplaTyyli(false);
   kaukoputki(false); if (piirto) cancelAnimationFrame(piirto);
   if (nappi) nappi.remove(); for (const el of document.querySelectorAll('.h682-lapio')) el.remove();
   for (const d of laput) d.remove();
