@@ -13,8 +13,21 @@
 //   (RoomEngine.ts:665-693 -> lattiareiät RoomPlaneParser.addFloorHole), vain tässä clientissä, 0 pakettia. Reikä osuu vain
 //   suorakaiteen olemassa oleviin ruutuihin, ja tässä suorakaiteessa niitä on vain tasolla. REIKA = keksitty furni-id (reikien id:t
 //   -(id*10000+i+1)); aluepiilo-widget reagoi vain omaan avoimeen furniinsa. Mitattu robolla 17:20: 14 reikää, taso pois kuvasta.
-// RAJA: muiden hahmot alueella näkyvät edelleen (vain furnit ja lattia piilotetaan). Koskee vain pelaajia joilla huoneskriptimoottori on päällä.
-// Konsolissa: huone682.piilossa (montako furnia piilossa) · huone682.nakyy · huone682.pakota(true|false|null) testiin.
+// 18:10 (kp 17:43:03 "pelaajat kans jotka on siel huonees nii pitäs olla hidden toisilta pelaajilta jotka ei oo siel" · 17:43:13 "viestit
+//   menee läpi" · 17:43:35 "jos variable on 3 niin sitten ei piiloteta huonetta enää millää alueella" · 17:52:43 "tästä pitää tulla
+//   samanlailla ilmoitus kaikille huoneessa kun joku pääsee läpi" · 17:55:48 "pitää käyttää tätä teleskooppia" · 17:55:54 "ja sit vaan
+//   sillä näkee noi zombit" · 17:56:07 overlay · 17:56:15 "seuraa hiirtä" · 17:56:29 "aukee vaan olemalla sen viereisillä ruuduilla ja
+//   klikkaamalla sitä" · 17:57:13 "ainoo poikkeus … info kortti oikeessa alakulmassa" · 17:58:50 lapio · 17:59:17 "jakoavain kädessä
+//   lapparia ei saa voida ottaa" -> 18:03:37 "korjaus: ei saa pystyy ottaa lapioo jos on jo vetänyt pelin" · 18:04:20-18:04:31 "jos ottaa
+//   lapion se työkalu kädessä niin script lähettää :handitem 0 ja näyttää hahmokortissa 'Lapio'" · "se näkyy vaan itelle" · 18:00:07-18:00:41 kaivunappi lapion kuvalla kaivukohdan päälle, vain samassa x,y:ssä):
+//   - Hahmojen piilotus: RoomObjectVariable figure_is_muted bitit IGNORED 2 | HIDDEN 4 (ObjectAvatarMutedUpdateMessage.ts:8,11) ->
+//     AvatarVisualization palauttaa NO_SPRITES: ei hahmoa, varjoa eikä klikkausaluetta. Asetetaan updateRoomObjectUserAction-
+//     reitillä kuten DarkUI:n kuplafix/hiddenUsers.ts:29-32, alkuperäinen arvo palautetaan. Chat-kuplat tulevat silti läpi.
+//   - Zombibotit (rentable_bot, nimessä "zombi") ovat piilossa aina, paitsi kaukoputken läpi katsottaessa.
+//   - Muuttuja: oma ratoja_tehty luetaan kuten 681.js (7012 [1, oma indeksi] -> 7111); 682:n viite on 442825 (PAIVAKIRJA 27.10. 22:53).
+//     ARVAUS: id muotoa 'room:442825' kuten 681:n 'room:442708'; kaikki luetut id:t näkyvät huone682.muuttujat.
+// RAJA: koskee vain pelaajia joilla huoneskriptimoottori on päällä. Lapio on vain tämän clientin tieto (palvelin ei anna käsitavaraa).
+// Konsolissa: huone682.piilossa · huone682.nakyy · huone682.pakota(true|false|null) · huone682.kaukoputki(true|false) · huone682.lapio(true|false).
 const e = window.NitroDevTools && window.NitroDevTools.roomEngine;
 const huone = kupla.roomId();
 if (!e) return;
@@ -22,19 +35,53 @@ if (!e) return;
 const ALUE = { x0: 0, x1: 7, y0: 25, y1: 40, zMin: 20 };
 const WIRED = /^wf_(trg|act|cnd|xtra|slc|var)_/;
 const REIKA = 6820;
+const KAUKOPUTKI = 432401;
+const KAIVUT = [432388, 432308, 432379, 432383, 432359, 432385, 432303, 432378, 432304, 432386, 432358, 432387, 432384, 432389, 432381,
+  432380, 432377, 432306, 432302, 432374, 432376, 432375, 432357];   // wf_cnd_trggrer_on_frn 439570 (1,14) + 439571 (1,15)
+const RATA_MUUTTUJA = 'room:442825', RATA_RAJA = 3;
+const MYKKA = 6;   // IGNORED | HIDDEN
 const sisalla = (l) => l && l.x >= ALUE.x0 && l.x <= ALUE.x1 && l.y >= ALUE.y0 && l.y <= ALUE.y1 && l.z >= ALUE.zMin;
-const tila = window.huone682 = { piilossa: 0, nakyy: false, pakko: null, pakota(v) { tila.pakko = v; paivita(); } };
+const tila = window.huone682 = { piilossa: 0, nakyy: false, pakko: null, valmis: false, arvo: null, muuttujat: null, kysytty: 0,
+  hahmojaPiilossa: 0, putkiAuki: false, onLapio: false, loki: [], pakota(v) { tila.pakko = v; paivita(); } };
+const lokiin = (x) => { x.t = new Date().toTimeString().slice(0, 8); tila.loki.push(x); if (tila.loki.length > 50) tila.loki.shift(); };
 
-const omaIndeksi = () => {
-  const sm = Object.getOwnPropertyDescriptor(e, '_roomSessionManager'); const s = sm && sm.value && sm.value.getSession && sm.value.getSession(huone);
-  const i = s && s.ownRoomIndex; return (i == null || i < 0) ? null : i;
+const dv = (o, k) => { const d = o && Object.getOwnPropertyDescriptor(o, k); return d && !d.get ? d.value : undefined; };
+const istunto = () => { const sm = dv(e, '_roomSessionManager'); return sm && sm.getSession && sm.getSession(huone); };
+const omaIndeksi = () => { const s = istunto(); const i = s && s.ownRoomIndex; return (i == null || i < 0) ? null : i; };
+const omaHahmo = () => { const i = omaIndeksi(); return i == null ? null : e.getRoomObject(huone, i, 100); };
+const omaAlueella = () => { const o = omaHahmo(); return !!(o && sisalla(o.getLocation())); };
+const omaNimi = () => String((dv(e, '_sessionDataManager') || {})._name || '');
+const kasi = () => { const o = omaHahmo(); try { return (o && o.model.getValue('figure_carry_object')) || 0; } catch (x) { return 0; } };
+const yhteys = () => {
+  const nahty = new Set(); let c = null;
+  const etsi = (o, d) => { if (!o || c || d > 4 || typeof o !== 'object' || nahty.has(o)) return; nahty.add(o);
+    if (Object.getOwnPropertyDescriptor(o, '_cryptoState')) { c = o; return; }
+    for (const k of Object.getOwnPropertyNames(o)) { const de = Object.getOwnPropertyDescriptor(o, k); if (de && !de.get && de.value && typeof de.value === 'object') etsi(de.value, d + 1); } };
+  etsi(dv(e, '_roomSessionManager'), 0); return c;
 };
-const omaAlueella = () => { const i = omaIndeksi(); const o = i == null ? null : e.getRoomObject(huone, i, 100); return !!(o && sisalla(o.getLocation())); };
+const pois = [];
 
+// ---- Alueen furnit + lattia
 const asetettu = new Map();   // furni -> 0 (piilossa) / 1 (näkyy)
 const aseta = (o, n) => { if (asetettu.get(o) === n) return; try { o.model.setValue('furniture_wired_opacity', n); o.model.setValue('furniture_wired_click_through', n ? 0 : 1); asetettu.set(o, n); } catch (x) {} };
+
+// ---- Hahmot: alueella olevat muilta + zombit ilman kaukoputkea
+const mykat = new Map();   // id -> { o, alkup }
+const zombi = (o) => { if (!/bot/i.test(String(o.type || ''))) return false;
+  const s = istunto(), ud = s && s.userDataManager, u = ud && ud.getUserDataByIndex && ud.getUserDataByIndex(o.id);
+  return !u || !u.name || /zombi/i.test(u.name); };
+const mykista = (o, on) => { const m = mykat.get(o.id);
+  if (on) {
+    if (m && m.o !== o) mykat.delete(o.id);
+    let alkup = 0; try { alkup = (mykat.get(o.id) || {}).alkup ?? (o.model.getValue('figure_is_muted') || 0); } catch (x) {}
+    if (!mykat.has(o.id)) mykat.set(o.id, { o, alkup });
+    let nyt = 0; try { nyt = o.model.getValue('figure_is_muted') || 0; } catch (x) {}
+    if ((nyt & MYKKA) !== MYKKA) try { e.updateRoomObjectUserAction(huone, o.id, 'figure_is_muted', alkup | MYKKA); } catch (x) {}
+  } else if (m) { mykat.delete(o.id); if (m.o === o) try { e.updateRoomObjectUserAction(huone, o.id, 'figure_is_muted', m.alkup); } catch (x) {} }
+};
+
 const paivita = () => {
-  tila.nakyy = tila.pakko == null ? omaAlueella() : !!tila.pakko;
+  tila.nakyy = tila.pakko == null ? (tila.valmis || omaAlueella()) : !!tila.pakko;
   const n = tila.nakyy ? 1 : 0; let piilossa = 0;
   if (tila.reika !== !n) { try { e.updateAreaHide(huone, REIKA, !n, ALUE.x0, ALUE.y0, ALUE.x1 - ALUE.x0 + 1, ALUE.y1 - ALUE.y0 + 1, false); tila.reika = !n; } catch (x) {} }
   for (const o of e.getRoomObjects(huone, 10) || []) {
@@ -42,13 +89,164 @@ const paivita = () => {
     aseta(o, n); if (!n) piilossa++;
   }
   tila.piilossa = piilossa;
+  const oma = omaIndeksi(); let h = 0; const nahdyt = new Set();
+  for (const o of e.getRoomObjects(huone, 100) || []) {
+    if (!o || !o.model || o.id === oma) continue; nahdyt.add(o.id);
+    const piiloon = zombi(o) ? !tila.putkiAuki : (String(o.type) === 'user' && !tila.nakyy && sisalla(o.getLocation()));
+    mykista(o, piiloon); if (piiloon) h++;
+  }
+  for (const id of [...mykat.keys()]) if (!nahdyt.has(id)) mykat.delete(id);
+  tila.hahmojaPiilossa = h;
+  putkiTarkista(); lapioTarkista();
 };
+
+// ---- Muuttuja: ratoja_tehty >= 3 -> ei piilotusta (sama luku kuin 681.js:n arkku)
+let odottaa = 0, koukkuYhteys = null, koukkuOma = null, koukkuAlkup = null;
+const koukku = () => {
+  const c = yhteys(); if (!c || typeof c.handleMessages !== 'function') return null; if (koukkuYhteys === c) return c;
+  const alkup = c.handleMessages;
+  const oma = function (...viestit) { try { if (odottaa && Date.now() - odottaa < 5000) {
+    const i = omaIndeksi();
+    viestit = viestit.filter(v => { const p = v && v.parser;
+      if (!p || p.type !== 1 || p.objectId !== i || !Array.isArray(p.values) || !Array.isArray(p.wiredIds)) return true;
+      odottaa = 0; tila.muuttujat = p.values.map(x => x && (x.id + '=' + x.value));
+      const r = p.values.find(x => x && x.id === RATA_MUUTTUJA); const arvo = r ? r.value : 0;
+      tila.arvo = arvo; tila.valmis = arvo >= RATA_RAJA; lokiin({ muuttuja: 'luettu', arvo, valmis: tila.valmis }); paivita(); return false; });
+    if (!viestit.length) return; } } catch (x) { lokiin({ muuttuja: 'virhe', viesti: String(x) }); }
+    return alkup.apply(this, viestit); };
+  c.handleMessages = oma; koukkuYhteys = c; koukkuOma = oma; koukkuAlkup = alkup; return c;
+};
+const kysy = () => { try {
+  const c = koukku(), i = omaIndeksi(); if (!c || i == null || typeof c.sendRawPacket !== 'function') return false;
+  odottaa = Date.now(); tila.kysytty++; c.sendRawPacket(7012, [1, i], 'h682'); return true;
+} catch (x) { lokiin({ muuttuja: 'virhe', viesti: String(x) }); return false; } };
+tila.kysy = kysy;
+let kysyYrit = 0;
+const kysyAloitus = setInterval(() => { if (kysy() || ++kysyYrit > 30) clearInterval(kysyAloitus); }, 1000);
+
+// ---- Läpäisyilmoitus kaikille (sama kuin 681.js: show_message 443482 "%user% pääsi radan 3 läpi!" näkyvyys 1 kuiskataan jokaiselle)
+const MAALI = /^(.+) pääsi radan (\d+) läpi!$/;
+const LAPIO = /^Löysit lapion/;
+const viimLapi = new Map();
+const laput = new Set();
+const banneri = teksti => {
+  const d = document.createElement('div'); d.textContent = teksti;
+  d.style.cssText = 'position:fixed;left:50%;top:18%;transform:translate(-50%,0);z-index:2147483100;pointer-events:none;font:bold 26px sans-serif;' +
+    'color:#fff;text-shadow:0 0 4px #000,0 0 4px #000,2px 2px 0 #000;white-space:nowrap;transition:opacity .6s';
+  document.body.appendChild(d); laput.add(d);
+  setTimeout(() => { d.style.opacity = '0'; }, 4000); setTimeout(() => { d.remove(); laput.delete(d); }, 4700);
+};
+const vayla = e.events;
+const kuule = ev => { try {
+  if (!ev || ev.chatType !== 1 || ev.objectId !== omaIndeksi()) return;
+  const viesti = String(ev.message || '').trim();
+  if (LAPIO.test(viesti)) { lapioSaatu(); return; }
+  const m = MAALI.exec(viesti); if (!m) return;
+  const nyt = Date.now(); if (nyt - (viimLapi.get(m[1]) || 0) < 10000) return; viimLapi.set(m[1], nyt);
+  lokiin({ lapi: m[1] }); banneri('☠ ' + m[1] + ' selvisi läpi! ☠');
+  if (m[1].toLowerCase() === omaNimi().toLowerCase()) setTimeout(kysy, 1500);
+} catch (x) { lokiin({ lapi: 'virhe', viesti: String(x) }); } };
+
+// ---- Kaukoputki: viereisestä ruudusta klikkaus avaa, hiirtä seuraava ympyrä, zombit näkyvät vain sen läpi
+let putki = null, hiiri = { x: innerWidth / 2, y: innerHeight / 2 }, viimKlikki = 0, piirto = 0;
+const vieressa = () => { const o = omaHahmo(), t = e.getRoomObject(huone, KAUKOPUTKI, 10); if (!o || !t) return false;
+  const a = o.getLocation(), b = t.getLocation(); const dx = Math.abs(Math.round(a.x) - Math.round(b.x)), dy = Math.abs(Math.round(a.y) - Math.round(b.y));
+  return Math.max(dx, dy) <= 1 && (dx + dy) > 0; };
+const piirra = () => { piirto = 0; if (!putki) return;
+  const c = putki, g = c.getContext('2d'), w = innerWidth, h = innerHeight, d = devicePixelRatio || 1;
+  if (c.width !== Math.round(w * d) || c.height !== Math.round(h * d)) { c.width = Math.round(w * d); c.height = Math.round(h * d); }
+  g.setTransform(d, 0, 0, d, 0, 0); g.globalCompositeOperation = 'source-over'; g.clearRect(0, 0, w, h);
+  const R = Math.max(90, Math.min(170, Math.min(w, h) * 0.2)), x = hiiri.x, y = hiiri.y;
+  g.fillStyle = 'rgba(4,4,8,0.97)'; g.fillRect(0, 0, w, h);
+  g.globalCompositeOperation = 'destination-out'; g.beginPath(); g.arc(x, y, R, 0, Math.PI * 2); g.fill();
+  for (const el of document.querySelectorAll('.nitro-infostand-container')) { const r = el.getBoundingClientRect(); if (r.width && r.height) g.fillRect(r.left - 4, r.top - 4, r.width + 8, r.height + 8); }
+  g.globalCompositeOperation = 'source-over';
+  const v = g.createRadialGradient(x, y, R * 0.55, x, y, R); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,0.55)');
+  g.fillStyle = v; g.beginPath(); g.arc(x, y, R, 0, Math.PI * 2); g.fill();
+  g.lineWidth = 9; g.strokeStyle = '#5a4120'; g.beginPath(); g.arc(x, y, R + 3, 0, Math.PI * 2); g.stroke();
+  g.lineWidth = 2; g.strokeStyle = '#b8924a'; g.beginPath(); g.arc(x, y, R - 1, 0, Math.PI * 2); g.stroke();
+  g.lineWidth = 1; g.strokeStyle = 'rgba(200,220,200,0.25)'; g.beginPath(); g.moveTo(x - R * 0.85, y); g.lineTo(x + R * 0.85, y); g.moveTo(x, y - R * 0.85); g.lineTo(x, y + R * 0.85); g.stroke();
+  g.font = '13px sans-serif'; g.textAlign = 'center'; g.fillStyle = 'rgba(255,255,255,0.55)'; g.fillText('Esc tai kävele pois sulkee', w / 2, h - 18);
+};
+const pyyda = () => { if (!piirto) piirto = requestAnimationFrame(piirra); };
+const liike = ev => { hiiri = { x: ev.clientX, y: ev.clientY }; if (putki) pyyda(); };
+const nappain = ev => { if (ev.key === 'Escape' && putki) kaukoputki(false); };
+const kaukoputki = (on) => {
+  if (on && !putki) {
+    putki = document.createElement('canvas');
+    putki.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:100vh;z-index:2147483000;pointer-events:none';
+    document.body.appendChild(putki); tila.putkiAuki = true; lokiin({ kaukoputki: 'auki' }); paivita(); pyyda();
+  } else if (!on && putki) { putki.remove(); putki = null; tila.putkiAuki = false; lokiin({ kaukoputki: 'kiinni' }); paivita(); }
+};
+tila.kaukoputki = kaukoputki;
+const putkiTarkista = () => { if (putki) { if (!vieressa()) kaukoputki(false); else pyyda(); } };
+const valittu = ev => { try {
+  if (!ev || ev.objectId !== KAUKOPUTKI || ev.category !== 10) return;
+  const nyt = Date.now(); if (nyt - viimKlikki < 350) return; viimKlikki = nyt;
+  if (putki) kaukoputki(false); else if (vieressa()) kaukoputki(true);
+} catch (x) {} };
+
+// ---- Lapio: "Löysit lapion!" -> käsitavara "Lapio" omassa infokortissa + kaivunappi kaivukohdan päällä
+const AVAIN = 'h682.lapio';
+try { tila.onLapio = sessionStorage.getItem(AVAIN) === '1'; } catch (x) {}
+const lapio = (on) => { tila.onLapio = !!on; try { on ? sessionStorage.setItem(AVAIN, '1') : sessionStorage.removeItem(AVAIN); } catch (x) {} lapioTarkista(); };
+tila.lapio = lapio;
+let lapioAika = 0;
+const lapioSaatu = () => {
+  if (tila.valmis) { lokiin({ lapio: 'ei, rata jo läpäisty' }); return; }
+  const k = kasi(); lapioAika = Date.now();
+  if (k) { try { const s = istunto(); s && s.sendChatMessage && s.sendChatMessage(':handitem 0', 0); } catch (x) {} lokiin({ lapio: 'kädessä ' + k + ' -> :handitem 0' }); }
+  lokiin({ lapio: 'saatu' }); lapio(true); };
+const LAPIO_SVG = '<svg viewBox="0 0 32 32" width="24" height="24"><path d="M21 4l7 7-2 2-2-2-7 7 1 1-6 6c-2 2-6 2-8 0s-2-6 0-8l6-6 1 1 7-7-2-2z" fill="#c9c9c9" stroke="#222" stroke-width="1.5" stroke-linejoin="round"/><path d="M12 14l6 6" stroke="#7a4b20" stroke-width="2.5"/></svg>';
+let nappi = null;
+const kaivu = () => { try { const s = istunto(); if (s && s.sendChatMessage) { s.sendChatMessage('dig', 0); lokiin({ kaivu: 'dig' }); } } catch (x) { lokiin({ kaivu: 'virhe', viesti: String(x) }); } };
+const kangas = () => { let b = null, a = 0; for (const c of document.querySelectorAll('canvas')) { if (c === putki) continue; const r = c.getBoundingClientRect(); if (r.width * r.height > a) { a = r.width * r.height; b = r; } } return b; };
+const lapioTarkista = () => {
+  if (tila.onLapio && Date.now() - lapioAika > 3000) { const k = kasi(); if (k) { lokiin({ lapio: 'pois, kädessä ' + k }); tila.onLapio = false; try { sessionStorage.removeItem(AVAIN); } catch (x) {} } }
+  // käsitavara omaan infokorttiin (palvelin ei tiedä lapiosta)
+  const nimi = omaNimi();
+  for (const el of document.querySelectorAll('.nitro-infostand')) {
+    const oma = nimi && [...el.querySelectorAll('*')].some(x => x.children.length === 0 && x.textContent.trim() === nimi);
+    const rivi = el.querySelector('.h682-lapio');
+    if (tila.onLapio && oma && !rivi) { const r = document.createElement('div'); r.className = 'h682-lapio text-white small';
+      r.style.cssText = 'border-top:1px solid rgba(255,255,255,.25);margin-top:4px;padding-top:4px;font-size:12px'; r.textContent = 'Kädessä: Lapio'; el.appendChild(r); }
+    else if (rivi && !(tila.onLapio && oma)) rivi.remove();
+  }
+  // kaivunappi: vain kun oma hahmo seisoo kaivukohdan x,y:ssä
+  let kohde = null; const o = omaHahmo();
+  if (tila.onLapio && o) { const l = o.getLocation(), x = Math.round(l.x), y = Math.round(l.y);
+    for (const id of KAIVUT) { const f = e.getRoomObject(huone, id, 10); if (!f) continue; const fl = f.getLocation(); if (Math.round(fl.x) === x && Math.round(fl.y) === y) { kohde = id; break; } } }
+  if (!kohde) { if (nappi) { nappi.remove(); nappi = null; } return; }
+  let p = null; try { p = e.getRoomObjectScreenLocation(huone, kohde, 10); } catch (x) {}
+  if (!p) return; const r = kangas() || { left: 0, top: 0 };
+  if (!nappi) { nappi = document.createElement('button'); nappi.type = 'button'; nappi.title = 'Kaiva'; nappi.innerHTML = LAPIO_SVG;
+    nappi.style.cssText = 'position:fixed;z-index:2147482000;width:40px;height:40px;border-radius:50%;border:2px solid #222;background:rgba(240,220,170,.95);' +
+      'display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;transform:translate(-50%,-100%);box-shadow:0 2px 6px rgba(0,0,0,.5)';
+    nappi.addEventListener('mousedown', ev => ev.stopPropagation()); nappi.addEventListener('click', ev => { ev.stopPropagation(); kaivu(); });
+    document.body.appendChild(nappi); }
+  nappi.style.left = (r.left + p.x) + 'px'; nappi.style.top = (r.top + p.y - 30) + 'px';
+};
+
+if (vayla && vayla.addEventListener) {
+  vayla.addEventListener('RSCE_CHAT_EVENT', kuule); pois.push(() => vayla.removeEventListener('RSCE_CHAT_EVENT', kuule));
+  vayla.addEventListener('REOE_SELECTED', valittu); pois.push(() => vayla.removeEventListener('REOE_SELECTED', valittu));
+} else lokiin({ vayla: 'roomEngine.events puuttuu' });
+document.addEventListener('pointermove', liike, { capture: true, passive: true }); pois.push(() => document.removeEventListener('pointermove', liike, { capture: true }));
+document.addEventListener('keydown', nappain, true); pois.push(() => document.removeEventListener('keydown', nappain, true));
+window.addEventListener('resize', pyyda); pois.push(() => window.removeEventListener('resize', pyyda));
+
 paivita();
 const ajastin = setInterval(paivita, 250);
 
 return () => {
-  clearInterval(ajastin);
+  clearInterval(ajastin); clearInterval(kysyAloitus);
+  for (const f of pois) try { f(); } catch (x) {}
+  kaukoputki(false); if (piirto) cancelAnimationFrame(piirto);
+  if (nappi) nappi.remove(); for (const el of document.querySelectorAll('.h682-lapio')) el.remove();
+  for (const d of laput) d.remove();
+  if (koukkuYhteys && koukkuYhteys.handleMessages === koukkuOma) koukkuYhteys.handleMessages = koukkuAlkup;
   try { e.updateAreaHide(huone, REIKA, false, 0, 0, 0, 0, false); } catch (x) {}
   for (const o of asetettu.keys()) try { o.model.setValue('furniture_wired_opacity', 1); o.model.setValue('furniture_wired_click_through', 0); } catch (x) {}
+  for (const [id, m] of mykat) try { e.updateRoomObjectUserAction(huone, id, 'figure_is_muted', m.alkup); } catch (x) {}
   if (window.huone682 === tila) delete window.huone682;
 };
