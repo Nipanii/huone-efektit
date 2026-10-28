@@ -157,7 +157,7 @@ const KAUKOVIESTI = /Näet teleskoopilla/i;
 const kuplaNahty = new WeakMap();
 const nahty = el => { let t = kuplaNahty.get(el); if (t == null) { t = Date.now(); kuplaNahty.set(el, t); } return t; };
 const kuplaPiiloon = el => { try { const t = el.textContent || '';
-  if (/:\s*dig\s*↩?\s*$/i.test(t)) { if (el.style.display !== 'none') el.style.display = 'none'; return; }
+  if (/:\s*(dig|73514k)\s*↩?\s*$/i.test(t)) { if (el.style.display !== 'none') el.style.display = 'none'; return; }
   if (/Kaiva sanomalla/.test(t)) for (const n of el.querySelectorAll('*')) if (!n.children.length && /Kaiva sanomalla/.test(n.textContent)) n.textContent = n.textContent.replace(/\s*Kaiva sanomalla\s*'dig'\.?/, '');
   if ((KAUKOVIESTI.test(t) && !tila.putkiAuki) || (/Löysit lapion/.test(t) && Math.abs(nahty(el) - piiloLapio) < 3000)) { if (el.style.display !== 'none') el.style.display = 'none'; } } catch (x) {} };
 // Puhekuplat paikalleen putken ajaksi (kp 18:50:22 "puhekuplat pitäs lukita paikalleen jotenkin kun käyttää kaukoputkea"): chat-widget siirtää
@@ -329,11 +329,20 @@ const kaukoputki = (on) => {
     document.body.appendChild(putki); tila.putkiAuki = true; kuplaTyyli(true); kuplat(); zoomaa(true); lokiin({ kaukoputki: 'auki' }); paivita(); pyyda();
     try { const p = putki.requestPointerLock(); if (p && p.catch) p.catch(x => lokiin({ lukko: 'ei: ' + String(x).slice(0, 80) })); } catch (x) { lokiin({ lukko: 'ei: ' + String(x).slice(0, 80) }); }
   } else if (!on && putki) { const p0 = putki; if (document.pointerLockElement === p0) try { document.exitPointerLock(); } catch (x) {}
-    oliLukittu = false; kuplaLeft = new WeakMap(); kuplaTyyli(false); putki.remove(); putki = null; if (kursori) { kursori.remove(); kursori = null; } tila.putkiAuki = false; zoomaa(false); lokiin({ kaukoputki: 'kiinni' }); paivita(); }
+    oliLukittu = false; kuplaLeft = new WeakMap(); kuplaTyyli(false); putki.remove(); putki = null; if (kursori) { kursori.remove(); kursori = null; } tila.putkiAuki = false; zoomaa(false); valintaPois(); lokiin({ kaukoputki: 'kiinni' }); paivita(); }
 };
 tila.kaukoputki = kaukoputki;
 const putkiTarkista = () => { if (putki) { if (!vieressa()) kaukoputki(false); else pyyda(); } };
+// kp 19:30 "kun poistuu kaukoputkesta niin nämä jää jos painoi zombeja": zombin nimikupla + infokortti jäivät auki piilotetun hahmon päälle.
+//   Putken aikana valittu hahmo -> sulkiessa REOE_DESELECTED (sama tapahtuma kuin tyhjän klikkaus) + valintanuoli pois. Mitattu robolla: molemmat katoavat.
+let ObjEv = null, putkiValinta = false;
+const valintaPois = () => { if (!putkiValinta) return; putkiValinta = false; try {
+  if (ObjEv && ObjEv.DESELECTED) vayla.dispatchEvent(new ObjEv(ObjEv.DESELECTED, huone, -1, 0));
+  const h = dv(e, '_roomObjectEventHandler'); if (h && h.clearSelectedAvatar) h.clearSelectedAvatar(huone);
+} catch (x) { lokiin({ valintaVirhe: String(x) }); } };
 const valittu = ev => { try {
+  if (ev && ev.constructor) ObjEv = ev.constructor;
+  if (ev && putki && ev.category === 100) putkiValinta = true;
   if (!ev || ev.objectId !== KAUKOPUTKI || ev.category !== 10) return;
   const nyt = Date.now(); if (nyt - viimKlikki < 350) return; viimKlikki = nyt;
   if (putki) kaukoputki(false); else if (vieressa()) { nielu = Date.now(); kaukoputki(true); }
@@ -360,7 +369,9 @@ const lapioSaatu = () => {
   lokiin({ lapio: 'saatu' }); lapio(true); };
 const LAPIO_SVG = '<svg viewBox="0 0 32 32" width="26" height="26"><g transform="rotate(-35 16 16)"><rect x="10" y="1.5" width="12" height="4" rx="2" fill="#8a5a2b" stroke="#222" stroke-width="1.2"/><rect x="14.5" y="4" width="3" height="14" fill="#a06a35" stroke="#222" stroke-width="1.2"/><rect x="13.5" y="17" width="5" height="3" fill="#888" stroke="#222" stroke-width="1"/><path d="M9 20h14v4c0 4-3 7-7 7s-7-3-7-7z" fill="#cfd3d6" stroke="#222" stroke-width="1.4" stroke-linejoin="round"/></g></svg>';
 let nappi = null;
-const kaivu = () => { try { const s = istunto(); if (s && s.sendChatMessage) { s.sendChatMessage('dig', 0); lokiin({ kaivu: 'dig' }); } } catch (x) { lokiin({ kaivu: 'virhe', viesti: String(x) }); } };
+// kaivun laukaisin on piilotettu sana (kp 19:26 "dig komento piti poistaa"): sanotriggerit 439498/439499 tilassa 1,1,0, viesti ei näy
+const KAIVUKOODI = '73514k';
+const kaivu = () => { try { const s = istunto(); if (s && s.sendChatMessage) { s.sendChatMessage(KAIVUKOODI, 0); lokiin({ kaivu: 'koodi' }); } } catch (x) { lokiin({ kaivu: 'virhe', viesti: String(x) }); } };
 const kangas = () => { let b = null, a = 0; for (const c of document.querySelectorAll('canvas')) { if (c === putki) continue; const r = c.getBoundingClientRect(); if (r.width * r.height > a) { a = r.width * r.height; b = r; } } return b; };
 const koko = f => { try { const m = f.model, d = f.getDirection(), sx = m.getValue('furniture_size_x') || 1, sy = m.getValue('furniture_size_y') || 1;
   return d && Math.round(d.x) % 180 === 90 ? [sy, sx] : [sx, sy]; } catch (x) { return [1, 1]; } };
@@ -380,10 +391,16 @@ const lapioTarkista = () => {
 // kaivunappi: kun oma hahmo seisoo millä tahansa kaivukohdan ruudulla (furni voi olla 2x1, käännettynä mitat vaihtuvat).
 // Ajetaan joka framella (kp 19:01 "lapparissa on joku tyhmä viive" · "se liikkuu hahmon mukana nykien" · "KIELLETTYÄ"):
 // kävellessä sijainti on murtoluku, joten nappi piiloon heti kun hahmo liikkuu ja esiin heti kun se pysähtyy ruutuun.
+let nappiRuutu = '', nappiVakaa = 0;
 const nappiTarkista = () => {
-  let kohde = null, kohdeKoko = [1, 1], liikkuu = false; const o = omaHahmo();
+  let kohde = null, kohdeKoko = [1, 1], liikkuu = false; const o = omaHahmo(), nyt = performance.now();
   if (tila.onLapio && o) { const l = o.getLocation(), x = Math.round(l.x), y = Math.round(l.y);
     liikkuu = Math.abs(l.x - x) > 0.01 || Math.abs(l.y - y) > 0.01;
+    // kävellessä hahmo osuu ruudun keskelle hetkeksi joka askeleella -> nappi välähti (kp 19:26 "vilkkuu kävellessä"):
+    // asento mv = liikkuu, ja ruudun pitää pysyä samana 250 ms ennen kuin nappi näkyy
+    try { if (o.model.getValue('figure_posture') === 'mv') liikkuu = true; } catch (x) {}
+    const ruutu = x + ',' + y; if (liikkuu || ruutu !== nappiRuutu) { nappiRuutu = liikkuu ? '' : ruutu; nappiVakaa = nyt; }
+    if (nyt - nappiVakaa < 250) liikkuu = true;
     for (const id of KAIVUT) { const f = e.getRoomObject(huone, id, 10); if (!f) continue; const fl = f.getLocation(), fx = Math.round(fl.x), fy = Math.round(fl.y), [sx, sy] = koko(f);
       if (x >= fx && x < fx + sx && y >= fy && y < fy + sy) { kohde = id; kohdeKoko = [sx, sy]; break; } } }
   if (!kohde || liikkuu) { if (nappi && nappi.style.display !== 'none') nappi.style.display = 'none'; return; }
