@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         kupla: Messenger-ikonit testi (salama Skriptit-välilehdelle, Toiminto- ja Osoita-napeille)
 // @namespace    kupla
-// @version      0.1.7
+// @version      0.1.8
 // @description  ESIKATSELU: Skriptit-välilehden [+] vaihtuu salama-ikoniksi, chatin Toiminto- ja Osoita-napit saavat ikonin (hover-teksti säilyy). Valinnat localStorage: 'ikonit-salama' = keltainen | valkoinen (oletus keltainen), 'ikonit-osoita' = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 (oletus 9 = hiiren osoitin, 8 = tähtäin). Valinta luetaan latauksessa.
 // @match        https://kupla.cc/*
 // @grant        none
@@ -71,7 +71,8 @@
     '[data-kmi="jasenet"]::before{width:13px;height:11px;background-image:url(' + JASENET + ');filter:none}' +
     // 0.1.7 (kp 15:55 "siirrä toi roskis mute napin oikeelle puolelle ryhmästä"): flex-order, ei DOM-siirtoa (React omistaa järjestyksen).
     ".km-mh-actions>[data-kmi=\"mykista\"],.km-mh-actions>[data-kmi=\"mykistetty\"]{order:1}.km-mh-actions>.km-btn:has(.km-icon.remove){order:2}.km-mh-actions>.km-btn.is-square:last-child{order:3}" +
-    '.km-btn[data-kmi="ilmianna"]::before{content:"!";width:auto;height:auto;background:none;color:#fff;font:700 15px/1 Arial,sans-serif;image-rendering:auto;filter:none;opacity:1}' +
+    // 0.1.8: "!" piirretään gradienteilla eikä Arial-glyfillä: glyfi istui 1.33 css-px liian ylhäällä napin keskikohtaan nähden (fontin line box, mitattu robolla pikseleistä). 3x13 laatikko = palkki 8 + väli 2 + piste 3, keskitetty flexillä.
+    '.km-btn[data-kmi="ilmianna"]::before{content:"";width:3px;height:13px;background:linear-gradient(#fff,#fff) top/3px 8px no-repeat,linear-gradient(#fff,#fff) bottom/3px 3px no-repeat;image-rendering:auto;filter:none;opacity:1}' +
     (valkoinen
       ? '.nitro-card.kupla-messenger .km-icon.scripts{filter:brightness(0) invert(1)}' + '[data-kmi]::before{filter:brightness(0) invert(1)}'
       : '');
@@ -107,7 +108,7 @@
   kaikki();
 
   window.__kuplaMessengerIkonit = {
-    versio: '0.1.7',
+    versio: '0.1.8',
     pois() {
       lopetettu = true;
       havainnoija.disconnect();
