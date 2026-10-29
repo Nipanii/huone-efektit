@@ -138,7 +138,7 @@ const lokiin = (x) => { x.t = new Date().toTimeString().slice(0, 8); loki.push(x
 let pussi = false, paikat = new Array(PAIKKOJA).fill(null);
 const istuntoNyt = () => { try { const sm = Object.getOwnPropertyDescriptor(e, '_roomSessionManager'); return sm && sm.value && sm.value.getSession && sm.value.getSession(huone); } catch (x) { return null; } };
 let palautus = null;
-try { const s = window.__h683Pussi; if (s && Date.now() - s.t < 120000 && s.huone === huone && s.ist && s.ist === istuntoNyt()) { /* kp 20:52: uudelleen tulo nollaa, vain sama huoneistunto palauttaa */ palautus = s; pussi = !!s.pussi; paikat = s.paikat.slice(0, PAIKKOJA); while (paikat.length < PAIKKOJA) paikat.push(null); } } catch (x) {}   // kp 20:40: päivitys ei tyhjennä pussia
+try { const s = window.__h683Pussi; if (s && Date.now() - s.t < 120000 && s.huone === huone && ((s.ist && s.ist === istuntoNyt()) || (s.nuoliT && Date.now() - s.nuoliT < 15000))) { /* kp 20:52: uudelleen tulo nollaa; säilyy skriptipäivityksessä ja nuolilaatan siirrossa (kp 20:54 sonalta katosi) */ palautus = s; pussi = !!s.pussi; paikat = s.paikat.slice(0, PAIKKOJA); while (paikat.length < PAIKKOJA) paikat.push(null); } } catch (x) {}   // kp 20:40: päivitys ei tyhjennä pussia
 const kuvaKelpaa = (u) => typeof u === 'string' && /^(https?:\/\/|data:image\/)/i.test(u);
 const siisti = (x) => (x && typeof x.nimi === 'string' && x.nimi) ? { nimi: x.nimi.slice(0, 60), kuva: kuvaKelpaa(x.kuva) ? x.kuva : '' } : null;
 
@@ -953,8 +953,11 @@ let pimennysPois = () => {};
   };
 }
 
-const tallennaTila = () => { try { window.__h683Pussi = { huone, ist: istuntoNyt(), pussi, paikat: paikat.slice(), t: Date.now(), kassaAuki: !!kassaNaytto, kassaRatk: [...kassaRatkaistu], kassaPalkittu, kelloAuki: !!kelloLappu }; } catch (x) {} };
-const tallennusVali = setInterval(tallennaTila, 1000);   // sona 20:44 'ettei pussi katoa ollenkaan': jatkuva tallennus, ei vain siivouksessa
+const NUOLET = [438320, 438321, 438322, 438323, 438324, 438325];   // alueiden väliset nuolilaatat (kp 18:34), siirto lataa huoneen uudelleen
+let nuoliT = 0;
+const nuoliTarkka = () => { try { const r = omaRuutu(); if (!r) return; for (const id of NUOLET) { const o = e.getRoomObject(huone, id, 10), L = o && o.getLocation && o.getLocation(); if (L && Math.round(L.x) === r.x && Math.round(L.y) === r.y) { nuoliT = Date.now(); return; } } } catch (x) {} };
+const tallennaTila = () => { nuoliTarkka(); try { window.__h683Pussi = { huone, ist: istuntoNyt(), nuoliT, pussi, paikat: paikat.slice(), t: Date.now(), kassaAuki: !!kassaNaytto, kassaRatk: [...kassaRatkaistu], kassaPalkittu, kelloAuki: !!kelloLappu }; } catch (x) {} };
+const tallennusVali = setInterval(tallennaTila, 300);   // sona 20:44 'ettei pussi katoa ollenkaan': jatkuva tallennus, ei vain siivouksessa
 const escSulje = (ev) => { if (ev.key !== 'Escape') return; if (kassaNaytto || kelloLappu || lappu) { suljeKassaNaytto(); suljeKelloLappu(); suljeLappu(); } };   // kp 20:43 'esc sulkee'
 document.addEventListener('keydown', escSulje, true);
 try { if (pussi) piirra(); } catch (x) {}   // kp 20:49 "glitchannut pussi piiloon": palautettu pussi piirretään heti
