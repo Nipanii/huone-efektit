@@ -29,7 +29,7 @@ if (!e) return;
 const PUSSI = { id: 444838, tyyppi: 'hp_sack' };   // tyyppi = classname (FurnitureData id 29109676 "Kankainen pussi"); o.type on luokan nimi (656.js IKKUNA, hween-wired WIRED)
 const AMBULANSSI = { id: 434093, x: 5, y: 15 };   // hween_c25_ambulance, lattiafurni. x,y = varafallback, oikea sijainti ja koko luetaan huoneen objektista
 const AMBULANSSI_VALI = 250;                      // ms, oman hahmon ruudun tarkistus
-const AKKU = 'Akku', AKKU_KUVA = 'https://kupla.cc/swf/dcr/hof_furni/icons/easter_c23_battery_icon.png';
+const AKKU = 'Akku', AKKU_KUVA = 'https://nipanii.github.io/huone-efektit/kuvat/683-akku.png';   // auton akku pikselitaiteena (sona 15:20:57), Gemini-kuva, tausta poistettu
 const PAIKKOJA = 3;
 const PANEELI = { z: 1000 };   // keskellä ruutua kun pussi otetaan; raahataan otsikosta (ei peitä pelin ikkunoita pysyvästi: rajataan ikkunaan)
 const PUSSI_KUVA = 'https://kupla.cc/swf/dcr/hof_furni/icons/hp_sack_icon.png';
