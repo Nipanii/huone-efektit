@@ -407,7 +407,8 @@ const akkuVahti = new MutationObserver(() => { for (const b of document.querySel
 akkuVahti.observe(document.body, { childList: true, subtree: true, characterData: true });
 // varakierros: 16:42 livetestissä observer oli lakannut laukeamasta (sama instanssi, laattaVali eli, 16:29 piilotus toimi) -> syy auki.
 //   Kierros piilottaa sen minkä observer ohitti ja kirjaa 'varakierros', jotta näkyy kumpi sen teki.
-const akkuVara = setInterval(() => { for (const b of document.querySelectorAll('.bubble-container')) { const ennen = b.style.display; akkuKupla(b); if (ennen !== 'none' && b.style.display === 'none') lokiin({ kupla: 'varakierros' }); } }, 120);
+tila._kupla = { tikit: 0, onAkku: ON_AKKU, tarkista: el => { akkuKupla(el); return el.style.display; } };   // diagnostiikka (16:45: piilotus pysähtyi taas)
+const akkuVara = setInterval(() => { tila._kupla.tikit++; for (const b of document.querySelectorAll('.bubble-container')) { const ennen = b.style.display; akkuKupla(b); if (ennen !== 'none' && b.style.display === 'none') lokiin({ kupla: 'varakierros' }); } }, 120);
 
 // ---- PIMENNYS: huoneen irralliset lattiasaarekkeet piilossa kunnes oma hahmo astuu sinne. Malli huoneet/682.js (kaikki mekanismit sieltä).
 // sona 29.10. 15:28-15:33 "nää kaikki muut tilat jotka ei oo tässä keskellä on pimennetty, eli että sinne ei näe kunnes astuu wirediin ja menee sinne" ·
