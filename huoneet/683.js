@@ -968,6 +968,43 @@ let pimennysPois = () => {};
 const NUOLET = [438320, 438321, 438322, 438323, 438324, 438325];   // alueiden väliset nuolilaatat (kp 18:34), siirto lataa huoneen uudelleen
 let nuoliT = 0;
 const nuoliTarkka = () => { try { const r = omaRuutu(); if (!r) return; for (const id of NUOLET) { const o = e.getRoomObject(huone, id, 10), L = o && o.getLocation && o.getLocation(); if (L && Math.round(L.x) === r.x && Math.round(L.y) === r.y) { nuoliT = Date.now(); return; } } } catch (x) {} };
+// ---- Läpäisybanneri kaikille (sona 21:27 'pitäis tulla esiin samalla tavalla kuin aiemmissa huoneissa' · 'ilotulitusten kera'): kopio 682.js:sta.
+//   W12 show_message 446538 '%user% pääsi radan 4 läpi!' [1,34] kuiskataan jokaiselle -> banneri + konfetti.
+const laput = new Set(); const viimLapi = new Map();
+const banneri = (teksti, ms = 4000, px = 26) => {
+  const d = document.createElement('div'); d.textContent = teksti;
+  d.style.cssText = 'position:fixed;left:50%;top:18%;transform:translate(-50%,0);z-index:2147483100;pointer-events:none;font:bold ' + px + 'px sans-serif;' +
+    'color:#fff;text-shadow:0 0 4px #000,0 0 4px #000,2px 2px 0 #000;white-space:nowrap;transition:opacity .6s';
+  document.body.appendChild(d); laput.add(d);
+  setTimeout(() => { d.style.opacity = '0'; }, ms); setTimeout(() => { d.remove(); laput.delete(d); }, ms + 700);
+};
+// kp 19:09 "pidennetään tota pääsi läpi viestiä" · "ois kiva jos olis joku isompi effect siitä" · "celebratory effects": konfetti + ilotulitus 7 s
+const juhla = () => {
+  const c = document.createElement('canvas'), w = c.width = innerWidth, h = c.height = innerHeight, g = c.getContext('2d');
+  c.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:100vh;z-index:2147483050;pointer-events:none';
+  document.body.appendChild(c); laput.add(c);
+  const V = ['#ff7a00', '#a24bff', '#7dff4a', '#ffd23f', '#ff3b3b', '#ffffff'], P = [], t0 = performance.now(), KESTO = 9000;   // Res 19:42 "vois tippuu hitaammin confetti": putoamisnopeus ~1/2.5, kesto 7 -> 9 s
+  const rak = (x, y) => { const v = V[Math.random() * V.length | 0]; for (let i = 0; i < 70; i++) { const a = Math.random() * 6.283, n = 2 + Math.random() * 5;
+    P.push({ x, y, vx: Math.cos(a) * n, vy: Math.sin(a) * n, e: 1, v, r: 2 + Math.random() * 2, k: 0 }); } };
+  for (let i = 0; i < 160; i++) P.push({ x: Math.random() * w, y: -20 - Math.random() * h * 0.4, vx: (Math.random() - 0.5) * 1.2, vy: 0.8 + Math.random() * 0.8, e: 1, v: V[i % V.length], r: 3 + Math.random() * 4, k: 1, kul: Math.random() * 6.283 });
+  let seur = 0;
+  const askel = nyt => { const t = nyt - t0; if (t > KESTO + 1500 || !c.isConnected) { c.remove(); laput.delete(c); return; }
+    if (t < KESTO && t > seur) { rak(w * (0.15 + Math.random() * 0.7), h * (0.15 + Math.random() * 0.4)); seur = t + 450 + Math.random() * 400; }
+    g.clearRect(0, 0, w, h); const haiv = t > KESTO ? 1 - (t - KESTO) / 1500 : 1;
+    for (let i = P.length - 1; i >= 0; i--) { const q = P[i]; q.x += q.vx; q.y += q.vy;
+      if (q.k) { q.vy = Math.min(q.vy + 0.01, 1.7); q.kul += 0.06; q.vx += Math.sin(q.kul) * 0.03; } else { q.vy += 0.06; q.vx *= 0.985; q.vy *= 0.985; q.e -= 0.012; }
+      if (q.e <= 0 || q.y > h + 30) { P.splice(i, 1); continue; }
+      g.globalAlpha = Math.max(0, Math.min(1, q.e * haiv)); g.fillStyle = q.v;
+      if (q.k) { g.save(); g.translate(q.x, q.y); g.rotate(q.kul); g.fillRect(-q.r, -q.r / 2, q.r * 2, q.r); g.restore(); } else { g.beginPath(); g.arc(q.x, q.y, q.r, 0, 6.283); g.fill(); } }
+    requestAnimationFrame(askel); };
+  requestAnimationFrame(askel);
+};
+const MAALI = /^(.+) pääsi radan (\d+) läpi!$/;
+const kuuleLapi = ev => { try { if (!ev || ev.chatType !== 1) return; const m = MAALI.exec(String(ev.message || '').trim()); if (!m) return;
+  const nyt = Date.now(); if (nyt - (viimLapi.get(m[1]) || 0) < 10000) return; viimLapi.set(m[1], nyt);
+  lokiin({ lapi: m[1] }); banneri('☠ ' + m[1] + ' pääsi läpi! ☠', 8000, 40); juhla(); } catch (x) { lokiin({ lapi: 'virhe', viesti: String(x) }); } };
+if (vayla && vayla.addEventListener) vayla.addEventListener('RSCE_CHAT_EVENT', kuuleLapi);
+tila.juhla = () => { banneri('☠ Testi pääsi läpi! ☠', 8000, 40); juhla(); };
 const tallennaTila = () => { nuoliTarkka(); try { window.__h683Pussi = { huone, ist: istuntoNyt(), nuoliT, pussi, paikat: paikat.slice(), t: Date.now(), kassaAuki: !!kassaNaytto, kassaRatk: [...kassaRatkaistu], kassaPalkittu, kelloAuki: !!kelloLappu }; } catch (x) {} };
 const avainTyyli = document.createElement('style'); avainTyyli.textContent = 'img[src="' + AVAIN_KUVA + '"]{transform:rotate(90deg)}'; (document.head || document.body).appendChild(avainTyyli);   // kp 20:59 'myötäpäivä': avain 90° myötäpäivään, hampaat alas
 const tallennusVali = setInterval(tallennaTila, 300);   // sona 20:44 'ettei pussi katoa ollenkaan': jatkuva tallennus, ei vain siivouksessa
@@ -980,7 +1017,7 @@ return () => {
   // siivous: pussi ja paikat nollataan (sona 14:42:21 "ei" pysyvyydelle), paneeli ja ilmoitus pois, kuuntelija pois, API pois
   try { pimennysPois(); } catch (x) {}
   try { pulmaPois(); } catch (x) {}
-  clearInterval(tallennusVali); tallennaTila(); if (radioKupla) { radioKupla.remove(); radioKupla = null; } try { avainTyyli.remove(); } catch (x) {} document.removeEventListener('keydown', escSulje, true);   // päivityksen yli (ks. alku)
+  clearInterval(tallennusVali); tallennaTila(); try { vayla.removeEventListener('RSCE_CHAT_EVENT', kuuleLapi); for (const d of laput) d.remove(); } catch (x) {} if (radioKupla) { radioKupla.remove(); radioKupla = null; } try { avainTyyli.remove(); } catch (x) {} document.removeEventListener('keydown', escSulje, true);   // päivityksen yli (ks. alku)
   pussi = false; kuittiOdottaa = false; paikat = new Array(PAIKKOJA).fill(null);
   clearInterval(ambulanssiVali); ambulanssissa = null; clearInterval(kauppaVali); kaupanNuolella = null;
   clearInterval(chatVali); try { chatPalauta(); } catch (x) {} suljeKelloLappu(); suljeKassaNaytto();
