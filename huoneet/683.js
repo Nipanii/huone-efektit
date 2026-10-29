@@ -66,7 +66,9 @@ const PYSAKKI_REVITTY = '';   // sona 19:11: ei tarinaa (oli 'Lähtöaika on rev
 // sona 19:18 "Ei saa olla noin ilmiselvä … poista se": otsikkorivi pois, pelkät vihjeet.
 const PYSAKKI_KYNA = '';
 // sona 19:21 "Tee siitä aikataulun näköinen. 21.03 on kellonaika": pulma aikataulun riveinä (aika | vihje).
-const PYSAKKI_PULMA = [['21.03', 'kaikki numerot oikein, mutta yksikään ei ole oikealla paikalla'], ['14.50', 'kaksi numeroa oikein ja oikealla paikalla'], ['22.45', 'yksi numero oikein ja oikealla paikalla']];   // sona 19:20: kellonajat, ei 'mikään numero ei toistu' (ainoa ratkaisu 1230 toistot sallien: re-lab/tmp/lukko2.js; 7289 -> 22:45 koska 72:89 ei ole kellonaika)
+// sona 19:30 "Unohda alkuperäinen 4 numeroinen koodi … keksi koodi uusiksi ja päivitä aikataulun numerot": UUSI KOODI 4312 (wired 445898 tallennettu 19:31, 1155).
+//   Ratkaisupolku: 06.12 + 09.18 -> 0,6,9,8 eivät ole koodissa (14.23:n mukaan koodi = numerot 1,2,3,4) -> 1 kolmanneksi, 2 neljänneksi; 14.23: 4 ei toisena, 3 ei neljäntenä -> 4312. Yksikäsitteisyys: re-lab/tmp/lukko3.js.
+const PYSAKKI_PULMA = [['06.12', 'kaksi numeroa oikein ja oikealla paikalla'], ['09.18', 'yksi numero oikein ja oikealla paikalla'], ['14.23', 'kaikki numerot oikein, mutta yksikään ei ole oikealla paikalla']];   // sona 19:20: kellonajat, ei 'mikään numero ei toistu' (ainoa ratkaisu 1230 toistot sallien: re-lab/tmp/lukko2.js; 7289 -> 22:45 koska 72:89 ei ole kellonaika)
 const PYSAKKI_SUUNTA = '';   // EHDOTUS (tyhjä = ei näytetä): esim. 'Kauppa on kadun päässä, nuolen takana.' — kauppa on piilossa kunnes sinne menee
 // Itsepalvelukassa (supermarket x27-33 y15-25). Furni-spec: id osuu suoraan; muuten luokka + x,y (jos furni nostetaan ja lasketaan, id vaihtuu mutta luokka ja paikka pysyvät).
 const KASSAT = [{ id: 444833, tyyppi: 'market_c19_selfcheckout', x: 30, y: 22 }, { id: 444834, tyyppi: 'market_c19_selfcheckout', x: 32, y: 22 }];
