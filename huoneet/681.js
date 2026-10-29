@@ -275,7 +275,7 @@ const esilataus = setTimeout(() => tila.rajayta(-60, -60, 0, ASETUS.furni, 3000)
 
 // Viimeisin oma miina jää näkyviin (kp 29.10. 12:49 "viimenen ruutu mis pelaaja räjähti nii jää miina esii" · "kunnes räjähtää ite
 //   seuraavan kerran" · "muille ei näy toisen pelaajan last mine"). Vain oman hahmon räjähdys, vain tässä clientissä, yksi merkki
-//   kerrallaan: uusi räjähdys siirtää sen. Suunta arvotaan joka kerta (kp 12:52 "ei oo kiva et se on aina samoin päin"). Konsolissa: miina.merkkiFurni = '<luokka>' · miina.merkkiFurni = '' (pois).
+//   kerrallaan: uusi räjähdys siirtää sen. Suunta arvotaan kameraan päin, oikealle (90) tai vasemmalle (180), ei koskaan poispäin (kp 12:53 "oikeelle tai vasemmalle kameraan päin" · "ei koskaa poispäin"). Konsolissa: miina.merkkiFurni = '<luokka>' · miina.merkkiFurni = '' (pois).
 tila.merkkiFurni = 'LT_skull';
 let merkkiId = null;
 const merkkiPois = () => { if (merkkiId == null) return; try { const e = window.NitroDevTools.roomEngine; e.removeRoomObjectFloor(e.activeRoomId, merkkiId); } catch (x) {} merkkiId = null; };
@@ -285,7 +285,7 @@ tila.merkki = (oid, x, y, z) => {
   const r = e.activeRoomId, V = e.getRoomObjects(r, 100)[0]?.getLocation().constructor; if (!V) return false;
   merkkiPois();
   const id = seuraavaId--;
-  if (!e.addFurnitureFloorByTypeName(r, id, tila.merkkiFurni, new V(x, y, z || 0), new V(90 * (Math.random() * 4 | 0)), 0, data('0'), NaN, -1, 0, -1, '', true, false)) {
+  if (!e.addFurnitureFloorByTypeName(r, id, tila.merkkiFurni, new V(x, y, z || 0), new V(Math.random() < 0.5 ? 90 : 180), 0, data('0'), NaN, -1, 0, -1, '', true, false)) {
     tila.loki.push({ merkki: 'ei piirtynyt', furni: tila.merkkiFurni, x, y }); return false; }
   merkkiId = id; tila.loki.push({ merkki: [x, y] }); return true;
 };
