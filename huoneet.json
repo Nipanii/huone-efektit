@@ -41,7 +41,8 @@
       "nimi": "Halloween rata 5/6 (pimeys)",
       "skriptit": [
         "huoneet/hween-wired.js",
-        "huoneet/684.js"
+        "huoneet/684.js",
+        "huoneet/684-zombit.js"
       ]
     },
     "685": {
