@@ -39,7 +39,9 @@ const omaIndeksi = () => {
   const sm = e && Object.getOwnPropertyDescriptor(e, '_roomSessionManager'); const s = sm && sm.value && sm.value.getSession && sm.value.getSession(huone);
   const i = s && s.ownRoomIndex; return (i == null || i < 0) ? null : i;
 };
-const kanvas = () => [...document.querySelectorAll('canvas')].filter(c => c !== verho).sort((a, b) => b.width * b.height - a.width * a.height)[0];
+// kp 22:27-22:28 'inventoori ei aukee' + 'ei saa huijaa et glitchaa efektin pois': inventaarion esikatselukanvas voitti joskus koon vertailun ja pimeys liitettiin sen sisään (rikkoi ikkunan ja pimeyden).
+// Nyt vain huoneen kanvas: ei omia kerroksia, ei ikkunan sisällä, ja peittää suurimman osan näkymästä.
+const kanvas = () => [...document.querySelectorAll('canvas')].filter(c => { if (c === verho || c === savy) return false; const r = c.getBoundingClientRect(); return r.width >= innerWidth * 0.7 && r.height >= innerHeight * 0.7; }).sort((a, b) => b.width * b.height - a.width * a.height)[0];
 const kadessa = o => { try { return Number(o.model.getValue('figure_carry_object')) || 0; } catch (x) { return 0; } };
 
 const savy = document.createElement('canvas');   // dimmerin värisävy omana kanvaksena: valot leikkaavat myös sen (div jätti valaistun alueen violetiksi)
@@ -79,6 +81,9 @@ const kuuleKomento = ev => {
   if (ev.key !== 'Enter' && ev.key !== 'NumpadEnter') return;
   const el = ev.target; if (!(el instanceof HTMLInputElement) || !el.matches(KENTTA)) return;
   const m = KOMENTO.exec((el.value || '').trim()); if (!m) return;
+  // kp 22:28 'ei saa huijaa et glitchaa efektin pois': komento vain rataryhmälle (1 Res, 282 kp, 281 sona, 245 robo), muilta rivi menee chattiin normaalisti
+  let oma = null; try { oma = Number(window.NitroDevTools.roomEngine._sessionDataManager.userId); } catch (x) {}
+  if (![1, 282, 281, 245].includes(oma)) return;
   ev.preventDefault(); ev.stopImmediatePropagation();
   const s = (m[1] || '').toLowerCase(), uusi = s ? !(s === 'pois' || s === 'off') : !paalla;
   tila.paalla(uusi); tyhjenna(el); ilmoita(uusi ? 'Huoneen efektit päällä' : 'Huoneen efektit pois (rakennustila)');
