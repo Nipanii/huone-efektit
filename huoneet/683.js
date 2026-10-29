@@ -405,6 +405,9 @@ const akkuKupla = el => { try { const t = el.textContent || ''; const pois = ON_
   if (pois && el.style.display !== 'none') { el.style.display = 'none'; lokiin({ kupla: 'piilotettu', akku: ON_AKKU(), teksti: t.slice(0, 60) }); } } catch (x) {} };
 const akkuVahti = new MutationObserver(() => { for (const b of document.querySelectorAll('.bubble-container')) akkuKupla(b); });
 akkuVahti.observe(document.body, { childList: true, subtree: true, characterData: true });
+// varakierros: 16:42 livetestissä observer oli lakannut laukeamasta (sama instanssi, laattaVali eli, 16:29 piilotus toimi) -> syy auki.
+//   Kierros piilottaa sen minkä observer ohitti ja kirjaa 'varakierros', jotta näkyy kumpi sen teki.
+const akkuVara = setInterval(() => { for (const b of document.querySelectorAll('.bubble-container')) { const ennen = b.style.display; akkuKupla(b); if (ennen !== 'none' && b.style.display === 'none') lokiin({ kupla: 'varakierros' }); } }, 120);
 
 // ---- PIMENNYS: huoneen irralliset lattiasaarekkeet piilossa kunnes oma hahmo astuu sinne. Malli huoneet/682.js (kaikki mekanismit sieltä).
 // sona 29.10. 15:28-15:33 "nää kaikki muut tilat jotka ei oo tässä keskellä on pimennetty, eli että sinne ei näe kunnes astuu wirediin ja menee sinne" ·
@@ -567,7 +570,7 @@ return () => {
   try { pimennysPois(); } catch (x) {}
   pussi = false; paikat = new Array(PAIKKOJA).fill(null);
   clearInterval(ambulanssiVali); ambulanssissa = null;
-  clearInterval(laattaVali); laatalla = null; akkuVahti.disconnect(); suljeLappu(); if (vayla && vayla.removeEventListener) vayla.removeEventListener('REOE_SELECTED', pysakkiValittu);
+  clearInterval(laattaVali); laatalla = null; akkuVahti.disconnect(); clearInterval(akkuVara); suljeLappu(); if (vayla && vayla.removeEventListener) vayla.removeEventListener('REOE_SELECTED', pysakkiValittu);
   kiinni = false; ankkuri = null; avaaAnkkuriin = null; sij[2] = null; sij[3] = null;
   vedto = null; otsikko = null;   // raahauksen kaappaus loppuu kun otsikko poistuu (paneeli poistetaan yllä)
   for (const a of ajastimet) clearTimeout(a); ajastimet.clear();
