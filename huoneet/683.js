@@ -507,7 +507,7 @@ const KASSA_VASTAUKSET = [['viivakoodi', 'viivakoodit'], ['näppäimistö', 'nap
 const KASSA_KOODI = 'kassa683', KASSA_ETAISYYS = 2;   // kaikki kolme sanottu -> skripti sanoo KASSA_KOODIn -> wired W10 (22,10) näyttää palkintoviestin
 const kassaRatkaistu = new Set(); let kassaPalkittu = false;
 const KASSA_ONNI = 'Onnittelut! Kassa aukeaa. Kassan sisältä löytyi johto.';   // sona 20:35 'näyttöön tulee onnittelut ja että kassa aukeaa'
-const KASSA_ARVOITUKSET = ['Minulla on viivoja, jotka kertovat hinnan, mutta en osaa kirjoittaa. Mikä olen?', 'Minulla on näppäimiä mutta ei lukkoja. Mikä olen?', 'Mitä enemmän otat, sitä enemmän jätät jälkeesi?'];
+const KASSA_ARVOITUKSET = ['Minulla on viivoja, jotka kertovat hinnan, mutta en osaa kirjoittaa. Mikä olen?', 'Minulla on kirjaimet mutta en ole kirje, ja näppäimet mutta en ole piano. Mikä olen?', 'Mitä enemmän otat, sitä enemmän jätät jälkeesi?'];
 let kassaNaytto = null;
 const suljeKassaNaytto = () => { if (kassaNaytto) { kassaNaytto.remove(); kassaNaytto = null; } };
 const avaaKassaNaytto = () => {
