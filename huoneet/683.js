@@ -118,7 +118,7 @@ const HEITTO_TEKSTI = 'Heitit pois: {nimi}';   // '' = ei viestiä
 //   ja skripti käärii saman istunnon metodit. Rivi ei lähde palvelimelle lainkaan -> kukaan (ei edes pelaaja itse) ei näe kuplaa. Kuiskausta ei kääritä.
 //   RAJA: pelaaja jolla ei ole huone-efektejä lähettää rivin normaalisti (näkyy kaikille) eikä saa avainta. VAIN OFFLINE-TESTATTU.
 const KELLO = { id: 443461, tyyppi: 'attic15_clock', x: 3, y: 38 };   // isoisän kello, antiikkikauppa (kp 19:42 osoitti); x,y = varafallback, sijainti luetaan huoneesta
-const KELLO_PULMA = 'Kellokaapin ovessa on 2-numeroinen lukko.\nSano koodi kellon vieressä.';   // kp 19:5x: kello sanoo vain että vaatii 2-numeroisen koodin; vihje on W5 + kirjoituskoneen lattia (W6)
+const KELLO_PULMA = 'Kellokaapin ovessa on 2-numeroinen lukko.';   // kp 19:5x: kello sanoo vain että vaatii 2-numeroisen koodin; vihje on W5 + kirjoituskoneen lattia (W6)
 const KELLO_OTSIKKO = 'Isoisän kello';
 const KELLO_VASTAUKSET = ['39', 'kolmekymmentäyhdeksän', 'kolmekymmentayhdeksan'];   // verrataan pienaatioin, välilyönnit ja .,!? pois (1+2+...+12 = 78, 78/2 = 39)
 const KELLO_ETAISYYS = 12; // kp 19:58 "ei koko huone vaa antiikkikauppa": koko kauppa kelpaa (kello 3,38, kauppa n. x3-9 y27-40); rajaus kauppaan = PIMENNYS-ehto kelloVieressa():ssa          // ruutua (max(|dx|,|dy|)) kellosta, jotta vastaus kelpaa
