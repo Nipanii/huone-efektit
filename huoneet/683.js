@@ -669,6 +669,7 @@ tila._kello = { vastaus: kelloVastaus, vieressa: kelloVieressa, avaaLappu: avaaK
 // kokeilee ja ei toimi. Sitten kun se astuu tähän … niin tulee viesti että akku tarvitsee erilaisen johdon tms. kirjota paremmin" (osoitti f438211, f438205).
 // Laukeaa vain laatalle astuttaessa ja vain jos pussissa on akku; ilman akkua ei mitään (spoileri, kuten ambulanssissa).
 const JOHTOLAATAT = [438211, 438205];
+const RADIO_AANI = 'https://kuplafix-voice-worker.kuplafix.workers.dev/v/5aa6b311-6dc6-4e';   // sonan oma ääniviesti 20:57:15 ('suuri zombilauma saapuu lauantaina')
 const LAPI_TEKSTI = 'Radio toimii! Radiosta kuuluu ääniviesti.';   // sona 20:56
 const JOHTO_AKKU_KOODI = 'akku683on', JOHTO_TYHJA_KOODI = 'akku683ei';
 let laatalla = null;
@@ -685,7 +686,7 @@ const laattaVali = setInterval(() => { try {
   //   skripti sanoo oikean koodin: akku pussissa -> JOHTO_AKKU_KOODI ('Akku ei sovi…'), muuten JOHTO_TYHJA_KOODI (sonan 'akku tyhjä').
   const onAkku = !!(pussi && paikat.some(p => p && p.nimi === AKKU));
   const onJohto = !!(pussi && paikat.some(p => p && p.nimi === KAAPELI.nimi));
-  if (onAkku && onJohto) { lokiin({ johto: 'läpi' }); ilmoita(LAPI_TEKSTI, 10000, null, VIHREA); return; }   // sona 20:54-55: akku + johto ja laatoille -> pääsi huoneen läpi
+  if (onAkku && onJohto) { lokiin({ johto: 'läpi' }); ilmoita(LAPI_TEKSTI, 10000, null, VIHREA); try { const a = new Audio(RADIO_AANI); a.volume = 1; a.play().catch(x => lokiin({ virhe: 'radioääni: ' + String(x) })); } catch (x) {} return; }   // sona 20:54-55: akku + johto ja laatoille -> pääsi huoneen läpi
   if (tila._sanoSalainen) tila._sanoSalainen(onAkku ? JOHTO_AKKU_KOODI : JOHTO_TYHJA_KOODI);
   lokiin({ johto: onAkku ? 'akku' : 'ei akkua' }); return;   // viestin näyttää nyt wired 445889 kuiskauksena (sona 16:12 "chätissä kuiskauksena"), alla oleva kuplasuodatin valitsee
 } catch (err) { lokiin({ virhe: 'johtolaatta: ' + String(err) }); } }, AMBULANSSI_VALI);
