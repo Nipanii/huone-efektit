@@ -669,7 +669,7 @@ tila._kello = { vastaus: kelloVastaus, vieressa: kelloVieressa, avaaLappu: avaaK
 // kokeilee ja ei toimi. Sitten kun se astuu tähän … niin tulee viesti että akku tarvitsee erilaisen johdon tms. kirjota paremmin" (osoitti f438211, f438205).
 // Laukeaa vain laatalle astuttaessa ja vain jos pussissa on akku; ilman akkua ei mitään (spoileri, kuten ambulanssissa).
 const JOHTOLAATAT = [438211, 438205];
-const LAPI_TEKSTI = 'Onnittelut! Pääsit huoneen läpi.';
+const LAPI_TEKSTI = 'Radio toimii! Radiosta kuuluu ääniviesti.';   // sona 20:56
 const JOHTO_AKKU_KOODI = 'akku683on', JOHTO_TYHJA_KOODI = 'akku683ei';
 let laatalla = null;
 const laattaVali = setInterval(() => { try {
