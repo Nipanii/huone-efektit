@@ -439,7 +439,7 @@ const onPussiFurni = (ev) => {
 };
 const valittu = (ev) => { try {
   if (!onPussiFurni(ev)) return;
-  if (!pussi) tila.anna();   // jo otettu: mitään ei tapahdu
+  if (!pussi) tila.anna(); else { kiinni = false; piirra(); }   // kp 20:49: jo otettu -> avaa/piirrä näkyviin (ei jumiin piiloon)
 } catch (x) { lokiin({ virhe: String(x) }); } };
 if (vayla && vayla.addEventListener) vayla.addEventListener('REOE_SELECTED', valittu); else lokiin({ virhe: 'e.events puuttuu, klikkausta ei kuunnella' });
 
@@ -957,6 +957,7 @@ const tallennaTila = () => { try { window.__h683Pussi = { huone, pussi, paikat: 
 const tallennusVali = setInterval(tallennaTila, 1000);   // sona 20:44 'ettei pussi katoa ollenkaan': jatkuva tallennus, ei vain siivouksessa
 const escSulje = (ev) => { if (ev.key !== 'Escape') return; if (kassaNaytto || kelloLappu || lappu) { suljeKassaNaytto(); suljeKelloLappu(); suljeLappu(); } };   // kp 20:43 'esc sulkee'
 document.addEventListener('keydown', escSulje, true);
+try { if (pussi) piirra(); } catch (x) {}   // kp 20:49 "glitchannut pussi piiloon": palautettu pussi piirretään heti
 try { if (palautus && palautus.kassaAuki) avaaKassaNaytto(); if (palautus && palautus.kelloAuki) avaaKelloLappu(); } catch (x) {}   // kp 20:42: näytöt auki päivityksen yli
 
 return () => {
