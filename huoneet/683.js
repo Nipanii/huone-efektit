@@ -402,7 +402,9 @@ const laattaVali = setInterval(() => { try {
 const ON_AKKU = () => !!(pussi && paikat.some(p => p && p.nimi === AKKU));
 const VIESTI_TYHJA = /akku[^]*tyhj/i, VIESTI_EI_SOVI = /Akku ei sovi tähän/i;
 const akkuKupla = el => { try { const t = el.textContent || ''; const pois = ON_AKKU() ? VIESTI_TYHJA.test(t) && !VIESTI_EI_SOVI.test(t) : VIESTI_EI_SOVI.test(t);
-  if (pois && el.style.display !== 'none') { el.style.display = 'none'; lokiin({ kupla: 'piilotettu', akku: ON_AKKU(), teksti: t.slice(0, 60) }); } } catch (x) {} };
+  if (pois && el.style.display !== 'none') { el.style.display = 'none'; el.dataset.akkuPiilo = '1'; lokiin({ kupla: 'piilotettu', akku: ON_AKKU(), teksti: t.slice(0, 60) }); }
+  // client KIERRÄTTÄÄ kuplaelementin samalle tekstille (mitattu 16:49: uusi "tyhjä" tuli vanhaan display:none-elementtiin) -> palauta oma piilotus
+  else if (!pois && el.dataset.akkuPiilo) { el.style.display = ''; delete el.dataset.akkuPiilo; lokiin({ kupla: 'palautettu', akku: ON_AKKU(), teksti: t.slice(0, 60) }); } } catch (x) {} };
 const akkuVahti = new MutationObserver(() => { for (const b of document.querySelectorAll('.bubble-container')) akkuKupla(b); });
 akkuVahti.observe(document.body, { childList: true, subtree: true, characterData: true });
 // 16:42-16:47 "observer lakkasi" oli väärä diagnoosi: VIESTI_TYHJA:ssa oli kirjaimellinen 0x08 (\b kirjoittui backspace-tavuksi), joten
