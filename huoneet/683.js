@@ -88,6 +88,9 @@ const KAAPELI_TAYNNA = 'Pussi on täynnä.';      // '' = ei viestiä (ei pitäi
 const PAIKKA_JARJESTYS = [['Akku', 'Avain'], KUITTI, KAAPELI.nimi];
 // Läppäri ja radio (radiohuone x28-36 y5-10, kartta: army_c15_deskcomp 33,5 · habbox_styx_plage_radio 34,5)
 const LAPPARI = { id: 438226, tyyppi: 'army_c15_deskcomp', x: 33, y: 5 };
+// sona 19:52 'Voisko olla että siinä lukee "puolikkaiden summa"' + kp 19:51 "jos kirjotuskoneessa olis vinkki tohon riddleen": vihje kellopulmaan
+const KIRJOITUSKONE = { id: 443476, tyyppi: 'rainyday_c20_typewriter', x: 9, y: 29 };
+const KIRJOITUSKONE_TEKSTI = ''   // sona 19:54 'laitetaa se lattialle kirjoituskoneen ympärillä' -> vihje wirediksi lattiaan, ei klikkausta (tyhjä = ei näytetä), KIRJOITUSKONE_MS = 8000;
 const LAPPARI_TEKSTI = 'Antenni ei saa signaalia. Tarvitaan kaapeli, sellaisen saa kaupasta.', LAPPARI_MS = 10000;
 const RADIO = { id: 438224, tyyppi: 'habbox_styx_plage_radio', x: 34, y: 5 };
 const RADIO_OK = 'Radio herää henkiin!';   // loppu sonalle muokattavaksi
@@ -113,7 +116,7 @@ const HEITTO_TEKSTI = 'Heitit pois: {nimi}';   // '' = ei viestiä
 //   ja skripti käärii saman istunnon metodit. Rivi ei lähde palvelimelle lainkaan -> kukaan (ei edes pelaaja itse) ei näe kuplaa. Kuiskausta ei kääritä.
 //   RAJA: pelaaja jolla ei ole huone-efektejä lähettää rivin normaalisti (näkyy kaikille) eikä saa avainta. VAIN OFFLINE-TESTATTU.
 const KELLO = { id: 443461, tyyppi: 'attic15_clock', x: 3, y: 38 };   // isoisän kello, antiikkikauppa (kp 19:42 osoitti); x,y = varafallback, sijainti luetaan huoneesta
-const KELLO_PULMA = 'Isoisän kellon taulu on haljennut. Yksi suora halkeama jakaa sen kahteen palaan, ja kummankin palan numerot yhteenlaskettuna antavat saman luvun.\nSano se luku kellon vieressä.';
+const KELLO_PULMA = 'Kellokaapin ovessa on 2-numeroinen lukko.\nSano koodi kellon vieressä.';   // kp 19:5x: kello sanoo vain että vaatii 2-numeroisen koodin; vihje on W5 + kirjoituskoneen lattia (W6)
 const KELLO_OTSIKKO = 'Isoisän kello';
 const KELLO_VASTAUKSET = ['39', 'kolmekymmentäyhdeksän', 'kolmekymmentayhdeksan'];   // verrataan pienaatioin, välilyönnit ja .,!? pois (1+2+...+12 = 78, 78/2 = 39)
 const KELLO_ETAISYYS = 2;            // ruutua (max(|dx|,|dy|)) kellosta, jotta vastaus kelpaa
@@ -693,6 +696,7 @@ let pulmaPois = () => {};
     if (!nakyvissa(ev)) return;
     if (KASSAT.some(s => osuu(s, ev))) { kuitti(); return; }
     if (osuu(LAPPARI, ev)) { lokiin({ lappari: 1 }); if (SKRIPTI_NAYTTAA.lappari) ilmoita(LAPPARI_TEKSTI, LAPPARI_MS); return; }
+    if (KIRJOITUSKONE_TEKSTI && osuu(KIRJOITUSKONE, ev)) { lokiin({ kirjoituskone: 1 }); ilmoita(KIRJOITUSKONE_TEKSTI, KIRJOITUSKONE_MS); return; }
     if (osuu(RADIO, ev)) { radio(); return; }
     if (osuu(KELLO, ev)) { lokiin({ kello: 'klikattu' }); avaaKelloLappu(); return; }
     if (osuu(KAAPELI.furni, ev)) kaapeli(KAAPELI);
