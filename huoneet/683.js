@@ -13,7 +13,7 @@
 //     paikat ovat vain muistissa, huoneesta lähtiessä siivous nollaa kaiken ja huoneeseen tullessa pussi pitää ottaa uudestaan. Ei localStorageä.
 //   - Pussin tunnistus: furni-id 444838 (sona Osoita "#osoita:r683:f444838"); varalle luokka hp_sack (FurnitureData "Kankainen pussi").
 //   - Akku (sona 29.10. 14:42:56 "Sen jälkeen kun pussi on saatu. Pelaaja voi noutaa ambulanssiin astuessa akun."): kun oma hahmo astuu ambulanssin
-//     (furni 434093) ruutuihin ja pussi on, tulee "Akku" pussiin (kuva easter_c23_battery_icon). Ilman pussia: ilmoitus "Tarvitset pussin ensin".
+//     (furni 434093) ruutuihin ja pussi on, tulee "Akku" pussiin (kuva easter_c23_battery_icon). Ilman pussia: ei mitään (kp 15:17: ilmoitus olisi spoileri).
 //     Ruudut luetaan joka tarkistuksessa huoneen objektista (sijainti, furniture_size_x/y, kierto); jos ei luettavissa, varafallback 5,15 1x1 ja console.warn kerran.
 // Konsolissa / myöhemmille pulma-askelille: window.kupla683 =
 //   .lisaa(nimi, kuvaUrl?)  ensimmäiseen vapaaseen paikkaan; palauttaa paikan (0-2), -1 jos täynnä; sama nimi uudestaan palauttaa vanhan paikan
@@ -162,7 +162,7 @@ const ambulanssiVali = setInterval(() => { try {
   const sisalla = r.x >= a.x && r.x < a.x + a.w && r.y >= a.y && r.y < a.y + a.h;
   const oli = ambulanssissa; ambulanssissa = sisalla;
   if (!sisalla || oli !== false) return;   // laukeaa vain sisään astuttaessa (oli === false), ei joka ruudussa
-  if (!pussi) { lokiin({ akku: 'ei pussia' }); ilmoita('Tarvitset pussin ensin'); return; }
+  if (!pussi) { lokiin({ akku: 'ei pussia' }); return; }   // ei ilmoitusta: spoileri (kp 29.10. 15:17), sona pyysi vain akun saamisviestin
   if (paikat.some(p => p && p.nimi === AKKU)) return;   // jo saatu
   const i = tila.lisaa(AKKU, AKKU_KUVA);
   if (i >= 0) { lokiin({ akku: 'saatu', paikka: i }); ilmoita('Sait akun'); } else lokiin({ akku: 'pussi täynnä' });   // täynnä: ei ilmoitusta (speksissä ei ole), yritys jatkuu seuraavassa sisääntulossa
