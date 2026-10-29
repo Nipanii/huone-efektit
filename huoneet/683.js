@@ -58,9 +58,12 @@ const POIMINTA_TEKSTI = 'Otit pussin ja voit nyt kerätä tavaroita siihen.', PO
 const PYSAKKI_LAPPU = 'yhdistetty';
 // Aikataulun määränpää KAIKILLA riveillä ja reittirivillä (sona 18:55 kysytty vaihto: vaihda tähän yhteen paikkaan).
 const PYSAKKI_MAARANPAA = 'Hautausmaa';
-const PYSAKKI_UUSI_RIVI = ['12.░░', PYSAKKI_MAARANPAA];   // kp 18:49:03: tunnit näkyy, minuutit revitty (12.28 +1 +1 = 12.30); "ei se voi olla antiikkikaupalle kun bussi on antiikkikaupan edessä"
-const PYSAKKI_REVITTY = 'Lähtöaika on revitty irti.';
-const PYSAKKI_KYNA = 'Kuski haki kahvin kaupasta juuri ennen lähtöä. Onneksi kauppaan kävelee minuutissa.';   // lyijykynällä, käsialana
+const PYSAKKI_UUSI_RIVI = null;   // sona 19:11 "ei bussikuskia" -> revitty vuoro pois (oli ['12.░░', PYSAKKI_MAARANPAA])
+const PYSAKKI_UUSI_RIVI_VANHA = ['12.░░', PYSAKKI_MAARANPAA];   // kp 18:49:03: tunnit näkyy, minuutit revitty (12.28 +1 +1 = 12.30); "ei se voi olla antiikkikaupalle kun bussi on antiikkikaupan edessä"
+const PYSAKKI_REVITTY = '';   // sona 19:11: ei tarinaa (oli 'Lähtöaika on revitty irti.')
+// sona 19:15 "vaihtoehto a oli hyvä": lukkopulma, ainoa ratkaisu 1230 = oven wired-koodi (brute force re-lab/tmp/lukko.js). Rivinvaihto = \n.
+// Vanha (kuski-tarina, poistettu sona 19:11): 'Kuski haki kahvin kaupasta juuri ennen lähtöä. Onneksi kauppaan kävelee minuutissa.'
+const PYSAKKI_KYNA = 'Joku on raapustanut lappuun lukon koodin vihjeet:\n2103: kaikki numerot oikein, mutta yksikään ei ole oikealla paikalla\n1450: kaksi numeroa oikein ja oikealla paikalla\n7289: yksi numero oikein ja oikealla paikalla\nMikään numero ei toistu.';   // lyijykynällä, käsialana
 const PYSAKKI_SUUNTA = '';   // EHDOTUS (tyhjä = ei näytetä): esim. 'Kauppa on kadun päässä, nuolen takana.' — kauppa on piilossa kunnes sinne menee
 // Itsepalvelukassa (supermarket x27-33 y15-25). Furni-spec: id osuu suoraan; muuten luokka + x,y (jos furni nostetaan ja lasketaan, id vaihtuu mutta luokka ja paikka pysyvät).
 const KASSAT = [{ id: 444833, tyyppi: 'market_c19_selfcheckout', x: 30, y: 22 }, { id: 444834, tyyppi: 'market_c19_selfcheckout', x: 32, y: 22 }];
@@ -429,9 +432,9 @@ const avaaLappu = () => {
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const rivi = ([k, m], revitty) => '<tr><td style="border-top:1px dashed #111;padding:2px 0' + (revitty ? ';color:#7a6512;letter-spacing:1px' : '') + '">' + esc(k) + '</td>' +
     '<td style="border-top:1px dashed #111;text-align:right">' + esc(m) + '</td></tr>';
-  const rivit = (tila_ === 'uusi' ? [] : AIKATAULU.map(r => rivi(r))).concat(tila_ === 'vanha' ? [] : [rivi(PYSAKKI_UUSI_RIVI, true)]);
-  const kyna = tila_ === 'vanha' ? '' : '<div style="font-size:11px;margin:2px 0 6px">' + esc(PYSAKKI_REVITTY) + '</div>' +
-    '<div style="margin:6px 0 8px;font:italic 15px/1.3 \'Comic Sans MS\',\'Segoe Print\',cursive;color:#3b3b3b;transform:rotate(-2deg)">' + esc(PYSAKKI_KYNA) +
+  const rivit = (tila_ === 'uusi' ? [] : AIKATAULU.map(r => rivi(r))).concat(tila_ === 'vanha' || !PYSAKKI_UUSI_RIVI ? [] : [rivi(PYSAKKI_UUSI_RIVI, true)]);
+  const kyna = tila_ === 'vanha' ? '' : (PYSAKKI_REVITTY ? '<div style="font-size:11px;margin:2px 0 6px">' + esc(PYSAKKI_REVITTY) + '</div>' : '') +
+    '<div style="margin:6px 0 8px;font:italic 15px/1.3 \'Comic Sans MS\',\'Segoe Print\',cursive;color:#3b3b3b;transform:rotate(-2deg)">' + esc(PYSAKKI_KYNA).split('\n').join('<br>') +
     (PYSAKKI_SUUNTA ? '<br>' + esc(PYSAKKI_SUUNTA) : '') + '</div>';
   d.innerHTML = '<div style="position:absolute;right:8px;top:4px;cursor:pointer;font:bold 18px sans-serif" title="Sulje">✕</div>' +
     '<div style="text-align:center">' + BUSSI_SVG + '</div>' +
