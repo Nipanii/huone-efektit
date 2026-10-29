@@ -47,41 +47,45 @@ const V23_Z = 300, PILLI_PAD = 9;   // kp 29.10. 18:50 "ympyrä pill iconissa on
 const POIMINTA_TEKSTI = 'Otit pussin ja voit nyt kerätä tavaroita siihen.', POIMINTA_MS = 8000;   // sona 15:18:39: 8 s
 
 // ==== PULMA 29.10. (kp 18:38 "alahan sit rakentaa sitä uutta puzzlea"). EHDOTUS SONALLE: kaikki tekstit, furnit ja kytkimet tässä lohkossa.
-//   Ketju (nitro/data/683-kartta.md 18:13-18:37): pysäkin lappu (revitty lähtöaika + kahvi) -> itsepalvelukassan kuitti 12.28 -> +1 +1 = 12.30 ->
-//   koodi 1230 antiikkikaupan ovella (WIRED, ei tässä) -> pussi -> akku ambulanssista -> antennikaapeli kaupasta (3 vaihtoehtoa) -> läppäri kertoo oikean -> radio.
+//   Ketju (nitro/data/683-kartta.md 18:13-18:56): pysäkin lappu (revitty lähtöaika + kahvi) -> itsepalvelukassan kuitti 12.28 -> +1 +1 = 12.30 ->
+//   koodi 1230 antiikkikaupan ovella (WIRED, ei tässä) -> pussi -> akku ambulanssista -> läppäri: antenni tarvitsee kaapelin kaupasta -> YKSI koaksiaalikaapeli -> radio.
+//   Alueet (sona 18:55): tie, takapiha, antiikkikauppa, ruokakauppa. Pussin paikat järjestyksessä (sona 18:55): 1. akku 2. kuitti 3. johto (= koaksiaalikaapeli, robo 18:56).
+//   Kuitti: kassalta otettu kuitti pidetään tallessa jos pussia ei vielä ole, ja kun pussi saadaan se siirtyy pussiin ("Kuitti siirtyi pussiin.").
 //   Rakennusohjeet wiredeille ja tila per askel: D:/re-lab/nitro/data/683-tila.md. VAIN OFFLINE-TESTATTU (node, ei hotellia).
 //   Kaikki klikkaukset toimivat vain kun furni on NÄKYVISSÄ (pimennys alla piilottaa muut alueet: opacity 0 + click_through) -> ei paljasta aluetta etukäteen.
 // Pysäkin lappu: 'yhdistetty' = sonan LINJA 13 -lappu + uusi rivi ja lyijykynämerkintä (oletus, mitään sonan tekstiä ei poisteta) ·
 //   'uusi' = vain uusi aikataulu · 'vanha' = sonan lappu sellaisenaan (16:22-16:56).
 const PYSAKKI_LAPPU = 'yhdistetty';
-const PYSAKKI_UUSI_RIVI = ['12.░░', 'Hautausmaa'];   // kp 18:49:03: tunnit näkyy, minuutit revitty (12.28 +1 +1 = 12.30); "ei se voi olla antiikkikaupalle kun bussi on antiikkikaupan edessä"
+// Aikataulun määränpää KAIKILLA riveillä ja reittirivillä (sona 18:55 kysytty vaihto: vaihda tähän yhteen paikkaan).
+const PYSAKKI_MAARANPAA = 'Hautausmaa';
+const PYSAKKI_UUSI_RIVI = ['12.░░', PYSAKKI_MAARANPAA];   // kp 18:49:03: tunnit näkyy, minuutit revitty (12.28 +1 +1 = 12.30); "ei se voi olla antiikkikaupalle kun bussi on antiikkikaupan edessä"
 const PYSAKKI_REVITTY = 'Lähtöaika on revitty irti.';
 const PYSAKKI_KYNA = 'Kuski haki kahvin kaupasta juuri ennen lähtöä. Onneksi kauppaan kävelee minuutissa.';   // lyijykynällä, käsialana
 const PYSAKKI_SUUNTA = '';   // EHDOTUS (tyhjä = ei näytetä): esim. 'Kauppa on kadun päässä, nuolen takana.' — kauppa on piilossa kunnes sinne menee
 // Itsepalvelukassa (supermarket x27-33 y15-25). Furni-spec: id osuu suoraan; muuten luokka + x,y (jos furni nostetaan ja lasketaan, id vaihtuu mutta luokka ja paikka pysyvät).
 const KASSAT = [{ id: 444833, tyyppi: 'market_c19_selfcheckout', x: 30, y: 22 }, { id: 444834, tyyppi: 'market_c19_selfcheckout', x: 32, y: 22 }];
 const KUITTI_TEKSTI = 'Kuitti: Kahvi 1,20 € · klo 12.28', KUITTI_MS = 10000;
-// Kolme kaapelia kaupan hyllyillä. Vain pussi hallussa -> pussiin (ilman pussia ei mitään: spoileri, kuten akku). kuva null = paikassa nimen alku.
-//   Furnit = EHDOTUS (yksittäiset hyllyt). id:t robon furni-listasta re-lab/tmp/683-furni.txt (29.10. 17:06); vaihda tähän sonan/kp:n valinta.
-const KAAPELI_OIKEA = 'Koaksiaalikaapeli';
-const KAAPELIT = [
-  { nimi: 'Koaksiaalikaapeli', kuva: null, furni: { id: 444821, tyyppi: 'market_c19_drygoods', x: 27, y: 17 } },
-  { nimi: 'HDMI-kaapeli',      kuva: null, furni: { id: 444822, tyyppi: 'market_c19_dvds', x: 27, y: 25 } },
-  { nimi: 'USB-kaapeli',       kuva: null, furni: { id: 444818, tyyppi: 'market_c19_dairyfridge', x: 27, y: 19 } },
-];
+// Kassan klikkaus näyttää KUITTI_TEKSTIn JA antaa kuitin (KUITTI) pelaajalle. Ilman pussia kuitti pidetään tallessa; kun pussi otetaan, se ilmestyy
+//   pussiin ja tulee KUITTI_SIIRTYI. Pussissa kuitin klikkaus näyttää KUITTI_TEKSTIn uudelleen. ×:llä pois -> kassalta saa uuden.
+const KUITTI = 'Kuitti', KUITTI_KUVA = null;   // kuva null = paikassa nimi
+const KUITTI_SIIRTYI = 'Kuitti siirtyi pussiin.', KUITTI_SIIRTYI_MS = 6000;
+// YKSI kaapeli (robo 18:56, sona 18:54 "vain 1 johto"): koaksiaalikaapeli ruokakaupan kuivatuotehyllystä. Vain pussi hallussa -> pussiin (ilman pussia
+//   ei mitään: spoileri, kuten akku). kuva null = paikassa nimen alku. id robon furni-listasta re-lab/tmp/683-furni.txt (29.10. 17:06).
+//   Kaksi väärää kaapelia ja väärän kaapelin logiikka (KAAPELIT[], KAAPELI_VAIHTO) poistettu 18:56 -> varmuuskopio 683.js.bak-1856.
+const KAAPELI = { nimi: 'Koaksiaalikaapeli', kuva: null, furni: { id: 444821, tyyppi: 'market_c19_drygoods', x: 27, y: 17 } };
 const KAAPELI_SAIT = 'Otit pussiin: {nimi}';   // {nimi} korvataan
-const KAAPELI_TAYNNA = 'Pussi on täynnä.';      // '' = ei viestiä
-const KAAPELI_VAIHTO = false;   // true: uusi kaapeli korvaa pussissa olevan (arvaus ilmainen). false: väärä kaapeli vie paikan (kp 18:05 "arvaaminen kallista")
+const KAAPELI_TAYNNA = 'Pussi on täynnä.';      // '' = ei viestiä (ei pitäisi tapahtua: jokaisella pulmaesineellä on oma paikka, PAIKKA_JARJESTYS)
+// Pussin paikkajärjestys (sona 18:55): esine menee omaan paikkaansa ottojärjestyksestä riippumatta; muu (konsoli) ensimmäiseen vapaaseen.
+const PAIKKA_JARJESTYS = ['Akku', KUITTI, KAAPELI.nimi];
 // Läppäri ja radio (radiohuone x28-36 y5-10, kartta: army_c15_deskcomp 33,5 · habbox_styx_plage_radio 34,5)
 const LAPPARI = { id: 438226, tyyppi: 'army_c15_deskcomp', x: 33, y: 5 };
-const LAPPARI_TEKSTI = 'Lautasantenni ei saa signaalia. Tarvitaan koaksiaalikaapeli.', LAPPARI_MS = 10000;
+const LAPPARI_TEKSTI = 'Antenni ei saa signaalia. Tarvitaan kaapeli, sellaisen saa kaupasta.', LAPPARI_MS = 10000;
 const RADIO = { id: 438224, tyyppi: 'habbox_styx_plage_radio', x: 34, y: 5 };
 const RADIO_OK = 'Radio herää henkiin!';   // loppu sonalle muokattavaksi
 const RADIO_JO_OK = 'Radio soi.';
 const RADIO_KOHINA = 'Pelkkää kohinaa.';
-const RADIO_MYKKA = 'Radio on mykkä.';
-const RADIO_EI_JOHTOA = 'Akku ei sovi radioon ilman johtoa.';   // vain jos VAADI_JOHTO
-const VAADI_JOHTO = false, JOHTO = 'Johto';   // AUKI: mistä johto (sonan hautausmaa-/antiikkikauppa-idea vs ei johtoa ollenkaan)
+const RADIO_MYKKA = 'Radio on mykkä.';   // ei akkua
+// (RADIO_EI_JOHTOA / VAADI_JOHTO / JOHTO poistettu 18:56: johto = koaksiaalikaapeli. Ei akkua -> MYKKA, akku ilman kaapelia -> KOHINA, molemmat -> OK.)
 const RADIO_MS = 8000;
 // Skripti -> wired (682.js KAIVUKOODI-malli): radion korjaus sanoo salaisen koodin TAVALLISENA puheena (kuiskaus EI laukaise "Hahmo sanoo jotain",
 //   RoomChatManager.java:309). Wired says_something [piilota 1, tarkka 1, 0] nappaa sen ja näyttää kaikille. POIS PÄÄLTÄ kunnes wired on rakennettu ja
@@ -89,8 +93,8 @@ const RADIO_MS = 8000;
 const RADIO_KOODI = 'r4d10683', RADIO_KOODI_PAALLA = false;
 // Viestit skriptillä vai wiredillä: jos robo rakentaa vastaavan click/walks_on + show_message -wiredin ja se on testattu, aseta false (muuten tulee kahdesti).
 const SKRIPTI_NAYTTAA = { kuitti: true, lappari: true };
-// Heitä pois (kp 18:45:07 "jos voi ottaa väärän johdon: tavaroita pitää pystyy heittää pois pussista"): pieni × jokaisen tavaran kulmassa (kaikki variantit).
-//   Mitään ei tarvitse palauttaa: hyllyt jäävät paikalleen (kaapelin voi ottaa uudelleen) ja akku tulee uudelleen kun astuu ambulanssiin.
+// Heitä pois (kp 18:45:07 "tavaroita pitää pystyy heittää pois pussista"): pieni × jokaisen tavaran kulmassa (kaikki variantit).
+//   Mitään ei tarvitse palauttaa: hylly ja kassat jäävät paikalleen (kaapelin ja kuitin voi ottaa uudelleen) ja akku tulee uudelleen kun astuu ambulanssiin.
 const HEITTO_SALLITTU = true;
 const HEITTO_TEKSTI = 'Heitit pois: {nimi}';   // '' = ei viestiä
 
@@ -123,7 +127,18 @@ const heitaNappiin = (r, t) => { if (!HEITTO_SALLITTU || !r || !t) return;
   b.addEventListener('pointerdown', ev => ev.stopPropagation());
   b.addEventListener('click', ev => { ev.stopPropagation(); if (tila.poista(t.nimi)) { lokiin({ heitto: t.nimi }); if (HEITTO_TEKSTI) ilmoita(HEITTO_TEKSTI.replace('{nimi}', t.nimi), 4000); } });
   r.appendChild(b); };
-const mitat = () => { const k = Math.min(1, (window.innerWidth || 1024) / 600); return { ruutu: Math.round(60 * k), kuva: Math.round(32 * k) }; };
+// Luettava tavara (kuitti): klikkaus paikkaan näyttää tekstin uudelleen. pointerdown ei mene raahaukselle (v3-kortti kaappaa osoittimen, kuten säkkikuva r. kortKuva).
+const LUETTAVAT = { [KUITTI]: () => KUITTI_TEKSTI };
+//   Kerros on paikan LAPSI (ei kuuntelijaa itse paikkaan): v1 käyttää samoja paikkaelementtejä joka piirrossa, joten kuuntelijat kertautuisivat;
+//   lapsi poistuu piirrossa. × (z-index 1) jää kerroksen päälle.
+const luettavaksi = (el, t) => { const f = t && LUETTAVAT[t.nimi]; if (!el || !f) return null;
+  if (!el.style.position) el.style.position = 'relative';
+  const k = document.createElement('div'); k.className = 'h683-lue'; k.title = t.nimi + ' (lue)';
+  k.style.cssText = 'position:absolute;left:0;top:0;right:0;bottom:0;cursor:pointer;pointer-events:auto;touch-action:manipulation';
+  k.addEventListener('pointerdown', ev => ev.stopPropagation());
+  k.addEventListener('click', ev => { ev.stopPropagation(); lokiin({ luettu: t.nimi }); ilmoita(f(), KUITTI_MS); });
+  el.appendChild(k); return k; };
+const mitat =() => { const k = Math.min(1, (window.innerWidth || 1024) / 600); return { ruutu: Math.round(60 * k), kuva: Math.round(32 * k) }; };
 const rakennaPaneeli = () => {
   if (paneeli) return;
   paneeli = document.createElement('div'); paneeli.className = 'h683-pussi';
@@ -173,6 +188,7 @@ const piirraV1 = () => {
       nm.style.cssText = 'flex:none;width:100%;margin-top:2px;font:bold 11px sans-serif;line-height:13px;color:#e6dcf5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;word-break:normal';
       r.appendChild(nm); }
     else r.textContent = t.nimi.slice(0, 8);
+    luettavaksi(r, t);
     heitaNappiin(r, t);
   }
 };
@@ -220,6 +236,7 @@ const taytaPaikka = (r, t) => { r.textContent = ''; r.title = t ? t.nimi : '';
   if (!t) return;
   if (t.kuva) { const im = document.createElement('img'); im.src = t.kuva; im.alt = t.nimi; im.draggable = false; im.style.cssText = 'max-width:100%;max-height:100%;image-rendering:pixelated'; r.appendChild(im); }
   else r.textContent = t.nimi.slice(0, 8);
+  luettavaksi(r, t);
   heitaNappiin(r, t); };
 
 // -- variantti 2: iso säkki
@@ -255,8 +272,10 @@ const piirraV2 = () => {
       d.style.cssText = pos + 'max-width:' + Math.round(34 * k * sk) + 'px;font:bold ' + Math.max(9, Math.round(11 * k)) + 'px sans-serif;color:#fff;opacity:.85;text-shadow:0 1px 2px #000;word-break:break-all;line-height:1.1';
       v2kerros.appendChild(d); }
     // v2: tavarakerros on pointer-events:none -> oma kääre napille tavaran kohdalle
-    if (HEITTO_SALLITTU) { const kk = document.createElement('div'); kk.style.cssText = pos + 'width:' + Math.round(22 * k * sk) + 'px;height:' + Math.round(22 * k * sk) + 'px;pointer-events:none';
-      heitaNappiin(kk, t); const b = kk.lastChild; if (b) b.style.pointerEvents = 'auto'; v2kerros.appendChild(kk); }
+    //   (luettava tavara, esim. kuitti: kääreeseen klikattava kerros, pointer-events auto)
+    if (HEITTO_SALLITTU || LUETTAVAT[t.nimi]) { const kk = document.createElement('div'); kk.style.cssText = pos + 'width:' + Math.round(22 * k * sk) + 'px;height:' + Math.round(22 * k * sk) + 'px;pointer-events:none';
+      luettavaksi(kk, t);
+      heitaNappiin(kk, t); const b = kk.lastChild; if (b && b.className === 'h683-heita') b.style.pointerEvents = 'auto'; v2kerros.appendChild(kk); }
   }
 };
 const kutistaV2 = () => {
@@ -341,8 +360,9 @@ const ajastimet = new Set();
 // sona 15:18:39-54: laatikko ympärille + animaatio että erottuu huoneen muusta käyttöliittymästä, poimintatekstiin pussin kuva.
 // vari: { reuna: 'r,g,b', tausta: 'r,g,b' } — sona 15:58 "Voisko sait akun laatikko olla vihree 'positiivinen väri'"; oletus violetti.
 const VIHREA = { reuna: '92,200,110', tausta: '14,40,20' };
-const ilmoita = (teksti, ms = 1600, kuvaUrl, vari) => { const R = (vari && vari.reuna) || '184,156,224', T = (vari && vari.tausta) || '20,17,26'; const d = document.createElement('div'); d.className = 'h683-pussi';
-  d.style.cssText = 'position:fixed;left:50%;top:14%;transform:translateX(-50%);z-index:99999;pointer-events:none;padding:10px 18px;max-width:90vw;box-sizing:border-box;'
+// yla = pystypaikka % (oletus 14); toinen samanaikainen ilmoitus (kuitin siirto pussin oton kanssa) alemmas, ettei peitä ensimmäistä.
+const ilmoita = (teksti, ms = 1600, kuvaUrl, vari, yla = 14) => { const R = (vari && vari.reuna) || '184,156,224', T = (vari && vari.tausta) || '20,17,26'; const d = document.createElement('div'); d.className = 'h683-pussi';
+  d.style.cssText = 'position:fixed;left:50%;top:' + yla + '%;transform:translateX(-50%);z-index:99999;pointer-events:none;padding:10px 18px;max-width:90vw;box-sizing:border-box;'
     + 'display:flex;align-items:center;gap:12px;background:rgba(' + T + ',.95);color:#fff;font:bold 15px sans-serif;border:2px solid rgb(' + R + ');border-radius:10px;'
     + 'box-shadow:0 0 14px rgba(' + R + ',.6),0 3px 10px rgba(0,0,0,.6);transition:opacity .4s';
   if (kuvaUrl) { const k = document.createElement('img'); k.src = kuvaUrl; k.alt = ''; k.draggable = false; k.style.cssText = 'width:40px;height:40px;object-fit:contain;image-rendering:pixelated;flex:none'; d.appendChild(k); }
@@ -356,16 +376,22 @@ const ilmoita = (teksti, ms = 1600, kuvaUrl, vari) => { const R = (vari && vari.
 // ---- API
 const tila = window.kupla683 = { versio: 'huone-683 pussi 1', huone, loki };
 tila.onPussi = () => pussi;
-tila.anna = () => { const uusi = !pussi; pussi = true; piirra(); if (uusi) { lokiin({ pussi: 'annettu' }); ilmoita(POIMINTA_TEKSTI, POIMINTA_MS, PUSSI_KUVA); } return uusi; };
+// kuittiOdottaa = kuitti otettu kassalta ennen pussia (se on jo paikat[]-taulussa, paneeli ei vain näy) -> pussin otossa ilmoitus KUITTI_SIIRTYI.
+let kuittiOdottaa = false;
+tila.anna = () => { const uusi = !pussi; pussi = true; piirra(); if (uusi) { lokiin({ pussi: 'annettu' }); ilmoita(POIMINTA_TEKSTI, POIMINTA_MS, PUSSI_KUVA);
+    if (kuittiOdottaa && paikat.some(p => p && p.nimi === KUITTI)) { lokiin({ kuitti: 'siirtyi pussiin' }); ilmoita(KUITTI_SIIRTYI, KUITTI_SIIRTYI_MS, undefined, undefined, 24); }
+    kuittiOdottaa = false; }
+  return uusi; };
 tila.tavarat = () => paikat.filter(Boolean).map(t => ({ nimi: t.nimi, kuva: t.kuva }));
 tila.lisaa = (nimi, kuvaUrl) => {
   if (typeof nimi !== 'string' || !nimi.trim()) return -1;
   const t = siisti({ nimi: nimi.trim(), kuva: kuvaUrl }), vanha = paikat.findIndex(p => p && p.nimi === t.nimi); if (vanha >= 0) return vanha;
-  const i = paikat.indexOf(null); if (i < 0) { lokiin({ lisaa: 'täynnä', nimi: t.nimi }); return -1; }
+  const oma = PAIKKA_JARJESTYS.indexOf(t.nimi);   // pulmaesineellä oma paikka (sona 18:55: 1. akku 2. kuitti 3. johto)
+  const i = (oma >= 0 && oma < PAIKKOJA && !paikat[oma]) ? oma : paikat.indexOf(null); if (i < 0) { lokiin({ lisaa: 'täynnä', nimi: t.nimi }); return -1; }
   paikat[i] = t; piirra(); lokiin({ lisaa: t.nimi, paikka: i }); return i; };
 tila.poista = (nimi) => { const i = paikat.findIndex(p => p && p.nimi === String(nimi).trim()); if (i < 0) return false;
-  paikat[i] = null; piirra(); lokiin({ poista: String(nimi), paikka: i }); return true; };
-tila.nollaa = () => { pussi = false; paikat = new Array(PAIKKOJA).fill(null); kiinni = false; ankkuri = null; avaaAnkkuriin = null; sij[2] = null; sij[3] = null; piirra(); lokiin({ nollaa: 1 }); };
+  paikat[i] = null; if (String(nimi).trim() === KUITTI) kuittiOdottaa = false; piirra(); lokiin({ poista: String(nimi), paikka: i }); return true; };
+tila.nollaa = () => { pussi = false; kuittiOdottaa = false; paikat = new Array(PAIKKOJA).fill(null); kiinni = false; ankkuri = null; avaaAnkkuriin = null; sij[2] = null; sij[3] = null; piirra(); lokiin({ nollaa: 1 }); };
 // variantti(n): vaihda ulkoasu 1/2/3 (sisältö ja pussi-tila pysyvät, vain piirretään uudelleen); ilman argumenttia palauttaa nykyisen; virheellinen n ei muuta mitään. Palauttaa aktiivisen variantin.
 tila.variantti = (n) => { if (n === undefined || n === null) return variantti; const v = Number(n); if (v !== 1 && v !== 2 && v !== 3) return variantti;
   if (v !== variantti) { variantti = v; if (v === 1) kiinni = false; lokiin({ variantti: v }); piirra(); } return variantti; };
@@ -390,7 +416,7 @@ const BUSSI_SVG = '<svg viewBox="0 0 120 60" width="120" height="60"><rect x="6"
   '<rect x="14" y="14" width="16" height="13" fill="#f4d23c"/><rect x="34" y="14" width="16" height="13" fill="#f4d23c"/><rect x="54" y="14" width="16" height="13" fill="#f4d23c"/>' +
   '<rect x="74" y="14" width="16" height="13" fill="#f4d23c"/><rect x="94" y="14" width="10" height="22" fill="#f4d23c"/><circle cx="28" cy="48" r="8" fill="#111" stroke="#f4d23c" stroke-width="3"/>' +
   '<circle cx="88" cy="48" r="8" fill="#111" stroke="#f4d23c" stroke-width="3"/></svg>';
-const AIKATAULU = [['21.13', 'Hautausmaa'], ['22.13', 'Hautausmaa'], ['23.13', 'Hautausmaa'], ['00.13', 'Sairaala ✝']];
+const AIKATAULU = [['21.13', PYSAKKI_MAARANPAA], ['22.13', PYSAKKI_MAARANPAA], ['23.13', PYSAKKI_MAARANPAA], ['00.13', 'Sairaala ✝']];
 let lappu = null;
 const suljeLappu = () => { if (lappu) { lappu.remove(); lappu = null; } };
 const avaaLappu = () => {
@@ -410,11 +436,11 @@ const avaaLappu = () => {
   d.innerHTML = '<div style="position:absolute;right:8px;top:4px;cursor:pointer;font:bold 18px sans-serif" title="Sulje">✕</div>' +
     '<div style="text-align:center">' + BUSSI_SVG + '</div>' +
     '<div style="text-align:center;font-weight:bold;font-size:16px;letter-spacing:1px;margin:4px 0 2px">LINJA 13</div>' +
-    (tila_ === 'uusi' ? '' : '<div style="text-align:center;font-size:12px;margin-bottom:8px">Pysäkki → Hautausmaa → Sairaala</div>') +
+    (tila_ === 'uusi' ? '' : '<div style="text-align:center;font-size:12px;margin-bottom:8px">Pysäkki → ' + esc(PYSAKKI_MAARANPAA) + ' → Sairaala</div>') +
     '<table style="width:100%;border-collapse:collapse;font-family:monospace;font-size:14px">' + rivit.join('') + '</table>' + kyna +
-    (tila_ === 'uusi' ? '' : '<div style="font-size:11px;margin:4px 0 10px">Yöbussi 00.13 lähti viimeisen kerran 13.10. eikä saapunut perille.</div>' +
-    '<div style="border-top:2px solid #111;padding-top:8px;font-style:italic">Kuljettaja jätti autonsa kesken matkan. Hän otti mukaansa vain sen, mikä yhdistää virran moottoriin, ' +
-    'ja piilotti sen sinne, missä kukaan ei enää odota bussia.</div>');
+    // 18:56 POISTETTU sonan rivi "Kuljettaja jätti autonsa kesken matkan. Hän otti mukaansa vain sen, mikä yhdistää virran moottoriin, ja piilotti sen
+    //   sinne, missä kukaan ei enää odota bussia." Se vihjasi johdon piilotuspaikkaan, jota tarinassa ei enää ole (johto = kaapeli kaupasta, sona 18:55).
+    (tila_ === 'uusi' ? '' : '<div style="font-size:11px;margin:4px 0 10px">Yöbussi 00.13 lähti viimeisen kerran 13.10. eikä saapunut perille.</div>');
   d.firstChild.addEventListener('click', ev => { ev.stopPropagation(); suljeLappu(); });
   // sona 16:56:37 "Tee tosta linja auton lapusta semmonen et sitä ikkunaa voi siirtää": koko lappu on kahva (✕ ei aloita raahausta), pysyy ikkunan sisällä
   d.style.cursor = 'move'; d.style.touchAction = 'none'; d.style.userSelect = 'none'; nielePelilta(d);
@@ -497,7 +523,7 @@ akkuVahti.observe(document.body, { childList: true, subtree: true, characterData
 //   "tyhjä" ei osunut koskaan. Observer toimi koko ajan. Testikahva jätetään: tila._kupla.tarkista(el) ajaa suodattimen yhdelle elementille.
 tila._kupla = { onAkku: ON_AKKU, tarkista: el => { akkuKupla(el); return el.style.display; }, avaaLappu };
 
-// ---- PULMA 29.10.: kassan kuitti, kaapelit, läppäri, radio (vakiot tiedoston alussa "PULMA 29.10." -lohkossa)
+// ---- PULMA 29.10.: kassan kuitti, koaksiaalikaapeli, läppäri, radio (vakiot tiedoston alussa "PULMA 29.10." -lohkossa)
 let pulmaPois = () => {};
 {
   const dv = (o, k) => { const d = o && Object.getOwnPropertyDescriptor(o, k); return d && !d.get ? d.value : undefined; };
@@ -518,7 +544,7 @@ let pulmaPois = () => {};
     return false; };
   // Piilotetun alueen furni (pimennys: furniture_wired_opacity 0) ei reagoi, vaikka valinta jostain syystä tulisi -> ei paljasta aluetta etukäteen.
   const nakyvissa = (ev) => { try { const o = e.getRoomObject(huone, ev.objectId, 10), v = o && o.model && o.model.getValue('furniture_wired_opacity'); return v !== 0; } catch (x) { return true; } };
-  for (const s of [LAPPARI, RADIO, ...KASSAT, ...KAAPELIT.map(k => k.furni)]) if (s && s.id == null && !s.tyyppi) console.warn('683 pulma: furni ilman id:tä ja luokkaa', s);
+  for (const s of [LAPPARI, RADIO, ...KASSAT, KAAPELI.furni]) if (s && s.id == null && !s.tyyppi) console.warn('683 pulma: furni ilman id:tä ja luokkaa', s);
   const onTavara = (n) => paikat.some(p => p && p.nimi === n);
   let radioKorjattu = false;
 
@@ -549,27 +575,33 @@ let pulmaPois = () => {};
   const radio = () => {
     if (radioKorjattu) { ilmoita(RADIO_JO_OK, RADIO_MS); return 'jo'; }
     if (!pussi || !onTavara(AKKU)) { ilmoita(RADIO_MYKKA, RADIO_MS); lokiin({ radio: 'mykkä' }); return 'mykka'; }
-    if (VAADI_JOHTO && !onTavara(JOHTO)) { ilmoita(RADIO_EI_JOHTOA, RADIO_MS); lokiin({ radio: 'ei johtoa' }); return 'eijohtoa'; }
-    if (!onTavara(KAAPELI_OIKEA)) { ilmoita(RADIO_KOHINA, RADIO_MS); lokiin({ radio: 'kohina' }); return 'kohina'; }
+    if (!onTavara(KAAPELI.nimi)) { ilmoita(RADIO_KOHINA, RADIO_MS); lokiin({ radio: 'kohina' }); return 'kohina'; }
     radioKorjattu = true; lokiin({ radio: 'korjattu' }); ilmoita(RADIO_OK, RADIO_MS, undefined, VIHREA); sanoKoodi(); return 'ok'; };
   const kaapeli = (k) => {
     if (!pussi) { lokiin({ kaapeli: 'ei pussia', nimi: k.nimi }); return -2; }   // ei viestiä: spoileri (kuten akku)
     if (onTavara(k.nimi)) return paikat.findIndex(p => p && p.nimi === k.nimi);
-    if (KAAPELI_VAIHTO) { const vanha = paikat.find(p => p && KAAPELIT.some(x => x.nimi === p.nimi)); if (vanha) tila.poista(vanha.nimi); }
     const i = tila.lisaa(k.nimi, k.kuva || undefined);
     if (i >= 0) ilmoita(KAAPELI_SAIT.replace('{nimi}', k.nimi), 8000, undefined, VIHREA); else if (KAAPELI_TAYNNA) ilmoita(KAAPELI_TAYNNA, 4000);
     lokiin({ kaapeli: k.nimi, paikka: i }); return i; };
+  // Kassa: teksti kuten ennen (ellei wired näytä sitä) JA kuitti pelaajalle. Ilman pussia kuitti menee paikat[]-tauluun odottamaan (paneeli ei näy),
+  //   pussin otossa tila.anna ilmoittaa KUITTI_SIIRTYI. Jo hallussa: vain teksti.
+  const kuitti = () => {
+    lokiin({ kuitti: 1 }); if (SKRIPTI_NAYTTAA.kuitti) ilmoita(KUITTI_TEKSTI, KUITTI_MS);
+    if (onTavara(KUITTI)) return paikat.findIndex(p => p && p.nimi === KUITTI);
+    const i = tila.lisaa(KUITTI, KUITTI_KUVA || undefined);
+    if (i >= 0 && !pussi) kuittiOdottaa = true;
+    lokiin({ kuitti: pussi ? 'pussiin' : 'tallessa', paikka: i }); return i; };
   const pulmaValittu = (ev) => { try {
     if (!ev || ev.category !== 10) return;
     if (!nakyvissa(ev)) return;
-    if (KASSAT.some(s => osuu(s, ev))) { lokiin({ kuitti: 1 }); if (SKRIPTI_NAYTTAA.kuitti) ilmoita(KUITTI_TEKSTI, KUITTI_MS); return; }
+    if (KASSAT.some(s => osuu(s, ev))) { kuitti(); return; }
     if (osuu(LAPPARI, ev)) { lokiin({ lappari: 1 }); if (SKRIPTI_NAYTTAA.lappari) ilmoita(LAPPARI_TEKSTI, LAPPARI_MS); return; }
     if (osuu(RADIO, ev)) { radio(); return; }
-    const k = KAAPELIT.find(x => osuu(x.furni, ev)); if (k) kaapeli(k);
+    if (osuu(KAAPELI.furni, ev)) kaapeli(KAAPELI);
   } catch (x) { lokiin({ virhe: 'pulma: ' + String(x) }); } };
   if (vayla && vayla.addEventListener) vayla.addEventListener('REOE_SELECTED', pulmaValittu);
   tila.radioKorjattu = () => radioKorjattu;
-  tila._pulma = { radio, kaapeli: (nimi) => { const k = KAAPELIT.find(x => x.nimi === nimi); return k ? kaapeli(k) : -3; }, valittu: pulmaValittu, sanoKoodi, osuu };
+  tila._pulma = { radio, kaapeli: () => kaapeli(KAAPELI), kuitti, kuittiOdottaa: () => kuittiOdottaa, valittu: pulmaValittu, sanoKoodi, osuu };
   pulmaPois = () => {
     try { if (vayla && vayla.removeEventListener) vayla.removeEventListener('REOE_SELECTED', pulmaValittu); } catch (x) {}
     if (kuplaVahti) { kuplaVahti.disconnect(); kuplaVahti = null; }
@@ -737,7 +769,7 @@ return () => {
   // siivous: pussi ja paikat nollataan (sona 14:42:21 "ei" pysyvyydelle), paneeli ja ilmoitus pois, kuuntelija pois, API pois
   try { pimennysPois(); } catch (x) {}
   try { pulmaPois(); } catch (x) {}
-  pussi = false; paikat = new Array(PAIKKOJA).fill(null);
+  pussi = false; kuittiOdottaa = false; paikat = new Array(PAIKKOJA).fill(null);
   clearInterval(ambulanssiVali); ambulanssissa = null;
   clearInterval(laattaVali); laatalla = null; akkuVahti.disconnect(); suljeLappu(); if (vayla && vayla.removeEventListener) vayla.removeEventListener('REOE_SELECTED', pysakkiValittu);
   kiinni = false; ankkuri = null; avaaAnkkuriin = null; sij[2] = null; sij[3] = null;
