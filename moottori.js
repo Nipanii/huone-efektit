@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Huoneskriptit (moottori)
-// @version      0.6.9
+// @version      0.7.0
 // @match        https://kupla.cc/*
 // @grant        none
 // ==/UserScript==
@@ -26,9 +26,12 @@
 //   createRoomInstancen id:llä >= 0x7FFF0000. Moottori luuli sitä huoneen vaihdoksi: 682 pysähtyi 18:56:04 (huone 2147418113) ja
 //   esikatselun sulkeutuessa huone oli 0, vaikka kp oli koko ajan 682:ssa. Nyt esikatselu-id:t ohitetaan, ja 15 s tiki korjaa
 //   itsensä roomEngine.activeRoomId:stä (pelin oma, -1 kun sessio päättyy) jos huone on silti mennyt ristiin.
+// Chat-komennot :pussi ja :showrooms (0.7.0, kp 29.10. 15:0x): ks. koodi, "Chat-komento :hw<N>" -osion jälkeen. Samalla kaappauksella ja
+//   samalla sallittu-id-listalla kuin :hw<N>. :pussi N = pussin ulkonäkö (hs.pussiVariantti → kupla683.variantti), :pussi N NIMI = kuiskaus
+//   NIMI:lle jonka moottori vastaanottajalla nielee ja toteuttaa, :showrooms = piilotetut huonealueet näkyviin (hs.naytaPiilot).
 // Konsolissa: huoneskriptit.ajossa (mitä ajetaan) · huoneskriptit.loki · huoneskriptit.paivita(true) (hae ja käynnistä uudelleen)
 (() => {
-  const hs = { versio: '0.6.9', huone: 0, ajossa: new Map(), loki: [], pysaytetty: false };   // versio: myös 0.4.x:n itsepäivitys lukee tämän
+  const hs = { versio: '0.7.0', huone: 0, ajossa: new Map(), loki: [], pysaytetty: false };   // versio: myös 0.4.x:n itsepäivitys lukee tämän
   const POHJA = 'https://nipanii.github.io/huone-efektit/';
   const uudempi = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number);
     for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); return false; };
@@ -42,6 +45,9 @@
   if (ed && ed.versio && !ed.pysaytetty) {
     if (!uudempi(hs.versio, ed.versio)) { if (vanhaPois && ed.paivita) ed.paivita(true); return; }
     try { ed.pysayta(); } catch (err) { console.warn('[huoneskriptit] edellisen moottorin pysäytys epäonnistui', err); }
+    // 0.7.0: moottorin itsepäivitys ei saa nollata :pussi / :showrooms -valintoja (muistissa vain selainistunnon ajan)
+    if (ed.pussiVariantti != null) hs.pussiVariantti = ed.pussiVariantti;
+    if (ed.naytaPiilot) hs.naytaPiilot = true;
   }
   window.huoneskriptit = hs;
 
@@ -161,6 +167,7 @@
     if (hs.pysaytetty) return;
     if (!kytke()) return;
     try { const a = window.NitroDevTools.roomEngine.activeRoomId; if (a > 0 && !esikatselu(a) && a !== hs.huone) { merkitse({ korjattu: 'huone ' + hs.huone + ' -> ' + a }); vaihda(a); } } catch (err) {}
+    if (hs.vastaanottoKytke) hs.vastaanottoKytke();   // 0.7.0: :pussi-kuiskauksen vastaanotto, jos yhteys ei ollut vielä valmis latauksessa
     paivita(false);   // myös tyhjässä huoneessa: uusi huoneet.json-rivi käynnistyy ilman huoneen vaihtoa, ja muisti pysyy tuoreena
     try { const t = await hae('moottori.js'), v = ((t.match(/\/\/\s*@version\s+([^\r\n]+)/) || [])[1] || '').trim();
       if (v && !hs.pysaytetty && uudempi(v, hs.versio)) { const L = window.huoneEfektiLataaja; if (L) L.koodi = t; (0, eval)(t); console.info('[huoneskriptit] moottori päivitetty', v); } } catch (err) {}
@@ -186,16 +193,86 @@
       + 'background:rgba(0,0,0,.75);color:#fff;font:bold 15px sans-serif;border-radius:6px;transition:opacity .4s';
     document.body.appendChild(d); setTimeout(() => { d.style.opacity = '0'; }, 1600); setTimeout(() => d.remove(), 2100); };
   hs.hwKomento = (teksti) => { const m = HW_KOMENTO.exec(String(teksti || '').trim()); return m ? siirry(Number(m[1])) : null; };
+  // Chat-komennot (0.7.0): yksi kaappaus, komentotaulukko. :hw<N> käyttäytyy täsmälleen kuten ennen; :pussi ja :showrooms käyttävät samaa
+  //   kaappausta, kenttää, tyhjennystä ja sallittu-id-tarkistusta (HW.sallitut), joten uutta kaappausta ei ole. Muille käyttäjille rivi menee chattiin kuten ennen.
+  const PUSSI_KOMENTO = /^:pussi\s*(\d+)(?:\s+(\S+))?$/i, NAYTA_KOMENTO = /^:showrooms$/i, PUSSI_VIESTI = /^:pussi\s*(\d+)$/i;
+  const KOMENNOT = [
+    { re: HW_KOMENTO, aja: (rivi) => {
+      const t = hs.hwKomento(rivi); merkitse({ hw: rivi, tulos: JSON.stringify(t) });
+      hwIlmoita(t && t.ok ? (t.huone === HW.huoneet[0] ? 'Halloween-lobby -> huone ' : 'Halloween-rata -> huone ') + t.huone : 'Halloween-rata: ' + (t && t.syy)); } },
+    { re: PUSSI_KOMENTO, aja: (rivi) => { const m = PUSSI_KOMENTO.exec(rivi), n = Number(m[1]);
+      if (m[2]) { const t = hs.pussiLahetaMuille(n, m[2]); merkitse({ pussi: rivi, tulos: JSON.stringify(t) }); hwIlmoita(t.ok ? 'Pussi: vaihtoehto ' + n + ' -> ' + m[2] : 'Pussi: ' + t.syy); }
+      else { hs.pussiAseta(n); merkitse({ pussi: rivi }); hwIlmoita('Pussi: vaihtoehto ' + n); } } },
+    { re: NAYTA_KOMENTO, aja: (rivi) => { const v = hs.naytaPiilotVaihda(); merkitse({ showrooms: rivi, naytaPiilot: v }); hwIlmoita(v ? 'Piilohuoneet: näkyvissä' : 'Piilohuoneet: piilossa'); } },
+  ];
   const hwKuule = (ev) => {
     if (ev.key !== 'Enter' && ev.key !== 'NumpadEnter') return;
     const el = ev.target; if (!(el instanceof HTMLInputElement) || !el.matches(HW_KENTTA)) return;
-    const rivi = (el.value || '').trim(); if (!HW_KOMENTO.test(rivi) || !HW.sallitut.includes(omaId())) return;
+    const rivi = (el.value || '').trim(); const k = KOMENNOT.find(x => x.re.test(rivi)); if (!k || !HW.sallitut.includes(omaId())) return;
     ev.preventDefault(); ev.stopImmediatePropagation();
-    const t = hs.hwKomento(rivi); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, ''); el.dispatchEvent(new Event('input', { bubbles: true }));
-    merkitse({ hw: rivi, tulos: JSON.stringify(t) });
-    hwIlmoita(t && t.ok ? (t.huone === HW.huoneet[0] ? 'Halloween-lobby -> huone ' : 'Halloween-rata -> huone ') + t.huone : 'Halloween-rata: ' + (t && t.syy));
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, ''); el.dispatchEvent(new Event('input', { bubbles: true }));
+    try { k.aja(rivi); } catch (x) { merkitse({ komentoVirhe: rivi, viesti: String(x) }); hwIlmoita('Komento epäonnistui: ' + x); }
   };
   addEventListener('keydown', hwKuule, true);
+
+  // :pussi (0.7.0, kp 29.10. 15:0x): pussin ulkonäkövaihtoehto huoneeseen 683. Arvo vain muistissa (hs.pussiVariantti = window.huoneskriptit.pussiVariantti,
+  //   ei localStorageen), joten se pätee kun 683:een tullaan myöhemmin: 250 ms ajastin syöttää sen window.kupla683.variantti(N):lle aina kun
+  //   kupla683 on uusi tai arvo muuttui. 683.js:ää ei muokata; kupla683.variantti puuttuessa vain muistetaan.
+  hs.pussiVariantti = hs.pussiVariantti == null ? null : hs.pussiVariantti;
+  const PUSSI = hs.pussi = { sovellettu: null, sovellettuArvo: null };
+  PUSSI.sovella = () => { const t = window.kupla683, n = hs.pussiVariantti;
+    if (n == null || !t || typeof t.variantti !== 'function') return false;
+    if (PUSSI.sovellettu === t && PUSSI.sovellettuArvo === n) return false;
+    PUSSI.sovellettu = t; PUSSI.sovellettuArvo = n; try { t.variantti(n); } catch (x) { merkitse({ pussi: 'variantti() kaatui', viesti: String(x) }); } return true; };
+  hs.pussiAseta = (n) => { hs.pussiVariantti = Number(n); PUSSI.sovella(); return hs.pussiVariantti; };
+
+  // :pussi N NIMI -> toiselle pelaajalle. Lähetys = pelin oma RoomSession.sendWhisperMessage(nimi, teksti, tyyli) (Nitro_Render_V3 session/RoomSession.ts:89-92,
+  //   sama jota DarkUI useChatInputWidget.ts:258 kutsuu), ei käsin rakennettua pakettia. Teksti on pelkkä markkeri ":pussi N".
+  //   Vastaanotto: pelin chat-viesti kulkee SocketConnection.handleMessages(...) → message.callBack (SocketConnection.ts:1141-1152) → sekä chat-kupla
+  //   (RoomChatHandler.ts:14,42) että huonemoottorin suu/ele (RoomMessageHandler.ts:130). Moottori kääriytyy handleMessagesiin täsmälleen kuten
+  //   huoneet/682.js:149-170 (toimiva ennakkotapaus: "niellään vain se yksi viesti"), jolloin markkeri-viesti ei koskaan saavu kumpaankaan = ei kuplaa.
+  //   Vain sallitun lähettäjän (id roomIndexistä: session.userDataManager.getUserDataByIndex(i).webID) markkeri nielaistaan ja toteutetaan; muiden
+  //   saman näköinen viesti menee läpi tavallisena puheena. Omasta kaiusta (palvelin kaiuttaa kuiskauksen lähettäjälle) nielaistaan, ei toteuteta uudestaan.
+  //   RAJOITE: kuiskaus/puhe/huuto jakavat saman parserin eikä luokkanimeä voi lukea (minifioituu), joten myös sallitun julkinen ":pussi N" nielaistaisiin.
+  const lahettajaId = (indeksi) => { const e = window.NitroDevTools && window.NitroDevTools.roomEngine, sm = e && dvh(e, '_roomSessionManager'), s = sm && sm.getSession && sm.getSession(hs.huone);
+    const u = s && s.userDataManager && s.userDataManager.getUserDataByIndex && s.userDataManager.getUserDataByIndex(indeksi); return u ? { id: Number(u.webID) || 0, nimi: String(u.name || '') } : null; };
+  hs.pussiLahetaMuille = (n, nimi) => { const id = omaId(); if (!HW.sallitut.includes(id)) return { ok: false, syy: 'ei oikeutta', id };
+    const e = window.NitroDevTools && window.NitroDevTools.roomEngine, sm = e && dvh(e, '_roomSessionManager'), s = sm && sm.getSession && sm.getSession(hs.huone);
+    if (!s || typeof s.sendWhisperMessage !== 'function') return { ok: false, syy: 'ei huonetta / sendWhisperMessage puuttuu', id };
+    s.sendWhisperMessage(String(nimi), ':pussi ' + Number(n), 0); return { ok: true, id, nimi: String(nimi) }; };
+  // Vastaanotto, erillään kääreestä testattavaksi: palauttaa true = nielaise viesti.
+  hs.pussiViesti = (p) => { if (!p || typeof p.message !== 'string' || typeof p.roomIndex !== 'number') return false;
+    const m = PUSSI_VIESTI.exec(p.message.trim()); if (!m) return false;
+    const l = lahettajaId(p.roomIndex); if (!l || !HW.sallitut.includes(l.id)) return false;
+    if (l.id === omaId()) return true;   // oma kaiku
+    hs.pussiAseta(Number(m[1])); merkitse({ pussi: 'vastaanotettu', n: Number(m[1]), lahettaja: l.nimi });
+    hwIlmoita('Pussi: vaihtoehto ' + m[1] + ' (lähetti ' + l.nimi + ')'); return true; };
+  const yhteysEtsi = () => { const e = window.NitroDevTools && window.NitroDevTools.roomEngine; if (!e) return null; const nahty = new Set(); let c = null;
+    const etsi = (o, d) => { if (!o || c || d > 4 || typeof o !== 'object' || nahty.has(o)) return; nahty.add(o);
+      if (Object.getOwnPropertyDescriptor(o, '_cryptoState')) { c = o; return; }
+      for (const k of Object.getOwnPropertyNames(o)) { const de = Object.getOwnPropertyDescriptor(o, k); if (de && !de.get && de.value && typeof de.value === 'object') etsi(de.value, d + 1); } };
+    etsi(dvh(e, '_roomSessionManager'), 0); return c; };
+  const VASTAANOTTO = hs.vastaanotto = { yhteys: null, alkup: null, oma: null };
+  hs.vastaanottoKytke = () => { try { const c = yhteysEtsi(); if (!c || typeof c.handleMessages !== 'function' || VASTAANOTTO.yhteys === c) return !!c;
+    const alkup = c.handleMessages, oma = function (...viestit) {
+      if (!hs.pysaytetty && window.huoneskriptit === hs) { try { viestit = viestit.filter(v => !(v && hs.pussiViesti(v.parser))); if (!viestit.length) return; } catch (x) {} }
+      return alkup.apply(this, viestit); };
+    c.handleMessages = oma; VASTAANOTTO.yhteys = c; VASTAANOTTO.alkup = alkup; VASTAANOTTO.oma = oma; return true; } catch (x) { return false; } };
+  hs.vastaanottoPura = () => { const c = VASTAANOTTO.yhteys; if (c && c.handleMessages === VASTAANOTTO.oma) c.handleMessages = VASTAANOTTO.alkup; VASTAANOTTO.yhteys = null; };
+
+  // :showrooms (0.7.0, kp 29.10. 15:0x): piilotetut huonealueet näkyviin omalla koneella testausta varten. Moottori vain pitää lipun ja kertoo siitä;
+  //   huoneskripti päättää mitä "piilotettu alue" on (huoneet/682.js). Skriptit voivat lukea hs.naytaPiilot (kysely joka kierroksella) tai tilata
+  //   hs.onNaytaPiilot(fn) (kutsutaan heti muutoksessa; palauttaa peruutusfunktion). Lisäksi window-tapahtuma 'huoneskriptit:naytaPiilot' {detail:{nakyvissa}}.
+  hs.naytaPiilot = !!hs.naytaPiilot;
+  const NAYTA_KUUNTELIJAT = hs._naytaKuuntelijat = new Set();
+  hs.onNaytaPiilot = (fn) => { if (typeof fn !== 'function') return () => {}; NAYTA_KUUNTELIJAT.add(fn); return () => NAYTA_KUUNTELIJAT.delete(fn); };
+  hs.naytaPiilotAseta = (v) => { hs.naytaPiilot = !!v;
+    for (const f of [...NAYTA_KUUNTELIJAT]) try { f(hs.naytaPiilot); } catch (x) { merkitse({ virhe: 'naytaPiilot-kuuntelija', viesti: String(x) }); }
+    try { if (typeof CustomEvent === 'function') window.dispatchEvent(new CustomEvent('huoneskriptit:naytaPiilot', { detail: { nakyvissa: hs.naytaPiilot } })); } catch (x) {}
+    return hs.naytaPiilot; };
+  hs.naytaPiilotVaihda = () => hs.naytaPiilotAseta(!hs.naytaPiilot);
+  hs._pussiAjastin = setInterval(() => { try { PUSSI.sovella(); } catch (x) {} }, 250);
+  hs.vastaanottoKytke();
 
   // Oma hahmo (0.6.7, kp 29.10. 00:15 "Bibble ei näe itteään" · 00:24 "Korjaa se ongelma pysyvästi" · 00:34 "Vastaava bugi ei sit saa
   //   toistua kun tehdään loput huoneet"): huoneskripti ei saa koskaan piilottaa pelaajaa itseltään. 682.js mykisti oman hahmon
@@ -240,6 +317,6 @@
     return true; };
   hs._itseAjastin = setInterval(() => { try { ITSE.tarkista(); } catch (x) {} }, 250);
 
-  hs.pysayta = () => { hs.pysaytetty = true; clearInterval(hs._tiki); clearInterval(hs._itseAjastin); verhoPois('moottori pysäytetty'); if (hs._palauta) hs._palauta(); pysaytaKaikki(true); removeEventListener('keydown', hwKuule, true);
+  hs.pysayta = () => { hs.pysaytetty = true; clearInterval(hs._tiki); clearInterval(hs._itseAjastin); clearInterval(hs._pussiAjastin); if (hs.vastaanottoPura) hs.vastaanottoPura(); verhoPois('moottori pysäytetty'); if (hs._palauta) hs._palauta(); pysaytaKaikki(true); removeEventListener('keydown', hwKuule, true);
     if (window.huoneskriptit === hs) delete window.huoneskriptit; };
 })();

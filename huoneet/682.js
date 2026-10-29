@@ -102,8 +102,10 @@ const botPiiloon = (o, on) => { try { const v = o.visualization; if (!v) return;
   }
 } catch (x) {} };
 
+const naytaPiilot = () => { const h = window.huoneskriptit; return !!(h && h.naytaPiilot); };
 const paivita = () => {
-  tila.nakyy = tila.pakko == null ? (tila.valmis || omaAlueella()) : !!tila.pakko;
+  // kp 29.10. 15:0x :showrooms (moottori 0.7.0): hs.naytaPiilot päällä = piilotettu alue näkyy aina (testaus), pois = tavallinen käytös. Voittaa pakota(false):n.
+  tila.nakyy = naytaPiilot() || (tila.pakko == null ? (tila.valmis || omaAlueella()) : !!tila.pakko);
   const n = tila.nakyy ? 1 : 0; let piilossa = 0;
   if (tila.reika !== !n) { try { e.updateAreaHide(huone, REIKA, !n, ALUE.x0, ALUE.y0, ALUE.x1 - ALUE.x0 + 1, ALUE.y1 - ALUE.y0 + 1, false); tila.reika = !n; } catch (x) {} }
   for (const o of e.getRoomObjects(huone, 10) || []) {
@@ -497,6 +499,7 @@ document.addEventListener('pointerlockchange', lukko); pois.push(() => document.
 document.addEventListener('keydown', nappain, true); pois.push(() => document.removeEventListener('keydown', nappain, true));
 window.addEventListener('resize', pyyda); pois.push(() => window.removeEventListener('resize', pyyda));
 
+{ const h = window.huoneskriptit; if (h && typeof h.onNaytaPiilot === 'function') pois.push(h.onNaytaPiilot(() => paivita())); }   // heti kun :showrooms vaihtuu; 250 ms tiki lukee lipun joka tapauksessa
 paivita();
 const ajastin = setInterval(paivita, 250);
 nappiRaf = requestAnimationFrame(nappiSilmukka); pois.push(() => cancelAnimationFrame(nappiRaf));
