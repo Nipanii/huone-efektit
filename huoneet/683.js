@@ -960,6 +960,7 @@ const NUOLET = [438320, 438321, 438322, 438323, 438324, 438325];   // alueiden v
 let nuoliT = 0;
 const nuoliTarkka = () => { try { const r = omaRuutu(); if (!r) return; for (const id of NUOLET) { const o = e.getRoomObject(huone, id, 10), L = o && o.getLocation && o.getLocation(); if (L && Math.round(L.x) === r.x && Math.round(L.y) === r.y) { nuoliT = Date.now(); return; } } } catch (x) {} };
 const tallennaTila = () => { nuoliTarkka(); try { window.__h683Pussi = { huone, ist: istuntoNyt(), nuoliT, pussi, paikat: paikat.slice(), t: Date.now(), kassaAuki: !!kassaNaytto, kassaRatk: [...kassaRatkaistu], kassaPalkittu, kelloAuki: !!kelloLappu }; } catch (x) {} };
+const avainTyyli = document.createElement('style'); avainTyyli.textContent = 'img[src="' + AVAIN_KUVA + '"]{transform:rotate(90deg)}'; (document.head || document.body).appendChild(avainTyyli);   // kp 20:59 'myötäpäivä': avain 90° myötäpäivään, hampaat alas
 const tallennusVali = setInterval(tallennaTila, 300);   // sona 20:44 'ettei pussi katoa ollenkaan': jatkuva tallennus, ei vain siivouksessa
 const escSulje = (ev) => { if (ev.key !== 'Escape') return; if (kassaNaytto || kelloLappu || lappu) { suljeKassaNaytto(); suljeKelloLappu(); suljeLappu(); } };   // kp 20:43 'esc sulkee'
 document.addEventListener('keydown', escSulje, true);
@@ -970,7 +971,7 @@ return () => {
   // siivous: pussi ja paikat nollataan (sona 14:42:21 "ei" pysyvyydelle), paneeli ja ilmoitus pois, kuuntelija pois, API pois
   try { pimennysPois(); } catch (x) {}
   try { pulmaPois(); } catch (x) {}
-  clearInterval(tallennusVali); tallennaTila(); document.removeEventListener('keydown', escSulje, true);   // päivityksen yli (ks. alku)
+  clearInterval(tallennusVali); tallennaTila(); try { avainTyyli.remove(); } catch (x) {} document.removeEventListener('keydown', escSulje, true);   // päivityksen yli (ks. alku)
   pussi = false; kuittiOdottaa = false; paikat = new Array(PAIKKOJA).fill(null);
   clearInterval(ambulanssiVali); ambulanssissa = null; clearInterval(kauppaVali); kaupanNuolella = null;
   clearInterval(chatVali); try { chatPalauta(); } catch (x) {} suljeKelloLappu(); suljeKassaNaytto();
