@@ -19,7 +19,7 @@ const MUISTI = 'h684.efektit';
 
 const e = window.NitroDevTools && window.NitroDevTools.roomEngine;
 const huone = (kupla && kupla.roomId && kupla.roomId()) || (e && e.activeRoomId);
-const tila = window.pimeys = { versio: 'huone-684 valosim', huone, tummuus: 1,  verhoTasoitus: 12, estoKorkeus: 1, seinaKorkeus: 2.4, askel: 0.1,
+const tila = window.pimeys = { versio: 'huone-684 valosim kerros-body', huone, tummuus: 1,  verhoTasoitus: 12, estoKorkeus: 1, seinaKorkeus: 2.4, askel: 0.1,
   sateet: 220, resoluutio: 3, ilmanValoa: 1.8, pehmeys: 34, eteen: 0.7, keilaVoima: 0.35, varjoValo: 0, vartaloVoima: 0, kupoli: 2.2,   // kupoli = valokuvun korkeus ruutuina (kp 23:45 'se ovaali muoto hahmon ympäril on vaa offputting': erillinen vartalosoikio pois, hahmo valaistaan samalla kuvulla)
     // pehmeys = reunan sumennus css-pikseleinä (kp 20:37:40 'aika harsh noi valo reunat', 21:52 'pitäs olla pehmeempi spread')
   // eteen = valopiirin liukuman keskipiste siirtyy näin monta ruutua katseen suuntaan; keilaVoima = keilan voima (kp 21:53 'paljon subtlempi')
@@ -39,32 +39,45 @@ const omaIndeksi = () => {
   const sm = e && Object.getOwnPropertyDescriptor(e, '_roomSessionManager'); const s = sm && sm.value && sm.value.getSession && sm.value.getSession(huone);
   const i = s && s.ownRoomIndex; return (i == null || i < 0) ? null : i;
 };
-// kp 22:27-22:28 'inventoori ei aukee' + 'ei saa huijaa et glitchaa efektin pois': inventaarion esikatselukanvas voitti joskus koon vertailun ja pimeys liitettiin sen sisään (rikkoi ikkunan ja pimeyden).
-// Nyt vain huoneen kanvas: ei omia kerroksia, ei ikkunan sisällä, ja peittää suurimman osan näkymästä.
-const kanvas = () => [...document.querySelectorAll('canvas')].filter(c => { if (c === verho || c === savy) return false; const r = c.getBoundingClientRect(); return r.width >= innerWidth * 0.7 && r.height >= innerHeight * 0.7; }).sort((a, b) => b.width * b.height - a.width * a.height)[0];
+// kp 29.10. 22:27-22:44 'tää sekoo jos laittaa inventoorin päälle' · 'ei saa huijaa et glitchaa efektin pois' · kauppa sama.
+// Syy (mitattu robolla 22:51 kp:n clientin rakenteella): kanvas valittiin KOON mukaan kaikista sivun kanvaksista ja pimeys
+//   liitettiin sen sisarukseksi. kp:n clientissa on toinen huoneen kokoinen kanvas (rauhoitetut-ruudut-lisäosa), joka siirtyy
+//   inventaarion/kaupan esikatselun viereen kun ikkuna aukeaa -> koko tasapeli -> pimeys liitettiin IKKUNAN sisään (ikkuna
+//   musta, huone pimeyden ulkopuolelta näkyvissä). 57ed5e8:n 70 %-kokoraja ei auttanut: se kanvas on koko näkymän kokoinen.
+// Nyt ei kokoa eikä arvausta: huoneen kanvas on se, jonka pelin RoomView liittää omaan säiliöönsä (.roomView-background) ja
+//   johon se kytkee hiiren (RoomView.tsx: canvas.onmousedown = DispatchMouseEvent). Kerrokset eivät mene pelin (Reactin)
+//   DOMiin lainkaan: oma säiliö bodyyn, asemoitu huoneen kanvaksen päälle.
+const kanvas = () => { for (const c of document.querySelectorAll('.roomView-background > canvas')) if (typeof c.onmousedown === 'function') return c; return null; };
 const kadessa = o => { try { return Number(o.model.getValue('figure_carry_object')) || 0; } catch (x) { return 0; } };
 
 const savy = document.createElement('canvas');   // dimmerin värisävy omana kanvaksena: valot leikkaavat myös sen (div jätti valaistun alueen violetiksi)
 const sx = savy.getContext('2d');
-savy.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:100vh;pointer-events:none;z-index:1';
+savy.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none';
 const verho = document.createElement('canvas');   // pimeys, josta valot leikataan; pieni resoluutio venytetään = pehmeät reunat
-verho.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:100vh;pointer-events:none;z-index:1';
+verho.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none';
+// Säiliö bodyssa, huoneen kanvaksen kohdalla. z-index 1 = sama maalausjärjestys kuin ennen kanvaksen vieressä: huoneen kanvaksen
+//   yläpuolella ei ole pinoamiskontekstia, ja pelin UI (chat 20, työkalupalkki 70, ikkunat 400+, ...) on kaikki z >= 10 (mitattu 22:55).
+const kerros = document.createElement('div');
+kerros.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;overflow:hidden;pointer-events:none;z-index:1';
+kerros.append(savy, verho);
 const cx = verho.getContext('2d');
 // Valokartta: kaikki valot SUMMATAAN tähän (lighter) ja sumennetaan KERRAN, sitten leikataan pimeydestä.
 // kp 23:40 'kuoppa ... useasta alueesta ... ruma gap, eiks vois tehä et se on yks alue': erillisten muotojen
 // leikkaus jätti väliin kuopan; kenttien summa + yksi sumennus = yksi yhtenäinen alue (metapallo-periaate).
 const valokartta = document.createElement('canvas'), lx = valokartta.getContext('2d'); let savyt = []; tila.valokartta = valokartta;   // testaus: pimeys.valokartta.toDataURL()
-let liitetty = null;
-const liita = cv => {
-  if (!cv || liitetty === cv) return;
-  // Kanvaksen perään samaan vanhempaan: kerrokset peittävät huoneen mutta jäävät chatin ja valikoiden alle.
-  cv.parentNode.insertBefore(verho, cv.nextSibling); cv.parentNode.insertBefore(savy, verho); liitetty = cv;
+// Säiliö huoneen kanvaksen päälle (sijainti ja koko joka ruudulla, muuttuu vain kun kanvas muuttuu). Palauttaa kanvaksen laatikon.
+let ala = '';
+const asettele = cv => {
+  if (!kerros.isConnected) document.body.appendChild(kerros);
+  const r = cv.getBoundingClientRect(), a = r.left + ',' + r.top + ',' + r.width + ',' + r.height;
+  if (a !== ala) { ala = a; Object.assign(kerros.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' }); }
+  return r;
 };
 
 let paalla = true;
 try { paalla = localStorage.getItem(MUISTI) !== 'pois'; } catch (x) {}
 tila.paalla = (p) => { if (p === undefined) return paalla; paalla = !!p;
-  savy.style.display = verho.style.display = paalla ? '' : 'none';
+  kerros.style.display = paalla ? '' : 'none';
   try { localStorage.setItem(MUISTI, paalla ? 'paalla' : 'pois'); } catch (x) {}
   tila.loki.push({ efektit: paalla ? 'päällä' : 'pois' }); return paalla; };
 tila.paalla(paalla);
@@ -195,10 +208,9 @@ const piirra = () => {
   if (!paalla) return;
   const t0 = performance.now();
   try {
-    const cv = kanvas(); if (!cv) return; liita(cv);
+    const cv = kanvas(); if (!cv) return; const kr = asettele(cv);
     const d = tila.dimmeri || {};
-    
-    const R = tila.resoluutio, W = Math.ceil(innerWidth / R), H = Math.ceil(innerHeight / R);
+    const R = tila.resoluutio, W = Math.max(1, Math.ceil(kr.width / R)), H = Math.max(1, Math.ceil(kr.height / R));
     if (verho.width !== W || verho.height !== H) { verho.width = W; verho.height = H; }
     if (savy.width !== W || savy.height !== H) { savy.width = W; savy.height = H; }
     if (valokartta.width !== W || valokartta.height !== H) { valokartta.width = W; valokartta.height = H; }
@@ -206,7 +218,7 @@ const piirra = () => {
     sx.globalCompositeOperation = 'source-over'; sx.clearRect(0, 0, W, H);
     sx.globalAlpha = Math.max(0, Math.min(1, Number(d.voima) || 0)); sx.fillStyle = d.vari || 'rgba(0,0,0,0)'; sx.fillRect(0, 0, W, H); sx.globalAlpha = 1;
     if (!kartta || t0 - kartanAika > 500) { kartta = rakennaKartta(); kartanAika = t0; }
-    const c = e._activeRoomActiveCanvas; g = e.getRoomInstanceGeometry(huone, c); rc = e.getRoomInstanceRenderingCanvas(huone, c); rr = cv.getBoundingClientRect();
+    const c = e._activeRoomActiveCanvas; g = e.getRoomInstanceGeometry(huone, c); rc = e.getRoomInstanceRenderingCanvas(huone, c); rr = { left: 0, top: 0 };   // kerros = huoneen kanvaksen laatikko, joten kanvaksen koordinaatit sellaisenaan
     cx.globalCompositeOperation = 'source-over'; cx.clearRect(0, 0, W, H); cx.fillStyle = 'rgba(0,0,0,' + tila.tummuus + ')'; cx.fillRect(0, 0, W, H);
     if (!kartta || !g || !rc) return;
     const lepatus = 1 + Math.sin(t0 / 120) * 0.03 + Math.sin(t0 / 47) * 0.02;
@@ -231,5 +243,5 @@ const piirra = () => {
 raf = requestAnimationFrame(piirra);
 tila.loki.push({ alku: huone, efektit: paalla ? 'päällä' : 'pois' });
 
-return () => { cancelAnimationFrame(raf); removeEventListener('keydown', kuuleKomento, true); savy.remove(); verho.remove();
+return () => { cancelAnimationFrame(raf); removeEventListener('keydown', kuuleKomento, true); kerros.remove();
   if (window.pimeys === tila) delete window.pimeys; };
