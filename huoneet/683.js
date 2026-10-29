@@ -545,12 +545,28 @@ const ambulanssiVali = setInterval(() => { try {
   if (!sisalla || oli !== false) return;   // laukeaa vain sisään astuttaessa (oli === false), ei joka ruudussa
   if (!pussi) { lokiin({ akku: 'ei pussia' }); return; }   // ei ilmoitusta: spoileri (kp 29.10. 15:17), sona pyysi vain akun saamisviestin
   if (paikat.some(p => p && p.nimi === AKKU)) return;   // jo saatu
-  // sona 19:45: auto on lukossa ilman avainta (kellon pulma). Ilmoitus kerran per astuminen (tämä kohta ajetaan vain sisään astuttaessa).
-  if (!paikat.some(p => p && p.nimi === AVAIN)) { lokiin({ akku: 'lukossa' }); if (AUTO_LUKOSSA) ilmoita(AUTO_LUKOSSA, AUTO_LUKOSSA_MS); return; }
-  tila.poista(AVAIN);   // avain kuluu; akku menee samaan paikkaan (PAIKKA_JARJESTYS[0])
+  // sona 19:59 "ei mitää että auto on lukossa" · "tuo on avain supermarkettiin": akku EI vaadi avainta (avain avaa kaupan, KAUPPA_* alla).
   const i = tila.lisaa(AKKU, AKKU_KUVA);
-  if (i >= 0) { lokiin({ akku: 'saatu', paikka: i, avain: 'kului' }); ilmoita('Sait akun', 8000, undefined, VIHREA); }   /* sona 15:19:57: 8 s */ else { lokiin({ akku: 'pussi täynnä' }); tila.lisaa(AVAIN, AVAIN_KUVA); }   // täynnä (ei pitäisi tapahtua: oma paikka): avain takaisin, ei ilmoitusta
+  if (i >= 0) { lokiin({ akku: 'saatu', paikka: i }); ilmoita('Sait akun', 8000, undefined, VIHREA); }   /* sona 15:19:57: 8 s */ else { lokiin({ akku: 'pussi täynnä' }); }   // täynnä (ei pitäisi tapahtua: oma paikka): avain takaisin, ei ilmoitusta
 } catch (err) { lokiin({ virhe: 'ambulanssi: ' + String(err) }); } }, AMBULANSSI_VALI);
+
+// ---- SUPERMARKETIN OVI (sona 20:00 osoitti nuolilaatan 438321 @24,23: "tolla pääsee supermarkettiin sillä avaimella · muuten se on lukossa ·
+//   ja ovi sanoo 'Ovi on lukittu'"). Hybridi: nuolen walks_on 426068 (pino 4,10) tyhjennetään, ja samaan pinoon says_something (piilota, tarkka)
+//   KAUPPA_KOODI -> sama teleport 427489. Tämä skripti sanoo koodin vain kun pelaaja astuu laatalle avain pussissa; avain kuluu (vapauttaa paikan 1).
+//   RAJA: ilman huone-efektejä pelaaja ei pääse kauppaan lainkaan (pussi on vain skriptissä).
+const KAUPPA_NUOLI = { id: 438321, x: 24, y: 23 }, KAUPPA_KOODI = 'ovi683avain', KAUPPA_LUKITTU = 'Ovi on lukittu.', KAUPPA_LUKITTU_MS = 4000;
+let kaupanNuolella = null;
+const kauppaVali = setInterval(() => { try {
+  const r = omaRuutu(); if (!r) return;
+  let o = null; try { o = e.getRoomObject(huone, KAUPPA_NUOLI.id, 10); } catch (x) {}
+  const L = o && o.getLocation && o.getLocation(), x = L ? Math.round(L.x) : KAUPPA_NUOLI.x, y = L ? Math.round(L.y) : KAUPPA_NUOLI.y;
+  const paalla = r.x === x && r.y === y, oli = kaupanNuolella; kaupanNuolella = paalla;
+  if (!paalla || oli !== false) return;   // vain astuttaessa
+  if (!pussi || !paikat.some(p => p && p.nimi === AVAIN)) { lokiin({ kauppa: 'lukossa' }); ilmoita(KAUPPA_LUKITTU, KAUPPA_LUKITTU_MS); return; }
+  const sm = Object.getOwnPropertyDescriptor(e, '_roomSessionManager'), s = sm && sm.value && sm.value.getSession && sm.value.getSession(huone);
+  if (!s || typeof s.sendChatMessage !== 'function') { lokiin({ kauppa: 'ei istuntoa' }); return; }
+  s.sendChatMessage(KAUPPA_KOODI, 0); tila.poista(AVAIN); lokiin({ kauppa: 'avattu', avain: 'kului' });
+} catch (err) { lokiin({ virhe: 'kauppa: ' + String(err) }); } }, AMBULANSSI_VALI);
 
 // ---- KELLON VASTAUS (vakiot KELLO_* ylhäällä). Oma lähtevä chat-rivi siepataan ENNEN lähetystä: istunnon sendChatMessage/sendShoutMessage
 //   kääritään (instanssin oma ominaisuus varjostaa RoomSession-prototyypin metodin). Oikea vastaus -> ei lähetetä; muu teksti -> alkuperäiselle.
@@ -872,7 +888,7 @@ return () => {
   try { pimennysPois(); } catch (x) {}
   try { pulmaPois(); } catch (x) {}
   pussi = false; kuittiOdottaa = false; paikat = new Array(PAIKKOJA).fill(null);
-  clearInterval(ambulanssiVali); ambulanssissa = null;
+  clearInterval(ambulanssiVali); ambulanssissa = null; clearInterval(kauppaVali); kaupanNuolella = null;
   clearInterval(chatVali); try { chatPalauta(); } catch (x) {} suljeKelloLappu();
   clearInterval(laattaVali); laatalla = null; akkuVahti.disconnect(); suljeLappu(); if (vayla && vayla.removeEventListener) vayla.removeEventListener('REOE_SELECTED', pysakkiValittu);
   kiinni = false; ankkuri = null; avaaAnkkuriin = null; sij[2] = null; sij[3] = null;
