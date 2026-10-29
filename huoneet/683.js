@@ -119,7 +119,7 @@ const KELLO = { id: 443461, tyyppi: 'attic15_clock', x: 3, y: 38 };   // isoisä
 const KELLO_PULMA = 'Kellokaapin ovessa on 2-numeroinen lukko.\nSano koodi kellon vieressä.';   // kp 19:5x: kello sanoo vain että vaatii 2-numeroisen koodin; vihje on W5 + kirjoituskoneen lattia (W6)
 const KELLO_OTSIKKO = 'Isoisän kello';
 const KELLO_VASTAUKSET = ['39', 'kolmekymmentäyhdeksän', 'kolmekymmentayhdeksan'];   // verrataan pienaatioin, välilyönnit ja .,!? pois (1+2+...+12 = 78, 78/2 = 39)
-const KELLO_ETAISYYS = 2;            // ruutua (max(|dx|,|dy|)) kellosta, jotta vastaus kelpaa
+const KELLO_ETAISYYS = 12; // kp 19:58 "ei koko huone vaa antiikkikauppa": koko kauppa kelpaa (kello 3,38, kauppa n. x3-9 y27-40); rajaus kauppaan = PIMENNYS-ehto kelloVieressa():ssa          // ruutua (max(|dx|,|dy|)) kellosta, jotta vastaus kelpaa
 const KELLO_NIELE_AINA = true;       // true = oikea vastaus ei lähde chattiin missään huoneen kohdassa (ei paljasta vastausta muille); false = niellään vain kellon vieressä
 const AVAIN = 'Avain', AVAIN_KUVA = 'https://kupla.cc/swf/dcr/hof_furni/icons/easter_c26_elvenkey_icon.png';   // robon kokeilu 15:35 (scratchpad avain.js)
 const AVAIN_SAIT = 'Kellon pohjasta putoaa avain.', AVAIN_MS = 8000;
