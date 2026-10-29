@@ -496,6 +496,45 @@ if (vayla && vayla.addEventListener) vayla.addEventListener('REOE_SELECTED', pys
 //   Klikkaus tulee pulma-lohkon pulmaValittu-kuuntelijasta (PIMENNYS-suoja nakyvissa() + luokka/paikka-varatunnistus osuu()).
 let kelloLappu = null;
 const suljeKelloLappu = () => { if (kelloLappu) { kelloLappu.remove(); kelloLappu = null; } };
+// ---- KASSAN NÄYTTÖ (sona 20:23-20:24: "kun on tässä huoneessa ja klikkaa tota yhtä kassaa · että avautuu kassan näyttö · ja näytöllä on jonkinlainen riddle",
+//   osoitti 444817 market_c19_checkoutdesk @30,25). Vastaus sanotaan kassan edessä: wired W10 (pino 22,10, says 446184 piilota+tarkka + ehto 446185 + viesti 446186).
+//   KASSA_PULMA on PAIKKAMERKKI kunnes sona valitsee arvoituksen.
+const KASSA = { id: 444817, tyyppi: 'market_c19_checkoutdesk', x: 30, y: 25 };
+const KASSA_OTSIKKO = 'Kassan näyttö';
+const KASSA_PULMA = '1) Minulla on viivoja, jotka kertovat hinnan, mutta en osaa kirjoittaa. Mikä olen?\n2) Minulla on näppäimiä mutta ei lukkoja. Mikä olen?\n3) Mitä enemmän otat, sitä enemmän jätät jälkeesi?\nSano vastaukset kassan edessä.';   // sona 20:26 'otetaan nuo kaikki'
+const KASSA_VASTAUKSET = [['viivakoodi', 'viivakoodit'], ['näppäimistö', 'nappaimisto', 'näppäimistöt'], ['askeleet', 'askel', 'askelia', 'jalanjäljet']];
+const KASSA_KOODI = 'kassa683', KASSA_ETAISYYS = 2;   // kaikki kolme sanottu -> skripti sanoo KASSA_KOODIn -> wired W10 (22,10) näyttää palkintoviestin
+const kassaRatkaistu = new Set(); let kassaPalkittu = false;
+const KASSA_ARVOITUKSET = ['Minulla on viivoja, jotka kertovat hinnan, mutta en osaa kirjoittaa. Mikä olen?', 'Minulla on näppäimiä mutta ei lukkoja. Mikä olen?', 'Mitä enemmän otat, sitä enemmän jätät jälkeesi?'];
+let kassaNaytto = null;
+const suljeKassaNaytto = () => { if (kassaNaytto) { kassaNaytto.remove(); kassaNaytto = null; } };
+const avaaKassaNaytto = () => {
+  if (kassaNaytto) return;
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const d = document.createElement('div'); d.className = 'h683-kassa';
+  d.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:99998;width:340px;max-width:92vw;box-sizing:border-box;padding:18px 22px;' +
+    'background:#0b1f14;color:#7dff9b;font:15px/1.6 "Courier New",monospace;box-shadow:0 0 0 6px #333,4px 8px 0 6px rgba(0,0,0,.45);border-radius:6px';
+  d.innerHTML = '<div style="position:absolute;right:8px;top:4px;cursor:pointer;font:bold 18px sans-serif;color:#7dff9b" title="Sulje">✕</div>' +
+    '<div style="text-align:center;font-weight:bold;letter-spacing:2px;margin:2px 0 12px">' + esc(KASSA_OTSIKKO) + '</div>' +
+    KASSA_ARVOITUKSET.map((a, i) => '<div style="text-align:left;margin:0 0 10px">' + (i + 1) + ') ' + esc(a) + '<br>' +
+      '<input data-i="' + i + '" style="margin-top:4px;width:100%;box-sizing:border-box;background:#06140c;color:#7dff9b;border:1px solid #2f7a45;font:14px \'Courier New\',monospace;padding:4px 6px"' +
+      (kassaRatkaistu.has(i) ? ' value="' + esc(KASSA_VASTAUKSET[i][0]) + '" disabled' : '') + '></div>').join('') +
+    '<div class="h683-kassa-tila" style="text-align:center;margin-top:6px;min-height:1.6em"></div>';
+  d.firstChild.addEventListener('click', ev => { ev.stopPropagation(); suljeKassaNaytto(); });
+  const tilaRivi = d.querySelector('.h683-kassa-tila');
+  for (const inp of d.querySelectorAll('input')) {
+    for (const tyyppi of ['keydown', 'keyup', 'keypress', 'pointerdown', 'mousedown', 'click']) inp.addEventListener(tyyppi, ev => ev.stopPropagation());   // ei peliin
+    inp.addEventListener('keydown', ev => { if (ev.key !== 'Enter') return; const i = +inp.dataset.i, n = kelloNorm(inp.value);
+      if (KASSA_VASTAUKSET[i].map(kelloNorm).includes(n)) { kassaRatkaistu.add(i); inp.disabled = true; inp.style.borderColor = '#7dff9b'; lokiin({ kassa: 'oikein', i });
+        if (kassaRatkaistu.size === KASSA_VASTAUKSET.length) { const r = omaRuutu(), edessa = r && r.x >= 29 && r.x <= 32 && r.y >= 25 && r.y <= 26;   // W10-ehto 446185: laatat 444791 @29,25 + 444790 @31,25 (2x2)
+          if (!edessa) { tilaRivi.textContent = 'SEISO KASSAN EDESSÄ JA PAINA ENTER'; kassaRatkaistu.delete(i); inp.disabled = false; return; }
+          tilaRivi.textContent = 'HYVÄKSYTTY'; if (!kassaPalkittu && tila._sanoSalainen) { kassaPalkittu = true; tila._sanoSalainen(KASSA_KOODI); } }
+        else tilaRivi.textContent = kassaRatkaistu.size + ' / ' + KASSA_VASTAUKSET.length; }
+      else { tilaRivi.textContent = 'VÄÄRIN'; inp.value = ''; lokiin({ kassa: 'väärin', i }); } }); }
+  d.firstChild.addEventListener('pointerdown', ev => ev.stopPropagation());
+  nielePelilta(d); document.body.appendChild(d); kassaNaytto = d; lokiin({ kassa: 'näyttö auki' }); };
+tila._kassa = { avaa: avaaKassaNaytto, sulje: suljeKassaNaytto };
+
 const avaaKelloLappu = () => {
   if (kelloLappu) return;
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -584,6 +623,14 @@ const kelloVieressa = () => { const r = omaRuutu(); if (!r) return false; const 
   try { if (k.o && k.o.model && k.o.model.getValue('furniture_wired_opacity') === 0) return false; } catch (x) {}
   return Math.max(Math.abs(r.x - k.x), Math.abs(r.y - k.y)) <= KELLO_ETAISYYS; };
 // Palauttaa true jos rivi niellään (ei lähetetä).
+const kassaVastaus = (teksti) => { const n = kelloNorm(teksti); const i = KASSA_VASTAUKSET.findIndex(v => v.map(kelloNorm).includes(n)); if (i < 0) return false;
+  const r = omaRuutu(); let o = null; try { o = e.getRoomObject(huone, KASSA.id, 10); } catch (x) {}
+  const L = o && o.getLocation && o.getLocation(), kx = L ? Math.round(L.x) : KASSA.x, ky = L ? Math.round(L.y) : KASSA.y;
+  try { if (o && o.model && o.model.getValue('furniture_wired_opacity') === 0) return false; } catch (x) {}
+  if (!r || Math.max(Math.abs(r.x - kx), Math.abs(r.y - ky)) > KASSA_ETAISYYS) return false;   // kaukana: rivi lähtee normaalisti
+  kassaRatkaistu.add(i); lokiin({ kassa: 'vastaus', i, ratkaistu: kassaRatkaistu.size });
+  if (kassaRatkaistu.size === KASSA_VASTAUKSET.length && tila._sanoSalainen) { tila._sanoSalainen(KASSA_KOODI); kassaRatkaistu.clear(); }
+  return true; };
 const kelloVastaus = (teksti) => {
   if (!KELLO_OK.has(kelloNorm(teksti))) return false;
   const vieressa = kelloVieressa();
@@ -669,7 +716,7 @@ let pulmaPois = () => {};
 
   // salainen koodi -> wired (682.js:150-175, 196, 442 malli): oma kaiku (palvelin palauttaa sen lähettäjälle kuiskauksena) niellään ennen kuin suu liikkuu
   // kp 20:12 'ovi683 ovi pw näky omas clientis': kaikki salaiset koodit (kaupan ovi, pussi, lukko) niellään samalla tavalla kuin radion
-  const SALAISET = new Set([RADIO_KOODI, KAUPPA_KOODI, PUSSI_KOODI, KAUPPA_LUKKO_KOODI].filter(Boolean).map(s => s.toLowerCase()));
+  const SALAISET = new Set([RADIO_KOODI, KAUPPA_KOODI, PUSSI_KOODI, KAUPPA_LUKKO_KOODI, KASSA_KOODI].filter(Boolean).map(s => s.toLowerCase()));
   let koukkuC = null, koukkuOma = null, koukkuAlkup = null, koodiAika = 0, kuplaVahti = null;
   const yhteys = () => { const nahty = new Set(); let c = null;
     const etsi = (o, d) => { if (!o || c || d > 4 || typeof o !== 'object' || nahty.has(o)) return; nahty.add(o);
@@ -724,6 +771,7 @@ let pulmaPois = () => {};
     if (KIRJOITUSKONE_TEKSTI && osuu(KIRJOITUSKONE, ev)) { lokiin({ kirjoituskone: 1 }); ilmoita(KIRJOITUSKONE_TEKSTI, KIRJOITUSKONE_MS); return; }
     if (osuu(RADIO, ev)) { radio(); return; }
     if (osuu(KELLO, ev)) { lokiin({ kello: 'klikattu' }); avaaKelloLappu(); return; }
+    if (osuu(KASSA, ev) && nakyvissa(ev)) { avaaKassaNaytto(); return; }
     if (osuu(KAAPELI.furni, ev)) kaapeli(KAAPELI);
   } catch (x) { lokiin({ virhe: 'pulma: ' + String(x) }); } };
   if (vayla && vayla.addEventListener) vayla.addEventListener('REOE_SELECTED', pulmaValittu);
@@ -898,7 +946,7 @@ return () => {
   try { pulmaPois(); } catch (x) {}
   pussi = false; kuittiOdottaa = false; paikat = new Array(PAIKKOJA).fill(null);
   clearInterval(ambulanssiVali); ambulanssissa = null; clearInterval(kauppaVali); kaupanNuolella = null;
-  clearInterval(chatVali); try { chatPalauta(); } catch (x) {} suljeKelloLappu();
+  clearInterval(chatVali); try { chatPalauta(); } catch (x) {} suljeKelloLappu(); suljeKassaNaytto();
   clearInterval(laattaVali); laatalla = null; akkuVahti.disconnect(); suljeLappu(); if (vayla && vayla.removeEventListener) vayla.removeEventListener('REOE_SELECTED', pysakkiValittu);
   kiinni = false; ankkuri = null; avaaAnkkuriin = null; sij[2] = null; sij[3] = null;
   vedto = null; otsikko = null;   // raahauksen kaappaus loppuu kun otsikko poistuu (paneeli poistetaan yllä)
