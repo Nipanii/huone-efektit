@@ -345,6 +345,20 @@ const ambulanssiVali = setInterval(() => { try {
   if (i >= 0) { lokiin({ akku: 'saatu', paikka: i }); ilmoita('Sait akun', 8000); }   /* sona 15:19:57: 8 s */ else lokiin({ akku: 'pussi täynnä' });   // täynnä: ei ilmoitusta (speksissä ei ole), yritys jatkuu seuraavassa sisääntulossa
 } catch (err) { lokiin({ virhe: 'ambulanssi: ' + String(err) }); } }, AMBULANSSI_VALI);
 
+// ---- JOHTOLAATAT: akku ei kelpaa sellaisenaan. sona 29.10. 15:50-15:52 "pelaaja ottaa sen akun. sitte se menee sinne lähetyshuoneesee
+// kokeilee ja ei toimi. Sitten kun se astuu tähän … niin tulee viesti että akku tarvitsee erilaisen johdon tms. kirjota paremmin" (osoitti f438211, f438205).
+// Laukeaa vain laatalle astuttaessa ja vain jos pussissa on akku; ilman akkua ei mitään (spoileri, kuten ambulanssissa).
+const JOHTOLAATAT = [438211, 438205];
+let laatalla = null;
+const laattaVali = setInterval(() => { try {
+  const r = omaRuutu(); if (!r) return;
+  const paalla = JOHTOLAATAT.some(id => { const o = e.getRoomObject(huone, id, 10), L = o && o.getLocation && o.getLocation(); return !!L && Math.round(L.x) === r.x && Math.round(L.y) === r.y; });
+  const oli = laatalla; laatalla = paalla;
+  if (!paalla || oli !== false) return;
+  if (!pussi || !paikat.some(p => p && p.nimi === AKKU)) { lokiin({ johto: 'ei akkua' }); return; }
+  lokiin({ johto: 'viesti' }); ilmoita('Akku ei sovi tähän sellaisenaan. Tarvitset siihen sopivan johdon.', 8000);
+} catch (err) { lokiin({ virhe: 'johtolaatta: ' + String(err) }); } }, AMBULANSSI_VALI);
+
 // ---- PIMENNYS: huoneen irralliset lattiasaarekkeet piilossa kunnes oma hahmo astuu sinne. Malli huoneet/682.js (kaikki mekanismit sieltä).
 // sona 29.10. 15:28-15:33 "nää kaikki muut tilat jotka ei oo tässä keskellä on pimennetty, eli että sinne ei näe kunnes astuu wirediin ja menee sinne" ·
 //   "samanlainen pimennys joka on huone 3:sessa" (= 682) · "tuo suurin tila kokonaisuudessaan tulisi näkyä kokoajan".
@@ -506,6 +520,7 @@ return () => {
   try { pimennysPois(); } catch (x) {}
   pussi = false; paikat = new Array(PAIKKOJA).fill(null);
   clearInterval(ambulanssiVali); ambulanssissa = null;
+  clearInterval(laattaVali); laatalla = null;
   kiinni = false; ankkuri = null; avaaAnkkuriin = null; sij[2] = null; sij[3] = null;
   vedto = null; otsikko = null;   // raahauksen kaappaus loppuu kun otsikko poistuu (paneeli poistetaan yllä)
   for (const a of ajastimet) clearTimeout(a); ajastimet.clear();
