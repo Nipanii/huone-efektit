@@ -82,7 +82,7 @@ const KUITTI_SIIRTYI = 'Kuitti siirtyi pussiin.', KUITTI_SIIRTYI_MS = 6000;
 //   ei mitään: spoileri, kuten akku). kuva null = paikassa nimen alku. id robon furni-listasta re-lab/tmp/683-furni.txt (29.10. 17:06).
 //   Kaksi väärää kaapelia ja väärän kaapelin logiikka (KAAPELIT[], KAAPELI_VAIHTO) poistettu 18:56 -> varmuuskopio 683.js.bak-1856.
 const KAAPELI_HYLLYSTA = false;
-const KAAPELI = { nimi: 'Akkukaapeli',   /* kp 20:58 'akkukaapeli.' (oli Koaksiaalikaapeli) */ kuva: 'https://nipanii.github.io/huone-efektit/kuvat/683-akkukaapeli.png',   /* sona 20:53 'luo kuva johdolle' (Gemini, tausta poistettu) */ furni: { id: 444821, tyyppi: 'market_c19_drygoods', x: 27, y: 17 } };
+const KAAPELI = { nimi: 'Akkujohto',   /* kp 21:00 'vaa akkujohto' */   /* kp 20:58 'akkukaapeli.' (oli Koaksiaalikaapeli) */ kuva: 'https://nipanii.github.io/huone-efektit/kuvat/683-akkukaapeli.png',   /* sona 20:53 'luo kuva johdolle' (Gemini, tausta poistettu) */ furni: { id: 444821, tyyppi: 'market_c19_drygoods', x: 27, y: 17 } };
 const KAAPELI_SAIT = 'Otit pussiin: {nimi}';   // {nimi} korvataan
 const KAAPELI_TAYNNA = 'Pussi on täynnä.';      // '' = ei viestiä (ei pitäisi tapahtua: jokaisella pulmaesineellä on oma paikka, PAIKKA_JARJESTYS)
 // Pussin paikkajärjestys (sona 18:55): esine menee omaan paikkaansa ottojärjestyksestä riippumatta; muu (konsoli) ensimmäiseen vapaaseen.
