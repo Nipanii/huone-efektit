@@ -33,7 +33,7 @@ const AKKU = 'Akku', AKKU_KUVA = 'https://kupla.cc/swf/dcr/hof_furni/icons/easte
 const PAIKKOJA = 3;
 const PANEELI = { z: 1000 };   // keskellä ruutua kun pussi otetaan; raahataan otsikosta (ei peitä pelin ikkunoita pysyvästi: rajataan ikkunaan)
 const PUSSI_KUVA = 'https://kupla.cc/swf/dcr/hof_furni/icons/hp_sack_icon.png';
-const POIMINTA_TEKSTI = 'Otit pussin ja voit nyt kerätä tavaroita siihen.', POIMINTA_MS = 4000;
+const POIMINTA_TEKSTI = 'Otit pussin ja voit nyt kerätä tavaroita siihen.', POIMINTA_MS = 6000;
 
 const vayla = e.events;
 const loki = [];
