@@ -135,6 +135,8 @@ const lokiin = (x) => { x.t = new Date().toTimeString().slice(0, 8); loki.push(x
 
 // ---- tila (vain muistissa: skripti käynnistyy joka huoneeseen tullessa, joten alkutila on aina "ei pussia, tyhjät paikat")
 let pussi = false, paikat = new Array(PAIKKOJA).fill(null);
+const istuntoNyt = () => { try { const sm = Object.getOwnPropertyDescriptor(e, '_roomSessionManager'); return sm && sm.value && sm.value.getSession && sm.value.getSession(huone); } catch (x) { return null; } };
+try { const s = window.__h683Pussi; if (s && Date.now() - s.t < 20000 && s.ist && s.ist === istuntoNyt()) { pussi = !!s.pussi; paikat = s.paikat.slice(0, PAIKKOJA); while (paikat.length < PAIKKOJA) paikat.push(null); } delete window.__h683Pussi; } catch (x) {}   // kp 20:40: päivitys ei tyhjennä pussia
 const kuvaKelpaa = (u) => typeof u === 'string' && /^(https?:\/\/|data:image\/)/i.test(u);
 const siisti = (x) => (x && typeof x.nimi === 'string' && x.nimi) ? { nimi: x.nimi.slice(0, 60), kuva: kuvaKelpaa(x.kuva) ? x.kuva : '' } : null;
 
@@ -950,6 +952,7 @@ return () => {
   // siivous: pussi ja paikat nollataan (sona 14:42:21 "ei" pysyvyydelle), paneeli ja ilmoitus pois, kuuntelija pois, API pois
   try { pimennysPois(); } catch (x) {}
   try { pulmaPois(); } catch (x) {}
+  try { window.__h683Pussi = { pussi, paikat: paikat.slice(), t: Date.now(), ist: istuntoNyt() }; } catch (x) {}   // päivityksen yli (ks. alku)
   pussi = false; kuittiOdottaa = false; paikat = new Array(PAIKKOJA).fill(null);
   clearInterval(ambulanssiVali); ambulanssissa = null; clearInterval(kauppaVali); kaupanNuolella = null;
   clearInterval(chatVali); try { chatPalauta(); } catch (x) {} suljeKelloLappu(); suljeKassaNaytto();
