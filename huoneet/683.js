@@ -86,7 +86,7 @@ const KAAPELI_SAIT = 'Otit pussiin: {nimi}';   // {nimi} korvataan
 const KAAPELI_TAYNNA = 'Pussi on täynnä.';      // '' = ei viestiä (ei pitäisi tapahtua: jokaisella pulmaesineellä on oma paikka, PAIKKA_JARJESTYS)
 // Pussin paikkajärjestys (sona 18:55): esine menee omaan paikkaansa ottojärjestyksestä riippumatta; muu (konsoli) ensimmäiseen vapaaseen.
 // Paikka voi olla taulukko: avain ja akku jakavat paikan 1 (avain näkyy akun paikalla kunnes vaihtuu akuksi, sona 19:45).
-const PAIKKA_JARJESTYS = ['Akku', 'Avain', KAAPELI.nimi];   // kp 20:12-20:13: kuitti pois, avain jää pussiin -> akku, avain, johto
+const PAIKKA_JARJESTYS = [];   // kp 20:16 'miks avain tuli slottiin 2 eikä ekaan vapaaseen': ei varattuja paikkoja, jokainen tavara ensimmäiseen vapaaseen   // kp 20:12-20:13: kuitti pois, avain jää pussiin -> akku, avain, johto
 // Läppäri ja radio (radiohuone x28-36 y5-10, kartta: army_c15_deskcomp 33,5 · habbox_styx_plage_radio 34,5)
 const LAPPARI = { id: 438226, tyyppi: 'army_c15_deskcomp', x: 33, y: 5 };
 // sona 19:52 'Voisko olla että siinä lukee "puolikkaiden summa"' + kp 19:51 "jos kirjotuskoneessa olis vinkki tohon riddleen": vihje kellopulmaan
