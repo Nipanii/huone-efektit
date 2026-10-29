@@ -110,7 +110,7 @@ const RADIO_KOODI = 'r4d10683', RADIO_KOODI_PAALLA = false;
 const SKRIPTI_NAYTTAA = { kuitti: true, lappari: true };
 // Heitä pois (kp 18:45:07 "tavaroita pitää pystyy heittää pois pussista"): pieni × jokaisen tavaran kulmassa (kaikki variantit).
 //   Mitään ei tarvitse palauttaa: hylly ja kassat jäävät paikalleen (kaapelin ja kuitin voi ottaa uudelleen) ja akku tulee uudelleen kun astuu ambulanssiin.
-const HEITTO_SALLITTU = true;
+const HEITTO_SALLITTU = false;   // kp 20:46 'poista tavaroiden poisto inventoorista · se x ruksi'
 const HEITTO_TEKSTI = 'Heitit pois: {nimi}';   // '' = ei viestiä
 // ==== ISOISÄN KELLO -> AVAIN -> AUTO (sona 29.10. 19:45 valitsi kellopulman 7 "haljennut taulu"; robo 19:45: avain avaa auton, kuluu kun akku otetaan).
 //   Kellon klikkaus avaa lapun (kuten pysäkki). Vastaus sanotaan chatissa kellon vieressä -> AVAIN pussiin. Ambulanssin akku vain avaimella; akun
