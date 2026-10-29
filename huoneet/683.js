@@ -673,16 +673,18 @@ const RADIO_AANI = 'https://kuplafix-voice-worker.kuplafix.workers.dev/v/3ea6a72
 const RADIO_LAPI_KOODI = 'radio683lapi';   // W12: wired-viesti 'Korjasit radion. Pääsit radan 4 läpi.' + ratoja_tehty
 let radioKupla = null;
 const ANTENNI = 444848;
-const antenniPaalle = () => { try { const o = e.getRoomObject(huone, ANTENNI, 10); if (!o) { lokiin({ antenni: 'ei löydy' }); return; }
-  const st = '1', dt = { flags: 0, uniqueNumber: 0, uniqueSeries: 0, rarityLevel: -1, state: 0,
+const antenniPaalle = (st = '1') => { try { const o = e.getRoomObject(huone, ANTENNI, 10); if (!o) { lokiin({ antenni: 'ei löydy' }); return; }
+  if (st === '1') { antenniPaalle('0'); setTimeout(() => antenniPaalle('2'), 60); return; }   /* kp 21:33 'jos ääniviesti tulee uusiks nii antenni animaatioki': 0 -> 1 uudelleenkäynnistää animaation */
+  if (st === '2') st = '1';
+  const dt = { flags: 0, uniqueNumber: 0, uniqueSeries: 0, rarityLevel: -1, state: 0,
     writeRoomObjectModel(m) { m.setValue('furniture_data_format', 0); m.setValue('furniture_data', st); },
     initializeFromRoomObjectModel() {}, parseWrapper() {}, getLegacyString() { return st; }, compare() { return false; }, setString() {}, getValue() { return ''; } };
-  e.updateRoomObjectFloor(huone, ANTENNI, o.getLocation(), o.getDirection(), 1, dt); lokiin({ antenni: 'päälle' }); } catch (x) { lokiin({ virhe: 'antenni: ' + String(x) }); } };
+  e.updateRoomObjectFloor(huone, ANTENNI, o.getLocation(), o.getDirection(), Number(st), dt); lokiin({ antenni: st }); } catch (x) { lokiin({ virhe: 'antenni: ' + String(x) }); } };
 const naytaRadioKupla = () => { antenniPaalle(); if (radioKupla) return; const d = document.createElement('div'); d.className = 'h683-radiokupla';
   d.style.cssText = 'position:fixed;left:50%;top:22%;transform:translateX(-50%);z-index:99999;cursor:pointer;padding:10px 16px;background:#fff;color:#111;border:2px solid #111;border-radius:14px;font:bold 14px Ubuntu,Arial,sans-serif;box-shadow:0 3px 0 rgba(0,0,0,.35)';
   d.innerHTML = '📻 Radiosta kuuluu ääniviesti. <span style="color:#2a7">▶ Kuuntele</span><div style="position:absolute;left:50%;bottom:-10px;margin-left:-8px;width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-top:10px solid #111"></div>';
   d.addEventListener('pointerdown', ev => ev.stopPropagation());
-  d.addEventListener('click', ev => { ev.stopPropagation(); if (!RADIO_AANI) { lokiin({ radio: 'ääni puuttuu' }); return; } try { const a = new Audio(RADIO_AANI); a.play().catch(x => lokiin({ virhe: 'radioääni: ' + String(x) })); } catch (x) {} lokiin({ radio: 'kuunneltu' }); });
+  d.addEventListener('click', ev => { ev.stopPropagation(); antenniPaalle(); if (!RADIO_AANI) { lokiin({ radio: 'ääni puuttuu' }); return; } try { const a = new Audio(RADIO_AANI); a.play().catch(x => lokiin({ virhe: 'radioääni: ' + String(x) })); } catch (x) {} lokiin({ radio: 'kuunneltu' }); });
   document.body.appendChild(d); radioKupla = d; setTimeout(() => { if (radioKupla === d) { d.remove(); radioKupla = null; } }, 30000); };
 const LAPI_TEKSTI = 'Radio toimii! Radiosta kuuluu ääniviesti.';   // sona 20:56
 const JOHTO_AKKU_KOODI = 'akku683on', JOHTO_TYHJA_KOODI = 'akku683ei';
