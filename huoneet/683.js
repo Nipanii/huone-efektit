@@ -9,13 +9,13 @@
 //   - Klikkaus furniin PUSSI (REOE_SELECTED, kuten 682.js:487-489) = pelaaja "saa pussin": oikeaan alakulmaan tulee pieni tumma paneeli,
 //     jossa 3 tyhjää paikkaa. Furni jää huoneeseen (muutkin saavat oman pussinsa); mitään ei poisteta eikä lähetetä palvelimelle.
 //   - Paneeli näkyy vain tässä huoneessa (moottori pysäyttää skriptin huoneesta lähtiessä, siivous poistaa paneelin) ja vain jos pussi on otettu.
-//     Otto ja paikkojen sisältö muistetaan selaimessa (localStorage 'h683.<käyttäjä-id>.pussi'), joten uudelleen tullessa paneeli on heti.
-//     Avain on käyttäjäkohtainen, koska sama selain voi olla usealla tilillä (robo, kp). Muisti on vain tämän selaimen tieto.
+//   - EI pysyvyyttä (sona 29.10. 14:42:21, kp:n kysymykseen "pitääkö esineiden pysyä inventoorissa jos käy huoneesta poissa?": "ei"): pussi ja
+//     paikat ovat vain muistissa, huoneesta lähtiessä siivous nollaa kaiken ja huoneeseen tullessa pussi pitää ottaa uudestaan. Ei localStorageä.
 //   - Pussin tunnistus: furni-id 444838 (sona Osoita "#osoita:r683:f444838"); varalle luokka hp_sack (FurnitureData "Kankainen pussi").
 // Konsolissa / myöhemmille pulma-askelille: window.kupla683 =
 //   .lisaa(nimi, kuvaUrl?)  ensimmäiseen vapaaseen paikkaan; palauttaa paikan (0-2), -1 jos täynnä; sama nimi uudestaan palauttaa vanhan paikan
 //   .poista(nimi) true jos oli · .tavarat() [{nimi, kuva}] · .onPussi() · .anna() anna pussi (testi) · .nollaa() pussi ja tavarat pois · .loki
-//   Tavarat tallentuvat myös ennen pussin ottoa (paneeli ei vielä näy). kuvaUrl vain http(s):// tai data:image/, muuten paikkaan tulee nimen alku.
+//   Tavarat voi lisätä myös ennen pussin ottoa (paneeli ei vielä näy). kuvaUrl vain http(s):// tai data:image/, muuten paikkaan tulee nimen alku.
 // EPÄVARMAA LIVENÄ (vain offline-testattu): REOE_SELECTED ei ehkä laukea jos pussi on jo valittuna skriptin käynnistyessä (valitse jokin muu ja klikkaa
 //   pussia uudestaan) · paneeli voi peittää oikean alakulman infokortin (PANEELI.oikea/alas) · z-index 1000 on arvaus pelin omien ikkunoiden suhteen.
 const e = window.NitroDevTools && window.NitroDevTools.roomEngine;
@@ -26,26 +26,15 @@ if (!e) return;
 const PUSSI = { id: 444838, tyyppi: 'hp_sack' };   // tyyppi = classname (FurnitureData id 29109676 "Kankainen pussi"); o.type on luokan nimi (656.js IKKUNA, hween-wired WIRED)
 const PAIKKOJA = 3;
 const PANEELI = { oikea: 14, alas: 70, z: 1000 };   // px reunoista; alas jättää toolbarin/chat-kentän alle tilaa
-const MUISTI = 'h683';
 
 const vayla = e.events;
-const dv = (o, k) => { const d = o && Object.getOwnPropertyDescriptor(o, k); return d && !d.get ? d.value : undefined; };
 const loki = [];
 const lokiin = (x) => { x.t = new Date().toTimeString().slice(0, 8); loki.push(x); if (loki.length > 50) loki.shift(); };
-const omaId = () => { const u = Number(dv(dv(e, '_sessionDataManager'), '_userId')); return u > 0 ? u : 0; };   // sama kuin moottori.js omaId()
-const avain = () => MUISTI + '.' + (omaId() || 'tuntematon') + '.pussi';
 
-// ---- tila ja pysyvyys
-let pussi = false, paikat = new Array(PAIKKOJA).fill(null), ladattu = false;
+// ---- tila (vain muistissa: skripti käynnistyy joka huoneeseen tullessa, joten alkutila on aina "ei pussia, tyhjät paikat")
+let pussi = false, paikat = new Array(PAIKKOJA).fill(null);
 const kuvaKelpaa = (u) => typeof u === 'string' && /^(https?:\/\/|data:image\/)/i.test(u);
 const siisti = (x) => (x && typeof x.nimi === 'string' && x.nimi) ? { nimi: x.nimi.slice(0, 60), kuva: kuvaKelpaa(x.kuva) ? x.kuva : '' } : null;
-const lataa = () => {
-  pussi = false; paikat = new Array(PAIKKOJA).fill(null);
-  try { const s = JSON.parse(localStorage.getItem(avain()) || 'null');
-    if (s && typeof s === 'object') { pussi = !!s.pussi; if (Array.isArray(s.paikat)) for (let i = 0; i < PAIKKOJA; i++) paikat[i] = siisti(s.paikat[i]); } } catch (x) {}
-  ladattu = omaId() > 0;
-};
-const tallenna = () => { try { localStorage.setItem(avain(), JSON.stringify({ pussi, paikat })); } catch (x) { lokiin({ muisti: 'ei kirjoitusta: ' + String(x).slice(0, 60) }); } };
 
 // ---- paneeli (tumma, pieni, ei peitä huonetta)
 let paneeli = null, ruudut = [];
@@ -92,17 +81,16 @@ const ilmoita = (teksti) => { const d = document.createElement('div'); d.classNa
 // ---- API
 const tila = window.kupla683 = { versio: 'huone-683 pussi 1', huone, loki };
 tila.onPussi = () => pussi;
-tila.anna = () => { if (!ladattu) lataa(); const uusi = !pussi; pussi = true; tallenna(); piirra(); if (uusi) { lokiin({ pussi: 'annettu' }); ilmoita('Sait kankaisen pussin'); } return uusi; };
+tila.anna = () => { const uusi = !pussi; pussi = true; piirra(); if (uusi) { lokiin({ pussi: 'annettu' }); ilmoita('Sait kankaisen pussin'); } return uusi; };
 tila.tavarat = () => paikat.filter(Boolean).map(t => ({ nimi: t.nimi, kuva: t.kuva }));
 tila.lisaa = (nimi, kuvaUrl) => {
   if (typeof nimi !== 'string' || !nimi.trim()) return -1;
-  if (!ladattu) lataa();
   const t = siisti({ nimi: nimi.trim(), kuva: kuvaUrl }), vanha = paikat.findIndex(p => p && p.nimi === t.nimi); if (vanha >= 0) return vanha;
   const i = paikat.indexOf(null); if (i < 0) { lokiin({ lisaa: 'täynnä', nimi: t.nimi }); return -1; }
-  paikat[i] = t; tallenna(); piirra(); lokiin({ lisaa: t.nimi, paikka: i }); return i; };
-tila.poista = (nimi) => { if (!ladattu) lataa(); const i = paikat.findIndex(p => p && p.nimi === String(nimi).trim()); if (i < 0) return false;
-  paikat[i] = null; tallenna(); piirra(); lokiin({ poista: String(nimi), paikka: i }); return true; };
-tila.nollaa = () => { pussi = false; paikat = new Array(PAIKKOJA).fill(null); tallenna(); piirra(); lokiin({ nollaa: 1 }); };
+  paikat[i] = t; piirra(); lokiin({ lisaa: t.nimi, paikka: i }); return i; };
+tila.poista = (nimi) => { const i =paikat.findIndex(p => p && p.nimi === String(nimi).trim()); if (i < 0) return false;
+  paikat[i] = null; piirra(); lokiin({ poista: String(nimi), paikka: i }); return true; };
+tila.nollaa = () => { pussi = false; paikat = new Array(PAIKKOJA).fill(null); piirra(); lokiin({ nollaa: 1 }); };
 
 // ---- klikkaus pussiin
 const onPussiFurni = (ev) => {
@@ -112,19 +100,13 @@ const onPussiFurni = (ev) => {
 };
 const valittu = (ev) => { try {
   if (!onPussiFurni(ev)) return;
-  if (!ladattu) lataa();
   if (!pussi) tila.anna();   // jo otettu: mitään ei tapahdu
 } catch (x) { lokiin({ virhe: String(x) }); } };
 if (vayla && vayla.addEventListener) vayla.addEventListener('REOE_SELECTED', valittu); else lokiin({ virhe: 'e.events puuttuu, klikkausta ei kuunnella' });
 
-// ---- käynnistys: käyttäjä-id voi puuttua huoneeseen tullessa (sama syy kuin moottori 0.6.7 hs.oma), joten muisti ladataan uudelleen kun id on tiedossa
-lataa(); piirra();
-let yrit = 0;
-const odotaId = ladattu ? 0 : setInterval(() => { yrit++;
-  if (omaId() > 0 || yrit >= 40) { clearInterval(odotaId); lataa(); ladattu = true; piirra(); lokiin({ id: omaId() || 'ei saatu, avain tuntematon', pussi }); } }, 500);
-
 return () => {
-  clearInterval(odotaId);
+  // siivous: pussi ja paikat nollataan (sona 14:42:21 "ei" pysyvyydelle), paneeli ja ilmoitus pois, kuuntelija pois, API pois
+  pussi = false; paikat = new Array(PAIKKOJA).fill(null);
   for (const a of ajastimet) clearTimeout(a); ajastimet.clear();
   for (const d of document.querySelectorAll('.h683-pussi')) d.remove(); paneeli = null; ruudut = [];
   try { if (vayla && vayla.removeEventListener) vayla.removeEventListener('REOE_SELECTED', valittu); } catch (x) {}
