@@ -217,7 +217,11 @@ const rakennaV3 = (ank) => {
   const kop = document.createElement('div'); kop.style.cssText = 'position:relative;padding:0 24px;min-height:22px;line-height:22px;cursor:move;touch-action:none';
   const otsikko3 = document.createElement('span'); otsikko3.textContent = 'Kankainen pussi'; kop.appendChild(otsikko3);
   const x = ruksi(() => kutistaV3()); x.style.position = 'absolute'; x.style.right = '-2px'; x.style.top = '0'; kop.appendChild(x);
-  kortKuva = kuvaEl(SAEKKI_URI, 'display:block;margin:4px auto;width:' + kuvaPx + 'px;height:' + kuvaPx + 'px;image-rendering:pixelated;pointer-events:none');
+  kortKuva = kuvaEl(SAEKKI_URI, 'display:block;margin:4px auto;width:' + kuvaPx + 'px;height:' + kuvaPx + 'px;image-rendering:pixelated;cursor:pointer');
+  // kp 29.10. 17:20 "kamaa painamalla se menee myös piiloon pill muotoon": säkkikuvan napautus kutistaa kuten ×. Kortin raahaus
+  //   kaappaa osoittimen, joten click ei osu kuvaan -> painallus merkitään pointerdownissa ja ratkaistaan raahauksen valmis-kutsussa.
+  let kuvaPainettu = false;
+  kortti.addEventListener('pointerdown', (ev) => { kuvaPainettu = ev.target === kortKuva; }, true);
   const rivi = document.createElement('div'); rivi.style.cssText = 'display:flex;justify-content:center;gap:6px';
   v3ruudut = [];
   for (let i = 0; i < PAIKKOJA; i++) {
@@ -228,7 +232,7 @@ const rakennaV3 = (ank) => {
   }
   kortti.appendChild(kop); kortti.appendChild(hr()); kortti.appendChild(kortKuva); kortti.appendChild(hr()); kortti.appendChild(rivi);
   nielePelilta(kortti);
-  teeVedettava(kortti, kortti, (px, py) => { sij[3] = { x: px, y: py }; }, (liikkui, px, py) => { if (liikkui) sij[3] = { x: px, y: py }; });
+  teeVedettava(kortti, kortti, (px, py) => { sij[3] = { x: px, y: py }; }, (liikkui, px, py) => { if (liikkui) sij[3] = { x: px, y: py }; else if (kuvaPainettu) { kuvaPainettu = false; kutistaV3(); } });
   document.body.appendChild(kortti);
   if (ank) {   // avaus pillerin napautuksesta: säkkikuva täsmälleen pillerin säkkikuvan päälle (mitataan, ei arvata), vähimmäissiirto jos ulos ruudulta
     kortti.style.left = '0px'; kortti.style.top = '0px'; kortti.style.transform = 'none';
