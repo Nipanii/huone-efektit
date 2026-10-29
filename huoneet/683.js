@@ -33,7 +33,7 @@ const AKKU = 'Akku', AKKU_KUVA = 'https://kupla.cc/swf/dcr/hof_furni/icons/easte
 const PAIKKOJA = 3;
 const PANEELI = { z: 1000 };   // keskellä ruutua kun pussi otetaan; raahataan otsikosta (ei peitä pelin ikkunoita pysyvästi: rajataan ikkunaan)
 const PUSSI_KUVA = 'https://kupla.cc/swf/dcr/hof_furni/icons/hp_sack_icon.png';
-const POIMINTA_TEKSTI = 'Otit pussin ja voit nyt kerätä tavaroita siihen.', POIMINTA_MS = 6000;
+const POIMINTA_TEKSTI = 'Otit pussin ja voit nyt kerätä tavaroita siihen.', POIMINTA_MS = 8000;   // sona 15:18:39: 8 s
 
 const vayla = e.events;
 const loki = [];
@@ -105,16 +105,23 @@ const piirra = () => {
 
 // ---- ilmoitus kuten 684.js ilmoita()
 const ajastimet = new Set();
-const ilmoita = (teksti, ms = 1600) => { const d = document.createElement('div'); d.className = 'h683-pussi'; d.textContent = teksti;
-  d.style.cssText = 'position:fixed;left:50%;top:14%;transform:translateX(-50%);z-index:99999;pointer-events:none;padding:8px 16px;'
-    + 'background:rgba(0,0,0,.75);color:#fff;font:bold 15px sans-serif;border-radius:6px;transition:opacity .4s';
+// sona 15:18:39-54: laatikko ympärille + animaatio että erottuu huoneen muusta käyttöliittymästä, poimintatekstiin pussin kuva.
+const ilmoita = (teksti, ms = 1600, kuvaUrl) => { const d = document.createElement('div'); d.className = 'h683-pussi';
+  d.style.cssText = 'position:fixed;left:50%;top:14%;transform:translateX(-50%);z-index:99999;pointer-events:none;padding:10px 18px;max-width:90vw;box-sizing:border-box;'
+    + 'display:flex;align-items:center;gap:12px;background:rgba(20,17,26,.95);color:#fff;font:bold 15px sans-serif;border:2px solid #b89ce0;border-radius:10px;'
+    + 'box-shadow:0 0 14px rgba(184,156,224,.6),0 3px 10px rgba(0,0,0,.6);transition:opacity .4s';
+  if (kuvaUrl) { const k = document.createElement('img'); k.src = kuvaUrl; k.alt = ''; k.draggable = false; k.style.cssText = 'width:40px;height:40px;object-fit:contain;image-rendering:pixelated;flex:none'; d.appendChild(k); }
+  const t = document.createElement('span'); t.textContent = teksti; d.appendChild(t);
   document.body.appendChild(d);
+  try { if (d.animate) {   // sisääntulo: pomppaa esiin, sitten reunan hehku sykkii kunnes häviää
+    d.animate([{ opacity: 0, transform: 'translateX(-50%) scale(.6)' }, { opacity: 1, transform: 'translateX(-50%) scale(1.08)' }, { transform: 'translateX(-50%) scale(1)' }], { duration: 450, easing: 'ease-out' });
+    d.animate([{ boxShadow: '0 0 6px rgba(184,156,224,.35),0 3px 10px rgba(0,0,0,.6)' }, { boxShadow: '0 0 22px rgba(184,156,224,.95),0 3px 10px rgba(0,0,0,.6)' }], { duration: 900, iterations: Infinity, direction: 'alternate', easing: 'ease-in-out' }); } } catch (x) {}
   const a = setTimeout(() => { d.style.opacity = '0'; ajastimet.delete(a); }, ms), b = setTimeout(() => { d.remove(); ajastimet.delete(b); }, ms + 500); ajastimet.add(a); ajastimet.add(b); };
 
 // ---- API
 const tila = window.kupla683 = { versio: 'huone-683 pussi 1', huone, loki };
 tila.onPussi = () => pussi;
-tila.anna = () => { const uusi = !pussi; pussi = true; piirra(); if (uusi) { lokiin({ pussi: 'annettu' }); ilmoita(POIMINTA_TEKSTI, POIMINTA_MS); } return uusi; };
+tila.anna = () => { const uusi = !pussi; pussi = true; piirra(); if (uusi) { lokiin({ pussi: 'annettu' }); ilmoita(POIMINTA_TEKSTI, POIMINTA_MS, PUSSI_KUVA); } return uusi; };
 tila.tavarat = () => paikat.filter(Boolean).map(t => ({ nimi: t.nimi, kuva: t.kuva }));
 tila.lisaa = (nimi, kuvaUrl) => {
   if (typeof nimi !== 'string' || !nimi.trim()) return -1;
@@ -165,7 +172,7 @@ const ambulanssiVali = setInterval(() => { try {
   if (!pussi) { lokiin({ akku: 'ei pussia' }); return; }   // ei ilmoitusta: spoileri (kp 29.10. 15:17), sona pyysi vain akun saamisviestin
   if (paikat.some(p => p && p.nimi === AKKU)) return;   // jo saatu
   const i = tila.lisaa(AKKU, AKKU_KUVA);
-  if (i >= 0) { lokiin({ akku: 'saatu', paikka: i }); ilmoita('Sait akun'); } else lokiin({ akku: 'pussi täynnä' });   // täynnä: ei ilmoitusta (speksissä ei ole), yritys jatkuu seuraavassa sisääntulossa
+  if (i >= 0) { lokiin({ akku: 'saatu', paikka: i }); ilmoita('Sait akun', 8000); }   /* sona 15:19:57: 8 s */ else lokiin({ akku: 'pussi täynnä' });   // täynnä: ei ilmoitusta (speksissä ei ole), yritys jatkuu seuraavassa sisääntulossa
 } catch (err) { lokiin({ virhe: 'ambulanssi: ' + String(err) }); } }, AMBULANSSI_VALI);
 
 return () => {
