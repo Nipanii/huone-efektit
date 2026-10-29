@@ -75,6 +75,7 @@ const KASSAT = [{ id: 444833, tyyppi: 'market_c19_selfcheckout', x: 30, y: 22 },
 const KUITTI_TEKSTI = 'Kuitti: Kahvi 1,20 € · klo 12.28', KUITTI_MS = 10000;
 // Kassan klikkaus näyttää KUITTI_TEKSTIn JA antaa kuitin (KUITTI) pelaajalle. Ilman pussia kuitti pidetään tallessa; kun pussi otetaan, se ilmestyy
 //   pussiin ja tulee KUITTI_SIIRTYI. Pussissa kuitin klikkaus näyttää KUITTI_TEKSTIn uudelleen. ×:llä pois -> kassalta saa uuden.
+const KUITTI_PAALLA = false;   // kp 20:12 'kuittia ei kai tule': kassan klikkaus ei anna kuittia
 const KUITTI = 'Kuitti', KUITTI_KUVA = null;   // kuva null = paikassa nimi
 const KUITTI_SIIRTYI = 'Kuitti siirtyi pussiin.', KUITTI_SIIRTYI_MS = 6000;
 // YKSI kaapeli (robo 18:56, sona 18:54 "vain 1 johto"): koaksiaalikaapeli ruokakaupan kuivatuotehyllystä. Vain pussi hallussa -> pussiin (ilman pussia
@@ -85,7 +86,7 @@ const KAAPELI_SAIT = 'Otit pussiin: {nimi}';   // {nimi} korvataan
 const KAAPELI_TAYNNA = 'Pussi on täynnä.';      // '' = ei viestiä (ei pitäisi tapahtua: jokaisella pulmaesineellä on oma paikka, PAIKKA_JARJESTYS)
 // Pussin paikkajärjestys (sona 18:55): esine menee omaan paikkaansa ottojärjestyksestä riippumatta; muu (konsoli) ensimmäiseen vapaaseen.
 // Paikka voi olla taulukko: avain ja akku jakavat paikan 1 (avain näkyy akun paikalla kunnes vaihtuu akuksi, sona 19:45).
-const PAIKKA_JARJESTYS = [['Akku', 'Avain'], KUITTI, KAAPELI.nimi];
+const PAIKKA_JARJESTYS = ['Akku', 'Avain', KAAPELI.nimi];   // kp 20:12-20:13: kuitti pois, avain jää pussiin -> akku, avain, johto
 // Läppäri ja radio (radiohuone x28-36 y5-10, kartta: army_c15_deskcomp 33,5 · habbox_styx_plage_radio 34,5)
 const LAPPARI = { id: 438226, tyyppi: 'army_c15_deskcomp', x: 33, y: 5 };
 // sona 19:52 'Voisko olla että siinä lukee "puolikkaiden summa"' + kp 19:51 "jos kirjotuskoneessa olis vinkki tohon riddleen": vihje kellopulmaan
@@ -566,8 +567,8 @@ const kauppaVali = setInterval(() => { try {
   const sm = Object.getOwnPropertyDescriptor(e, '_roomSessionManager'), s = sm && sm.value && sm.value.getSession && sm.value.getSession(huone);
   if (!s || typeof s.sendChatMessage !== 'function') { lokiin({ kauppa: 'ei istuntoa' }); return; }
   // kp 20:09 'tää piti olla kans wired viesti': lukittu-viesti wiredinä (says KAUPPA_LUKKO_KOODI + show_message), ei popupia
-  if (!pussi || !paikat.some(p => p && p.nimi === AVAIN)) { lokiin({ kauppa: 'lukossa' }); if (KAUPPA_LUKITTU) ilmoita(KAUPPA_LUKITTU, KAUPPA_LUKITTU_MS); if (KAUPPA_LUKKO_KOODI) s.sendChatMessage(KAUPPA_LUKKO_KOODI, 0); return; }
-  s.sendChatMessage(KAUPPA_KOODI, 0); tila.poista(AVAIN); lokiin({ kauppa: 'avattu', avain: 'kului' });
+  if (!pussi || !paikat.some(p => p && p.nimi === AVAIN)) { lokiin({ kauppa: 'lukossa' }); if (KAUPPA_LUKITTU) ilmoita(KAUPPA_LUKITTU, KAUPPA_LUKITTU_MS); if (KAUPPA_LUKKO_KOODI) (tila._sanoSalainen ? tila._sanoSalainen(KAUPPA_LUKKO_KOODI) : s.sendChatMessage(KAUPPA_LUKKO_KOODI, 0)); return; }
+  (tila._sanoSalainen ? tila._sanoSalainen(KAUPPA_KOODI) : s.sendChatMessage(KAUPPA_KOODI, 0)); lokiin({ kauppa: 'avattu' });   // kp 20:12 'jätä avain': avain ei kulu
 } catch (err) { lokiin({ virhe: 'kauppa: ' + String(err) }); } }, AMBULANSSI_VALI);
 
 // ---- KELLON VASTAUS (vakiot KELLO_* ylhäällä). Oma lähtevä chat-rivi siepataan ENNEN lähetystä: istunnon sendChatMessage/sendShoutMessage
@@ -587,7 +588,7 @@ const kelloVastaus = (teksti) => {
   if (!KELLO_OK.has(kelloNorm(teksti))) return false;
   const vieressa = kelloVieressa();
   if (!vieressa) { lokiin({ kello: 'vastaus kaukana', niellty: KELLO_NIELE_AINA }); return KELLO_NIELE_AINA; }
-  if (!pussi) { lokiin({ kello: 'ei pussia' }); if (AVAIN_EI_PUSSIA) ilmoita(AVAIN_EI_PUSSIA, 5000); if (PUSSI_KOODI) { try { const s = chatIst; s && s.sendChatMessage && s.sendChatMessage(PUSSI_KOODI, 0); } catch (x) {} } return true; }
+  if (!pussi) { lokiin({ kello: 'ei pussia' }); if (AVAIN_EI_PUSSIA) ilmoita(AVAIN_EI_PUSSIA, 5000); if (PUSSI_KOODI) { try { if (tila._sanoSalainen) tila._sanoSalainen(PUSSI_KOODI); else { const s = chatIst; s && s.sendChatMessage && s.sendChatMessage(PUSSI_KOODI, 0); } } catch (x) {} } return true; }
   if (paikat.some(p => p && (p.nimi === AVAIN || p.nimi === AKKU))) { lokiin({ kello: 'avain/akku jo pussissa' }); return true; }   // ei toista avainta (paikka 1 varattu)
   const i = tila.lisaa(AVAIN, AVAIN_KUVA);
   if (i >= 0) { lokiin({ kello: 'avain', paikka: i }); ilmoita(AVAIN_SAIT, AVAIN_MS, AVAIN_KUVA, VIHREA); } else lokiin({ kello: 'pussi täynnä' });
@@ -667,6 +668,8 @@ let pulmaPois = () => {};
   let radioKorjattu = false;
 
   // salainen koodi -> wired (682.js:150-175, 196, 442 malli): oma kaiku (palvelin palauttaa sen lähettäjälle kuiskauksena) niellään ennen kuin suu liikkuu
+  // kp 20:12 'ovi683 ovi pw näky omas clientis': kaikki salaiset koodit (kaupan ovi, pussi, lukko) niellään samalla tavalla kuin radion
+  const SALAISET = new Set([RADIO_KOODI, KAUPPA_KOODI, PUSSI_KOODI, KAUPPA_LUKKO_KOODI].filter(Boolean).map(s => s.toLowerCase()));
   let koukkuC = null, koukkuOma = null, koukkuAlkup = null, koodiAika = 0, kuplaVahti = null;
   const yhteys = () => { const nahty = new Set(); let c = null;
     const etsi = (o, d) => { if (!o || c || d > 4 || typeof o !== 'object' || nahty.has(o)) return; nahty.add(o);
@@ -677,11 +680,11 @@ let pulmaPois = () => {};
     const alkup = c.handleMessages;
     const oma = function (...viestit) { try { let i;
       viestit = viestit.filter(v => { const p = v && v.parser;
-        if (p && typeof p.message === 'string' && p.message.trim().toLowerCase() === RADIO_KOODI.toLowerCase()) { if (i === undefined) i = omaIndeksi(); if (p.roomIndex === i) { lokiin({ koodi: 'kaiku niellty' }); return false; } }
+        if (p && typeof p.message === 'string' && SALAISET.has(p.message.trim().toLowerCase())) { if (i === undefined) i = omaIndeksi(); if (p.roomIndex === i) { lokiin({ koodi: 'kaiku niellty' }); return false; } }
         return true; });
       if (!viestit.length) return; } catch (x) {} return alkup.apply(this, viestit); };
     c.handleMessages = oma; koukkuC = c; koukkuOma = oma; koukkuAlkup = alkup; };
-  const KOODI_KUPLA = new RegExp(':\\s*' + RADIO_KOODI.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*↩?\\s*$', 'i');
+  const KOODI_KUPLA = new RegExp(':\\s*(' + [...SALAISET].map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')\\s*↩?\\s*$', 'i');
   const kuplatPiiloon = () => { for (const b of document.querySelectorAll('.bubble-container')) { const t = b.textContent || '';
     if (KOODI_KUPLA.test(t) && b.style.display !== 'none') b.style.display = 'none'; } };
   const sanoKoodi = () => { if (!RADIO_KOODI_PAALLA) return false;
@@ -690,6 +693,10 @@ let pulmaPois = () => {};
       koodiAika = Date.now(); s.sendChatMessage(RADIO_KOODI, 0); for (const ms of [30, 300, 1000]) { const a = setTimeout(() => { ajastimet.delete(a); kuplatPiiloon(); }, ms); ajastimet.add(a); }
       lokiin({ koodi: 'sanottu' }); return true; } catch (x) { lokiin({ koodi: 'virhe', viesti: String(x) }); return false; } };
 
+  // muut skriptin osat (kauppa, kello) sanovat koodinsa tätä kautta, jotta kaiku ja kupla piiloutuvat
+  tila._sanoSalainen = (koodi) => { try { koukku(); if (!kuplaVahti) { kuplaVahti = new MutationObserver(kuplatPiiloon); kuplaVahti.observe(document.body, { childList: true, subtree: true, characterData: true }); }
+      const s = istunto(); if (!s || typeof s.sendChatMessage !== 'function') return false; s.sendChatMessage(koodi, 0);
+      for (const ms of [30, 300, 1000]) { const a = setTimeout(() => { ajastimet.delete(a); kuplatPiiloon(); }, ms); ajastimet.add(a); } return true; } catch (x) { lokiin({ salainen: 'virhe', viesti: String(x) }); return false; } };
   const radio = () => {
     if (radioKorjattu) { ilmoita(RADIO_JO_OK, RADIO_MS); return 'jo'; }
     if (!pussi || !onTavara(AKKU)) { ilmoita(RADIO_MYKKA, RADIO_MS); lokiin({ radio: 'mykkä' }); return 'mykka'; }
@@ -712,7 +719,7 @@ let pulmaPois = () => {};
   const pulmaValittu = (ev) => { try {
     if (!ev || ev.category !== 10) return;
     if (!nakyvissa(ev)) return;
-    if (KASSAT.some(s => osuu(s, ev))) { kuitti(); return; }
+    if (KUITTI_PAALLA && KASSAT.some(s => osuu(s, ev))) { kuitti(); return; }   // kp 20:12 'kuittia ei kai tule'
     if (osuu(LAPPARI, ev)) { lokiin({ lappari: 1 }); if (SKRIPTI_NAYTTAA.lappari) ilmoita(LAPPARI_TEKSTI, LAPPARI_MS); return; }
     if (KIRJOITUSKONE_TEKSTI && osuu(KIRJOITUSKONE, ev)) { lokiin({ kirjoituskone: 1 }); ilmoita(KIRJOITUSKONE_TEKSTI, KIRJOITUSKONE_MS); return; }
     if (osuu(RADIO, ev)) { radio(); return; }
