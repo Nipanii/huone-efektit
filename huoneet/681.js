@@ -273,6 +273,23 @@ tila.naapurit = (x, y, laukaisija) => {
 // Ensimmäinen räjähdys jäi näkymättä, koska efektin grafiikka latautuu vasta ensikäytössä -> esilataus kartan ulkopuolelle.
 const esilataus = setTimeout(() => tila.rajayta(-60, -60, 0, ASETUS.furni, 3000), 500);
 
+// Viimeisin oma miina jää näkyviin (kp 29.10. 12:49 "viimenen ruutu mis pelaaja räjähti nii jää miina esii" · "kunnes räjähtää ite
+//   seuraavan kerran" · "muille ei näy toisen pelaajan last mine"). Vain oman hahmon räjähdys, vain tässä clientissä, yksi merkki
+//   kerrallaan: uusi räjähdys siirtää sen. Konsolissa: miina.merkkiFurni = '<luokka>' · miina.merkkiFurni = '' (pois).
+tila.merkkiFurni = 'LT_skull';
+let merkkiId = null;
+const merkkiPois = () => { if (merkkiId == null) return; try { const e = window.NitroDevTools.roomEngine; e.removeRoomObjectFloor(e.activeRoomId, merkkiId); } catch (x) {} merkkiId = null; };
+tila.merkki = (oid, x, y, z) => {
+  if (!tila.merkkiFurni || oid == null || oid !== omaIndeksi()) return false;
+  const e = window.NitroDevTools && window.NitroDevTools.roomEngine; if (!e) return false;
+  const r = e.activeRoomId, V = e.getRoomObjects(r, 100)[0]?.getLocation().constructor; if (!V) return false;
+  merkkiPois();
+  const id = seuraavaId--;
+  if (!e.addFurnitureFloorByTypeName(r, id, tila.merkkiFurni, new V(x, y, z || 0), new V(0), 0, data('0'), NaN, -1, 0, -1, '', true, false)) {
+    tila.loki.push({ merkki: 'ei piirtynyt', furni: tila.merkkiFurni, x, y }); return false; }
+  merkkiId = id; tila.loki.push({ merkki: [x, y] }); return true;
+};
+
 // Tunnistus suoraan jokaisesta sijaintipäivityksestä (kp 23:47 "tyhmä tunnistus"): 50 ms kysely ei nähnyt miinaruutua, kun palvelin
 //   lähetti askeleen miinalle ja teleportin samassa nipussa. Kutsutaan updateRoomObjectUserLocation-koukusta.
 tila.__liike = (rid, oid, loc, tgt, kesto) => {
@@ -285,7 +302,7 @@ tila.__liike = (rid, oid, loc, tgt, kesto) => {
       let osui = false;
       for (const [x, y] of ehd) { const s = saannot.find(s => s.ruudut && s.ruudut.has(x + ',' + y)); if (!s) continue;
         viimeksi.set(oid, Date.now()); tila.loki.push({ u: oid, x, y, tapa: 'hyppy', viive: 0 });
-        tila.rajayta(x, y, ed.z || 0, s.furni, s.kesto); tila.lenna(oid, x, y, ed.z || 0); tila.naapurit(x, y, oid); osui = true; break; }
+        tila.rajayta(x, y, ed.z || 0, s.furni, s.kesto); tila.merkki(oid, x, y, ed.z || 0); tila.lenna(oid, x, y, ed.z || 0); tila.naapurit(x, y, oid); osui = true; break; }
       if (!osui) tila.loki.push({ u: oid, ohi: true, mista: [Math.round(ed.x), Math.round(ed.y)], kohde: ed.t, nyt: [Math.round(loc.x), Math.round(loc.y)] }); } }
   paikka.set(oid, { loc, tgt });
   for (const [P, tulossa] of [[tgt, true], [loc, false]]) {
@@ -296,7 +313,7 @@ tila.__liike = (rid, oid, loc, tgt, kesto) => {
     viimeksi.set(oid + '@' + k, nyt); viimeksi.set(oid, nyt);
     const viive = tulossa && loc && (Math.round(loc.x) !== x || Math.round(loc.y) !== y) ? (kesto > 0 ? kesto : 500) : 0;
     tila.loki.push({ u: oid, x, y, tapa: tulossa ? 'kohde' : 'sijainti', viive });
-    setTimeout(() => { tila.rajayta(x, y, P.z, s.furni, s.kesto); tila.lenna(oid, x, y, P.z); tila.naapurit(x, y, oid); }, viive);
+    setTimeout(() => { tila.rajayta(x, y, P.z, s.furni, s.kesto); tila.merkki(oid, x, y, P.z); tila.lenna(oid, x, y, P.z); tila.naapurit(x, y, oid); }, viive);
     return;
   }
 };
@@ -340,7 +357,7 @@ tila.__efektiNyt = (rid, oid, fx) => {
       const viive = tulossa && p.loc && (Math.round(p.loc.x) !== x || Math.round(p.loc.y) !== y) ? 500 : 0;
       tila.loki.push({ u: oid, x, y, tapa: 'efekti' + fx, viive });
       varaa(oid);
-      setTimeout(() => { tila.rajayta(x, y, P.z, s.furni, s.kesto); if (!tila.lenna(oid, x, y, P.z)) purraVaraus(oid); tila.naapurit(x, y, oid); }, viive);
+      setTimeout(() => { tila.rajayta(x, y, P.z, s.furni, s.kesto); tila.merkki(oid, x, y, P.z); if (!tila.lenna(oid, x, y, P.z)) purraVaraus(oid); tila.naapurit(x, y, oid); }, viive);
       pidennaEfekti(oid, viive + tila.efektiViive);
       return;
     }
@@ -424,7 +441,7 @@ return () => {
   clearInterval(arkkuAloitus); clearInterval(arkkuAjastin);
   try { if (arkkuYhteys && arkkuYhteys.handleMessages === arkkuOma) { if (arkkuAlkup === Object.getPrototypeOf(arkkuYhteys).handleMessages) delete arkkuYhteys.handleMessages; else arkkuYhteys.handleMessages = arkkuAlkup; } } catch (x) {}
   try { const o = arkkuEnnen != null && e0 && e0.getRoomObject(huone, ARKKU, 10); if (o) e0.updateRoomObjectFloor(huone, ARKKU, o.getLocation(), o.getDirection(), arkkuEnnen, null); } catch (x) {}
-  clearInterval(ajastin); clearTimeout(esilataus); lentavat.clear();
+  clearInterval(ajastin); clearTimeout(esilataus); lentavat.clear(); merkkiPois();
   for (const off of jakoPois) try { off(); } catch (x) {}
   for (const l of nakyvatLaput) { cancelAnimationFrame(l.ajo); l.d.remove(); } nakyvatLaput.clear();
   for (const oid of [...varatut.keys()]) purraVaraus(oid);
