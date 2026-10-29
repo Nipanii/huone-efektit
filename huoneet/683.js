@@ -645,7 +645,7 @@ const kelloVastaus = (teksti) => {
   const vieressa = kelloVieressa();
   if (!vieressa) { lokiin({ kello: 'vastaus kaukana', niellty: KELLO_NIELE_AINA }); return KELLO_NIELE_AINA; }
   if (!pussi) { lokiin({ kello: 'ei pussia' }); if (AVAIN_EI_PUSSIA) ilmoita(AVAIN_EI_PUSSIA, 5000); if (PUSSI_KOODI) { try { if (tila._sanoSalainen) tila._sanoSalainen(PUSSI_KOODI); else { const s = chatIst; s && s.sendChatMessage && s.sendChatMessage(PUSSI_KOODI, 0); } } catch (x) {} } return true; }
-  if (paikat.some(p => p && (p.nimi === AVAIN || p.nimi === AKKU))) { lokiin({ kello: 'avain/akku jo pussissa' }); return true; }   // ei toista avainta (paikka 1 varattu)
+  if (paikat.some(p => p && p.nimi === AVAIN)) { lokiin({ kello: 'avain jo pussissa' }); return true; }   // kp 20:51 'nyt ei saa avainta': akku pussissa esti avaimen (vanha paikka-1-logiikka)
   const i = tila.lisaa(AVAIN, AVAIN_KUVA);
   if (i >= 0) { lokiin({ kello: 'avain', paikka: i }); ilmoita(AVAIN_SAIT, AVAIN_MS, AVAIN_KUVA, VIHREA); } else lokiin({ kello: 'pussi täynnä' });
   return true; };
