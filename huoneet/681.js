@@ -273,14 +273,14 @@ tila.naapurit = (x, y, laukaisija) => {
 // Ensimmäinen räjähdys jäi näkymättä, koska efektin grafiikka latautuu vasta ensikäytössä -> esilataus kartan ulkopuolelle.
 const esilataus = setTimeout(() => tila.rajayta(-60, -60, 0, ASETUS.furni, 3000), 500);
 
-// Viimeisin oma miina jää näkyviin (kp 29.10. 12:49 "viimenen ruutu mis pelaaja räjähti nii jää miina esii" · "kunnes räjähtää ite
-//   seuraavan kerran" · "muille ei näy toisen pelaajan last mine"). Vain oman hahmon räjähdys, vain tässä clientissä, yksi merkki
+// Viimeisin miina jää näkyviin (kp 29.10. 12:49 "viimenen ruutu mis pelaaja räjähti nii jää miina esii" · "kunnes räjähtää ite
+//   seuraavan kerran" · "muille ei näy toisen pelaajan last mine"). 12:57 muutettu: kaikki näkevät yhden kallon, kenen tahansa viimeisimmän räjähdyksen kohdalla (kp "pitäskö kallot näkyy kaikille" · "viimesin kallo" · "mut näkee vaan yhden kallon" · "tää rata on hemmetin vaikee"). Yksi merkki
 //   kerrallaan: uusi räjähdys siirtää sen. Suunta arvotaan kameraan päin, oikealle tai vasemmalle (270 tai 0; 90/180 osoitti poispäin, kp 12:54 "sun eteenpäin oli taaksepäin"), ei koskaan poispäin (kp 12:53 "ei koskaa poispäin"). Konsolissa: miina.merkkiFurni = '<luokka>' · miina.merkkiFurni = '' (pois).
 tila.merkkiFurni = 'LT_skull';
 let merkkiId = null;
 const merkkiPois = () => { if (merkkiId == null) return; try { const e = window.NitroDevTools.roomEngine; e.removeRoomObjectFloor(e.activeRoomId, merkkiId); } catch (x) {} merkkiId = null; };
 tila.merkki = (oid, x, y, z) => {
-  if (!tila.merkkiFurni || oid == null || oid !== omaIndeksi()) return false;
+  if (!tila.merkkiFurni || oid == null) return false;
   const e = window.NitroDevTools && window.NitroDevTools.roomEngine; if (!e) return false;
   const r = e.activeRoomId, V = e.getRoomObjects(r, 100)[0]?.getLocation().constructor; if (!V) return false;
   merkkiPois();
