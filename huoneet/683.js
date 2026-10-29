@@ -55,7 +55,7 @@ const POIMINTA_TEKSTI = 'Otit pussin ja voit nyt kerätä tavaroita siihen.', PO
 //   Kaikki klikkaukset toimivat vain kun furni on NÄKYVISSÄ (pimennys alla piilottaa muut alueet: opacity 0 + click_through) -> ei paljasta aluetta etukäteen.
 // Pysäkin lappu: 'yhdistetty' = sonan LINJA 13 -lappu + uusi rivi ja lyijykynämerkintä (oletus, mitään sonan tekstiä ei poisteta) ·
 //   'uusi' = vain uusi aikataulu · 'vanha' = sonan lappu sellaisenaan (16:22-16:56).
-const PYSAKKI_LAPPU = 'yhdistetty';
+const PYSAKKI_LAPPU = 'pulma';   // sona 19:19 "Poista tuo aikataulu ja että yöbussi lähti johonki aikaan" + "Ei mitää lyijykynä raaputusta. Kaikki normaalilla tekstillä" -> 'pulma' = otsikko + vihjeet tavallisena tekstinä (muut tilat: yhdistetty/uusi/vanha)
 // Aikataulun määränpää KAIKILLA riveillä ja reittirivillä (sona 18:55 kysytty vaihto: vaihda tähän yhteen paikkaan).
 const PYSAKKI_MAARANPAA = 'Hautausmaa';
 const PYSAKKI_UUSI_RIVI = null;   // sona 19:11 "ei bussikuskia" -> revitty vuoro pois (oli ['12.░░', PYSAKKI_MAARANPAA])
@@ -429,22 +429,22 @@ const avaaLappu = () => {
   d.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) rotate(-1.5deg);z-index:99998;width:300px;padding:16px 18px 14px;' +
     'background:#f4d23c;color:#111;font:14px/1.4 Verdana,sans-serif;box-shadow:4px 6px 0 rgba(0,0,0,.45);border:2px solid #111';
   // PYSAKKI_LAPPU (ylhäällä): 'vanha' = sonan alkuperäinen sisältö sellaisenaan; 'yhdistetty' = sama + revitty vuoro (PYSAKKI_UUSI_RIVI) ja lyijykynämerkintä; 'uusi' = vain uusi vuoro
-  const tila_ = PYSAKKI_LAPPU === 'uusi' || PYSAKKI_LAPPU === 'vanha' ? PYSAKKI_LAPPU : 'yhdistetty';
+  const tila_ = ['uusi', 'vanha', 'pulma'].includes(PYSAKKI_LAPPU) ? PYSAKKI_LAPPU : 'yhdistetty', ilmanAikataulua = tila_ === 'uusi' || tila_ === 'pulma';
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const rivi = ([k, m], revitty) => '<tr><td style="border-top:1px dashed #111;padding:2px 0' + (revitty ? ';color:#7a6512;letter-spacing:1px' : '') + '">' + esc(k) + '</td>' +
     '<td style="border-top:1px dashed #111;text-align:right">' + esc(m) + '</td></tr>';
-  const rivit = (tila_ === 'uusi' ? [] : AIKATAULU.map(r => rivi(r))).concat(tila_ === 'vanha' || !PYSAKKI_UUSI_RIVI ? [] : [rivi(PYSAKKI_UUSI_RIVI, true)]);
+  const rivit = (ilmanAikataulua ? [] : AIKATAULU.map(r => rivi(r))).concat(tila_ === 'vanha' || !PYSAKKI_UUSI_RIVI ? [] : [rivi(PYSAKKI_UUSI_RIVI, true)]);
   const kyna = tila_ === 'vanha' ? '' : (PYSAKKI_REVITTY ? '<div style="font-size:11px;margin:2px 0 6px">' + esc(PYSAKKI_REVITTY) + '</div>' : '') +
-    '<div style="margin:6px 0 8px;font:italic 15px/1.3 \'Comic Sans MS\',\'Segoe Print\',cursive;color:#3b3b3b;transform:rotate(-2deg)">' + esc(PYSAKKI_KYNA).split('\n').join('<br>') +
+    '<div style="margin:6px 0 8px;' + (tila_ === 'pulma' ? 'font:15px/1.5 Verdana,sans-serif;color:#111' : 'font:italic 15px/1.3 \'Comic Sans MS\',\'Segoe Print\',cursive;color:#3b3b3b;transform:rotate(-2deg)') + '">' + esc(PYSAKKI_KYNA).split('\n').join('<br>') +
     (PYSAKKI_SUUNTA ? '<br>' + esc(PYSAKKI_SUUNTA) : '') + '</div>';
   d.innerHTML = '<div style="position:absolute;right:8px;top:4px;cursor:pointer;font:bold 18px sans-serif" title="Sulje">✕</div>' +
     '<div style="text-align:center">' + BUSSI_SVG + '</div>' +
     '<div style="text-align:center;font-weight:bold;font-size:16px;letter-spacing:1px;margin:4px 0 2px">LINJA 13</div>' +
-    (tila_ === 'uusi' ? '' : '<div style="text-align:center;font-size:12px;margin-bottom:8px">Pysäkki → ' + esc(PYSAKKI_MAARANPAA) + ' → Sairaala</div>') +
+    (ilmanAikataulua ? '' : '<div style="text-align:center;font-size:12px;margin-bottom:8px">Pysäkki → ' + esc(PYSAKKI_MAARANPAA) + ' → Sairaala</div>') +
     '<table style="width:100%;border-collapse:collapse;font-family:monospace;font-size:14px">' + rivit.join('') + '</table>' + kyna +
     // 18:56 POISTETTU sonan rivi "Kuljettaja jätti autonsa kesken matkan. Hän otti mukaansa vain sen, mikä yhdistää virran moottoriin, ja piilotti sen
     //   sinne, missä kukaan ei enää odota bussia." Se vihjasi johdon piilotuspaikkaan, jota tarinassa ei enää ole (johto = kaapeli kaupasta, sona 18:55).
-    (tila_ === 'uusi' ? '' : '<div style="font-size:11px;margin:4px 0 10px">Yöbussi 00.13 lähti viimeisen kerran 13.10. eikä saapunut perille.</div>');
+    (ilmanAikataulua ? '' : '<div style="font-size:11px;margin:4px 0 10px">Yöbussi 00.13 lähti viimeisen kerran 13.10. eikä saapunut perille.</div>');
   d.firstChild.addEventListener('click', ev => { ev.stopPropagation(); suljeLappu(); });
   // sona 16:56:37 "Tee tosta linja auton lapusta semmonen et sitä ikkunaa voi siirtää": koko lappu on kahva (✕ ei aloita raahausta), pysyy ikkunan sisällä
   d.style.cursor = 'move'; d.style.touchAction = 'none'; d.style.userSelect = 'none'; nielePelilta(d);
