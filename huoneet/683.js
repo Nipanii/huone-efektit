@@ -19,6 +19,13 @@
 //   .lisaa(nimi, kuvaUrl?)  ensimmäiseen vapaaseen paikkaan; palauttaa paikan (0-2), -1 jos täynnä; sama nimi uudestaan palauttaa vanhan paikan
 //   .poista(nimi) true jos oli · .tavarat() [{nimi, kuva}] · .onPussi() · .anna() anna pussi (testi) · .nollaa() pussi ja tavarat pois · .loki
 //   Tavarat voi lisätä myös ennen pussin ottoa (paneeli ei vielä näy). kuvaUrl vain http(s):// tai data:image/, muuten paikkaan tulee nimen alku.
+// VARIANTIT (kp 29.10.): window.kupla683.variantti(n) vaihtaa pussin ulkoasun (1, 2 tai 3), variantti() palauttaa nykyisen. Vain piirto vaihtuu: sisältö ja "pussi otettu" pysyvät.
+//   Alkuvariantti = window.huoneskriptit.pussiVariantti (moottorin `:pussi N` asettaa sen ja kutsuu variantti(N)); puuttuu -> 1.
+//   1 = sonan tumma paneeli (yllä, ei muutu). 2 = "iso säkki": huonespriitti 57x57 4x-suurennuksena, tavarat sen sisällä (opacity .62), kapea otsikko "Pussi" + ×.
+//   3 = "infostand-kortti": pelin oman furni-infostandin tyyli (client/Nitro-V3/src/components/room/widgets/avatar-info/infostand/InfoStandWidgetFurniView.tsx:540 ja Text.tsx),
+//       keskitetty otsikko, säkin kuva ja 3 paikkaa. × kutistaa kortin PILLERIKSI (säkin kuva); pillerin napautus avaa kortin niin että kortin säkkikuva osuu pillerin säkkikuvan päälle
+//       (ei ulos ruudulta: siirretään vähimmäismäärä). 2:n × käyttää samaa pilleriä. Kortti, ikkuna ja pilleri raahattavissa (pointer-tapahtumat, touch-action:none).
+//   z-index 300 (v2/v3/pilleri): yli työkalupalkin (70/71), huonetyökalujen (71/72) ja infostandin (30), alle DraggableWindow-ikkunoiden (401+, Messenger jne.). Variantti 1 pysyy 1000:ssa.
 // EPÄVARMAA LIVENÄ (vain offline-testattu): REOE_SELECTED ei ehkä laukea jos pussi on jo valittuna skriptin käynnistyessä (valitse jokin muu ja klikkaa
 //   pussia uudestaan) · paneeli voi peittää pelin ikkunoita (raahattavissa) · z-index 1000 on arvaus pelin omien ikkunoiden suhteen · pussin kuva ja koko (2x) arvattu, ei mitattu.
 const e = window.NitroDevTools && window.NitroDevTools.roomEngine;
@@ -33,6 +40,10 @@ const AKKU = 'Akku', AKKU_KUVA = 'https://nipanii.github.io/huone-efektit/kuvat/
 const PAIKKOJA = 3;
 const PANEELI = { z: 1000 };   // keskellä ruutua kun pussi otetaan; raahataan otsikosta (ei peitä pelin ikkunoita pysyvästi: rajataan ikkunaan)
 const PUSSI_KUVA = 'https://kupla.cc/swf/dcr/hof_furni/icons/hp_sack_icon.png';
+// Varianttien 2 ja 3 pussikuva: huonespriitti hp_sack_64_a_2_0, 57x57 px (hp_sack-64.png, kupla.cc/nitro-assets/bundled/furniture2test1/hp_sack.nitro).
+const SAEKKI_URI = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADkAAAA5CAYAAACMGIOFAAAVFElEQVR4nM1beXRc1X3+3mzaNZpF+yyaGe1ItrV4k3EMwQFMTtmanmOn2CknDdCTlNOQkKacQEuT/BHSOIXQQ0KSQqAsIRRIaGNCCBiMJQOyDJGsXSPNol2aGe3LLK/n97vvjSRjEpvaTu458tV7c+fd+93v+y3392QJl77J5zFWuhATSri0TX7jwSsgyzJKHBUY8vfA6ShXlqFiX/vdc/OPL8g6JVy6Jr/+4B509U4KDOtnPvNauXft3l3rwUp/ziBl+uf1fxcAu7yatZnldeiUjliWJHFR5U4gLT0DZR4Ldt/xysder4RLIM/Ongl0eqXk4tczx6AgQVYkeuYY+ryhNg1X7GqE+8Yffqw1a3DxmvzGg3vQ2TvB7DEQWUZHzzAvs6MnyNene4cZIN0ngO09QfFlyLBmLTOiU+3LeOPtVgy8dLv46M8EpEwMPn9kigGqLBGQmvIi0VfYuL+svJj7WuW6ttyWBHy0dRpl9hUkIONUxzLePN72sYBqLgbA333vcmZQBUYstvcGGUjQP4maimIM+yb4esQ/xeOG/RO4rLwIQaVv7w6iprwYL7w2hdzsFR7j94Vx9GMA1VwEkNAZUvHcr0f4dwJEEiRAw/5JhJdWMeybRIh6ul5egTktBeHlaPJzAl5baRMbU2nD5GwKOnqHMTWXilMdSzj69snzAqq5wPjk3z6wDfcdbuXFsb3JsgDIwFRAqzCnGRigKdXA902pegaofs5Ml9sYBj2HN6s7uG6mc1+U7gKDREp6NoOiBXHfG4Q5VQWWwoAWo3Eea0oV19SISfVztYd/gu+TbJPP6w7i4SMRvG7PQM/TB1Dx2WfOFmUvrlxpxodf6RBy6xF2tZ6xxdU40vVaBdgqOGLwEmW+phZaJ2H6Xjs7KkX2lTYe0z80e87BRHOhQao64p2vtLEt5aQKaVJLN2g3xEhBA8VJca0+QkjYwIBNaQbheZWN4yGJOCZmIn8akHIiwb0qLVpoZHl1owkpF8m4T+AU0VHoUO+zU0pKnRgNCjulz2YSKMp3/GlASgBu+2Q5SzY7IxU2R57I3s4Atrga4/skX/V6/U4ssd1KgkmW+ioDVpssJ/D68dY/ieOR9tz5htz//K3QaDT44Wvd2LO4nDxY0MLTDTosRmPIMOiwsBJj+ar3qU/Ta5M9Aad+eHYJtuw0ZvTFVzpwaKcTg/4YrLnntijNBQbJXJBg62vT8MDnN+FNb4RtjjwqAVpYiSp9DBkpG4GdFSjd12sRnFliRtVW7klHeYnpkoOUD+50igV85jFctbsROUYNvn2wGke9YSZzYVUBshpngAsKUypjBDwJjBkXG6P2wdnF5GT+kQR6vdOXBKS87gdPtvhwcGcJrq2y8Rnwqsu3Ijc3Bd+/vQHvBufwXnAuGSMJGAFfuxZABKMCeAYBJZtVpL4UFU7NmGNEmTsN5S7zRbFJef3FPTe5NnwSnk/FI6914Z/3X45XuoIM9M2HrkKxzQWLNQXevnH8y3MDPLwmP2PDg9P0QtL0HBWYuhFLMQo1a+fM6spsLC4sQpbj2Fdtx5HOwB9MCKTzAXfPjSXJGwaDFgP+KNw2CuwSTDkaaDQSurw6Bnr49utw149+nRz/1sNXQ5eaho7TfowMz34ILNnthlUpB+rkOZNi7/gCHrlrNzSSBjWVWfjW9z+A1ajhsU+e8H8knnNhUmbGZBkORzZGR+aTgD55ZRUKTFb+bGRiFL1DFJyX+Uun2ju531EImEx2fOJLr/J1y09uQE21jCKbESPBmSTY2vxMwZaKT9lbPsGMz/PVI1/ezdf79jbg9q/8AtYcLQ+WJAnkD55s8Z2VUelcAI5MApsqNJiZBSwmDbbUeVBgskCXlo2X//c1bNnsRKHZiuD4KGz5RfjmQ81snyTb+599mxcwNSPs6UhngPvmn1zP/enOAIaDa8yerf3gi9uhM6RA0gD7rmrEHV99DrlGXXJTyl1p6B1c4iD8RPPQh3D9IZAyyVOjBcxGLbQ6IYt9n9yGscg0Vhfmsferx3ngw1+sRqXHhG989zjKSpy4986d+NZDLXiixYfv3bYPX3n0CI8jpzQ1E+cMh2yW2rFHroVWb2A2iIYPOj7sMYnZT1+9DbHVJXzpnv8RElWSwXJXahIKAaU5zxWkvH+bHR6bDnlWLcJhGSaTBnV1Hrx/agDVZVbsvbuFGXI77QpbJQzuxVc7EIvF0NNP7l7CEy1DONhUArfDxuMEWKcCFkmwJ372V0jEVjcUJ6nZiko5u7njq88nlUBzqU2rAax5ZuSkLTKzfYMrPOd6bGcDKe/faoe7WIuCPD3venWZGU5HGf8eGB7kVXT1h/D3P+rhL6iy/PbBKn6i1x+DPS/BEqTsRNldHL5tH061d+FJsQj2jKI6R4sXYFt+egP3xYUeyBJw+13PMcvEHpnAvmrKXcU19QWFZhhTFzCznAlj6jx6BlfU538kSPmeGyksyLCYtZibl9DUYEZLWwi7GkUO5bCVwD/ih6PIgUN3PYMnDu9H+YFnVcPH568o43HRlVW47XoMBKLw2MVm3f+LgeSmZGdnJWWsNnrGZCSuhArhQ7ZtciYVcP0mF4wZCeQXWPBvL7bxvQe/UIbgdNY6oAvoGVzeAPTDIG9yQauR2HtevtWCzv4wqkspfdLAaXfBP+zDN77XjLISkucOPPurNljMOnzxP4Q3/dcD5RgKxOEsFrZkMkpo7YiioMCCq3fq8OqJGL77gligKndjdhZ7Y9qk+/ZfjpzsbJxqP83X1EgNit9FQaHw5unaGXiHYzzm2W9eiZNtM7AVaDE7M4veM9jcUMe+52YX73yF0wCrmc59Eqo8lFWo5yDgiRdGsW1zKq7ZU4efv9yGeCwBrVbDEnXZtRgMxuCy6WCymoFoBJs3l/D3fvxENy/w+mvy8KtXxjE2Np0E8VFNpIlrVkobxSuRJGzZlInRYASdPXOwF2hgzjVjLjKLmaV0GNMW0TO4pD6fnPJa85K0bDoOE/SwKk8OHHYXg3Xa3bjv8AkcurkI1+ypx89ffh/bNxuhT9FDo9XC7dTDG4yhvsYAk1GDuhoL6hsroNUZ8PJvJ3H/16/D2OgUHn28kwG6bTp2SATk4A5xLkz2qmNRZEuLXQMI1G3KxPTEEgqKjNhcY4F/JIa8gnS4yvIYIAE1pKwl85r14cJdrINBr+PNqy4141Nfexf+gBdOWwm++dBx/OzwAXR7Q3j6hXcRj0XxXvssAyJ7G/RH0bgpBZFZoK7eA0kjHi0nYvi7Q9sQHPaioNCC2z5XzQumRs5tDcxaX1dbrTBHKpLwpX014mPytgU6ni+/KAs6vRZ5hRnYuT0HK8urmJpYUphcgKtIoygBcpLJgWAMep0WJqMK8B12ENQfuutZ3HtnE35ztA2JWBymHAl5uXSA1SAUjiGRiKPErsf0dAxNjfl8TRWC99/vR3GxByNjfmh1elz/qXz0eSfxF3utyDJmYWRKg9QUQzKxVyV616O/5rnJdgloWprCilZCcDSG0PQKEokEy/b93y8iKycHq8tLyC/KhK1Qh5mljakigZT/6UYXGmoMLDdqnX0h/PaBHcn4d2IU8Ae9uHpPPcIzwj5CkTiM2fRtidmEHMeurXlce+kfFAF936d2I+Dvhc1RhkQ8jv6haTjzU3GsxYeMNKoESHA7DfjcLifyC8xorFmTmNenlB8lIM+UgKPIgLqaTNRtzkIiISMeiyMei6G2OhUn3gnx0JlIAmmZGcwkU7herqSSyIyIV/QPBXtqvc8cYC9Fu7v37nfwyhvvwZyjQTgiY0edlessOxrMCEcSMBm1ycfu2VGPogIHhkd9sDsr4e39APHoClzFmTh2YhSZaXHMzCbgdup4g/LyLHDkziM4lQW9Xuz+ltoq7u2587BY9KyO6SnKi2UEJ4RSisw6fNCxCH2qDm+3hHjM0tw8IgqTGsUKFMOR4R+Jo6HWwM6mq38aTnsJfAEvvvGXLpbTg18oFTWXSAIWqw49g2FO9xzFbk7Yq8pMcNjc7IQGvR3MQFGxCyOjXmg0WpzuGcPRt/0s9cUVYowUoIXHnoEb9xXh09ddiQqPhP98SyQKs7Nzik0nkJqexlJMxBOYnlpB3WUZCIVW4Rtbhi1fYobziyw42TaG1Iw0zn7o+fG4yJeTLwu3bkrByY5VdA1EOMPxBYZw7/ffwaHP7MCr39nKDBNzVosekYiMSo+Z063fHG1FpScHsqyBLzAAW6EddpsLvsFuDPWfxkJoAqtLsyh3ZDJAckykmMZNOZiYXOFXCoV5NoxPjqKiNO/DcuUYoMXU+CKseWn8Mzc7C8TCMKQakFeYiWKLDnbLHDKz0llMZO98glGcn5CrBgiFE2io0bPT6ewLM5N7m1wY8vejsz/CkrRYdMw6Sba7fxqVbhOqSnPgtHkgSQkOM9SCI34UF7sQjy7DafewN+zsD/Ez8gvS0VhjBBIJNDVY4XBU4K0T7zPzu+84onrEpFzJuZA9mywp0Oq0iEVjyDblQGMwoyhHw+BHIwlIBlElqHDqkGPSYSxkYLtNgpQTgNkkITIDdA+EUVVqYo966DPbGTAtrqnBhHAkjspSEa8qXCTrEEvUFxzknhpJ3OFwc8ig3fQF+tFFmzQDWM06eIrTlSJyAiXuagRHvFhZWkp6wrrayzbINc9uY286PbnMgHV6PYcKYvT3vQvILUhXrtPhKUlDd98EO6ACM9V65TWQWq2QUVODBa3tK5y+EYtPvdDKD6bkoPlkGKZsDboGplHhNqFrIIRrrqyHPzjEDPoCg2u5rX8QXf3ilRzNE5mVYcqhgrCs5FgJ2Itd8Af6YCsoQYXHip1/+0sOGxQ+bv2EyFeJ1f33vgGzhc6SEvKzgakJkq0KLA2TY4vYVJ7BjHp9KxgYoWMbMB46IxkgA80xSnjql+O45cZ8+IODeK15EJ+9qZFDBTWSKP1e5TajeyDENukL+GAvdoqEgTIjAIFhPzNZ6bYwO10DYc5fZ+e12FlvYdBOeylvji2vGF5vO+Ix8Q7E6xd2uMaqSApWV1YYaHvvAgObnlhEbr4A2tY+zoy+1zbGsdOWp4V/PIqp6TCeeS+4ltbRiYMmf/z4EGc5JD1i8ukX32UXPx0WXooWSRKlAzIxSTqnDaHUj2RKP2TsBLq9cwSn+0T8opBDQNVjFY1j9oPUe9A9IOLqlhphh6rMZhTJGlJSEJpaQY7JgPnZOVjy0jE5LoDW1+Zzn23Mxs4dIpOir69PyhkkhQXaBWokmfIDz+Bb/z2IXQ1mtlOSK40hVkIzCWG3bjqZyJzy+fyU+rkh0Z7JcbzTNoXqMpPyXkOC1aJDhTsnOWkSoM2FV988mbyv2qG6RK9PlEoW5+dhtqZgJhzF4qLqadNZqmyT40to2JLOjiYwHue31TgTZI4RmI7EccsOR9IW6Ofqr7fCmC1jcjqeTAKa6k3KIsSmkC06OKYOsOelzdpeZ0Fzayj5lqqy1Izu/rBis3RcE0ySZCmLIu+5PmyoTG5R5JppzMbE2ALfpROPcDYCIDE6OT6J1PR0nHhXFLFJ7k8rUl1jkueXICdk3LLdwcFfPQbRWZDslUIMOY/mkxQ6cjie0nIctFgG6lIWJ6GlbRJmk4alSdKmVI+AJjfFJgDSgN8cPZl8E6baIP2tyHpmg74wCm3Z4oAqSxgfmUff0IJgMj8d/vEYmlumkJJuwHBg4kOvoRkkBWmax1msw33/sIvz1Qf+xgUqg2yp1qHttAqUPLCV7ZEyI/WsRwD9gSGWLDmlnXVm3hQCQTZMjPYMhMVwxSbJYdH9a65oTDI+Q0F+HZOqXKmNBmeRkGXE5bg4eWyzovXUOI4fn0JmBm0AsLIgHNh6FlWQ0tce94pkG8C9h4+hb2gIN1y9HXWX6TgLarhMz7boDaxyKYRTP2YSzCL9cEwMelFVakbzyRCaGs1o64gmq94VnpykZPl7wUFRaQh6ce2VjRtA1VUacOsnSlhNVBe6+6cfMAg6Aa0ur/Dh+MiRQWRlZ/F2zC8IxqdDZ38pqx61pH/82SDbpsem57LifYffRltHDK5iPQM1ZklwFev45E8AqzxnvFFSwPR4I9hRZ2KbpAwqFJHRPRBhZ1VJZRSWHDksl3BY9lL87vjvcetuZxLUnY/2JSvMqodVp/AFo2jvikKnF4FmYXEWmRlZmF+YPSuL60HyB197fJCl2zfkS8rGG4zCZdchPJtAfyAGR6EoiTSfnEJnH7l+mY9mtKiuvhDKS7JxumeCn9PaLuRDcqS4StJVpuIsib2sfwB7d9cnlzUzJ6rlzkL9hqTgy4+exIBvVeSxU2FkKMBIqgsLc3jsmA9Pvxs4awXyzNcE0t2PeXkLb77WgHA4gcHhOIPTyjJKnQYM+OkcOAFvMI6DN+XidG+I81cCSp61o2eKJdTWvorGWlE0DoXj6O4PcV5MBHUpqSPJm9jxBwawpUKPW1GC+585JuQ8Js62qpdVHeH0VARWq4n7lFQNfnCkPbn2s2r1j1XQ6R86UNOvQyNxPp+p2QixSztL5UaqmlEpg4Bv3WTAe+3iRRBf1+qVg7YGl2+zorl1Ek1KeVMtkD310jjqqrUconzj9CZLvOhR+8feWnvlcGCrTQkRgXN+aSX9sQEq2P1bbSi16zA0kmA2iDWPXYf+YBxldh28gRhcDh28vijqa1PQRg6rxsD2vLXWwPZdWqJDU0MuS72p0YoW6husLOcnXxpjB3eyIwq3XQhsMBiHpBW2+fgxUSJRC9Pn89eS0rkOVMEe3O6E26FnT0uHWP7zBUlCucOAfv8q4vRnK+veLW0lwO2r2LY5hUORy6bHrkYTWtrCXLim9l8vjeOvbyhAc6uQOpkIKWNIYXVlKcYOhd6rUOxUi83nun7pPEBuBEvvN4p1yboQyYrKmf1DKygtSUXv0DLnRFQUcXElPYZyh56zZWLolpsKxIHghnz+/vHWKXgDVD0HXDYtfGNxxKI4kzkx904n2+mZFXh8BJ7/zx/1KhMSWC28w/Gz/sFbLBZXqt9iNh0keJw6ET/XMU5yp9cKvrHY2cCddW6yU4qtdbXV7JUVp3Xe7yfPGawA7ITbRkXmqGB5WPWQEqJ8She5DKVtOq0WHoeWGSYFkMRpo87T5uSLzeQfnVRImrxsDPYCCb7hOBxFWi6aOYu08A3HOCz1+6N4SsS4i/In49KFfuAZ7ZL/H5Cztf8DEpu5PSix2G0AAAAASUVORK5CYII=', SAEKKI_PX = 57;
+const V2_SKAALA = 4, V2_PAIKAT = [[22, 8, 2], [14, 28, 2], [37, 12, 3]];   // v2: säkin skaala; tavaran vasen yläkulma spriitin pikseleinä + tavaran suurennus (kp:n mock)
+const V23_Z = 300, PILLI_PAD = 4;   // z: katso otsikko; PILLI_PAD = pillerin sisäreunus, josta säkkikuvan paikka pillerissä lasketaan
 const POIMINTA_TEKSTI = 'Otit pussin ja voit nyt kerätä tavaroita siihen.', POIMINTA_MS = 8000;   // sona 15:18:39: 8 s
 
 const vayla = e.events;
@@ -90,8 +101,8 @@ const rakennaPaneeli = () => {
   for (const t of ['mousedown', 'pointerdown', 'mouseup', 'pointerup', 'click', 'dblclick', 'contextmenu']) paneeli.addEventListener(t, ev => ev.stopPropagation());
   document.body.appendChild(paneeli);
 };
-const piirra = () => {
-  if (!pussi) { if (paneeli) { paneeli.remove(); paneeli = null; ruudut = []; } return; }
+const poistaV1 = () => { if (paneeli) { paneeli.remove(); paneeli = null; ruudut = []; vedto = null; } };
+const piirraV1 = () => {
   rakennaPaneeli();
   for (let i = 0; i < PAIKKOJA; i++) {
     const r = ruudut[i], t = paikat[i]; r.textContent = ''; r.title = t ? t.nimi : '';
@@ -101,6 +112,157 @@ const piirra = () => {
       im.style.cssText = 'max-width:100%;max-height:100%;image-rendering:pixelated'; r.appendChild(im); }
     else r.textContent = t.nimi.slice(0, 8);
   }
+};
+
+// ---- variantit 2 ja 3 (kp:n mallit). Variantti 1 (yllä) ei käytä mitään tästä.
+const alkuV = Number(window.huoneskriptit && window.huoneskriptit.pussiVariantti);
+let variantti = (alkuV === 2 || alkuV === 3) ? alkuV : 1;
+let ikk2 = null, v2kerros = null, v2kuva = null, kortti = null, kortKuva = null, v3ruudut = [], pilli = null;
+let kiinni = false, ankkuri = null, avaaAnkkuriin = null;   // kiinni = v2/v3 kutistettu pillerille; ankkuri = säkkikuvan vasen yläkulma ruudulla; avaaAnkkuriin = kertakäyttöinen (pillerin napautus)
+const sij = { 2: null, 3: null };   // viimeisin ikkunan/kortin paikka {x, y}; null = keskellä
+const kerroin = () => Math.min(1, (window.innerWidth || 1024) / 600);   // sama sääntö kuin mitat()
+const suorak = (el) => (el && el.getBoundingClientRect) ? el.getBoundingClientRect() : { left: 0, top: 0, width: 0, height: 0 };
+const rajaa = (v, lo, hi) => Math.min(Math.max(lo, v), Math.max(lo, hi));
+const merkitse = (el, v) => { el.className = 'h683-pussi'; if (el.setAttribute) el.setAttribute('data-h683', v); };
+// Kortin paikka niin että sen säkkikuva (kortin sisällä siirtymässä ox,oy) osuu ankkuriin (ax,ay); ei ulos ruudulta: siirretään vähimmäismäärä.
+const sijoitaKortti = (ax, ay, ox, oy, w, h, iw, ih) => ({ x: rajaa(ax - ox, 0, iw - w), y: rajaa(ay - oy, 0, ih - h) });
+const nielePelilta = (el) => { for (const t of ['mousedown', 'pointerdown', 'mouseup', 'pointerup', 'click', 'dblclick', 'contextmenu']) el.addEventListener(t, ev => ev.stopPropagation()); };
+// Raahaus kuten variantti 1 (pointer capture, rajaus ikkunaan), mutta erotetaan napautus raahauksesta: alle 6 px liike = napautus.
+// kahva = elementti jota painetaan, juuri = elementti jota siirretään. valmis(liikkui, x, y) kutsutaan nostettaessa; siirretty(x, y) joka siirrolla.
+const teeVedettava = (juuri, kahva, siirretty, valmis) => {
+  let v = null;
+  kahva.addEventListener('pointerdown', (ev) => { ev.stopPropagation(); if (ev.button && ev.button !== 0) return;
+    const r0 = suorak(juuri);
+    v = { id: ev.pointerId, dx: ev.clientX - r0.left, dy: ev.clientY - r0.top, x0: ev.clientX, y0: ev.clientY, liikkui: false, x: r0.left, y: r0.top };
+    juuri.style.left = r0.left + 'px'; juuri.style.top = r0.top + 'px'; juuri.style.transform = 'none';
+    if (kahva.setPointerCapture) try { kahva.setPointerCapture(ev.pointerId); } catch (x) {} });
+  kahva.addEventListener('pointermove', (ev) => { if (!v || ev.pointerId !== v.id) return;
+    if (!v.liikkui && Math.hypot(ev.clientX - v.x0, ev.clientY - v.y0) > 6) v.liikkui = true;
+    if (!v.liikkui) return;
+    const w = juuri.offsetWidth || 0, h = juuri.offsetHeight || 0, iw = window.innerWidth || 0, ih = window.innerHeight || 0;
+    v.x = rajaa(ev.clientX - v.dx, 0, iw - w); v.y = rajaa(ev.clientY - v.dy, 0, ih - h);
+    juuri.style.left = v.x + 'px'; juuri.style.top = v.y + 'px'; if (siirretty) siirretty(v.x, v.y); });
+  kahva.addEventListener('pointerup', (ev) => { if (!v || ev.pointerId !== v.id) return; const a = v; v = null; if (valmis) valmis(a.liikkui, a.x, a.y); });
+  const peru = (ev) => { if (!v || (ev && ev.pointerId !== undefined && ev.pointerId !== v.id)) return; v = null; };
+  kahva.addEventListener('pointercancel', peru); kahva.addEventListener('lostpointercapture', peru);
+};
+const ruksi = (kasittelija) => { const x = document.createElement('div'); x.textContent = '×'; x.title = 'Sulje';
+  x.style.cssText = 'cursor:pointer;width:24px;height:22px;line-height:20px;text-align:center;font-size:18px;color:#fff;touch-action:manipulation;flex:none';
+  x.addEventListener('pointerdown', ev => ev.stopPropagation());   // ei aloita raahausta
+  x.addEventListener('click', (ev) => { ev.stopPropagation(); kasittelija(); }); return x; };
+const kuvaEl = (url, css) => { const im = document.createElement('img'); im.src = url; im.alt = ''; im.draggable = false; im.style.cssText = css; return im; };
+const taytaPaikka = (r, t) => { r.textContent = ''; r.title = t ? t.nimi : '';
+  for (const c of [...r.children]) c.remove();
+  r.style.borderColor = t ? '#418db0' : '#ffffff33';
+  if (!t) return;
+  if (t.kuva) { const im = document.createElement('img'); im.src = t.kuva; im.alt = t.nimi; im.draggable = false; im.style.cssText = 'max-width:100%;max-height:100%;image-rendering:pixelated'; r.appendChild(im); }
+  else r.textContent = t.nimi.slice(0, 8); };
+
+// -- variantti 2: iso säkki
+const poistaV2 = () => { if (ikk2) { ikk2.remove(); ikk2 = null; v2kerros = null; v2kuva = null; } };
+const rakennaV2 = () => {
+  if (ikk2) return;
+  const k = kerroin(), s = V2_SKAALA * k, koko = Math.round(SAEKKI_PX * s);
+  ikk2 = document.createElement('div'); merkitse(ikk2, 'v2');
+  ikk2.style.cssText = 'position:fixed;' + (sij[2] ? 'left:' + sij[2].x + 'px;top:' + sij[2].y + 'px;' : 'left:50%;top:50%;transform:translate(-50%,-50%);')
+    + 'z-index:' + V23_Z + ';max-width:96vw;box-sizing:border-box;font:13px sans-serif;color:#cfc6dc;user-select:none';
+  const kop = document.createElement('div');
+  kop.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:2px 2px 2px 10px;background:rgba(20,17,26,.92);border:1px solid #4b3f5e;border-radius:6px 6px 0 0;'
+    + 'font-weight:bold;letter-spacing:.5px;color:#d9a35b;cursor:move;touch-action:none';
+  const teksti = document.createElement('span'); teksti.textContent = 'Pussi';
+  kop.appendChild(teksti); kop.appendChild(ruksi(() => kutistaV2()));
+  const laatikko = document.createElement('div'); laatikko.style.cssText = 'position:relative;width:' + koko + 'px;height:' + koko + 'px';
+  v2kuva = kuvaEl(SAEKKI_URI, 'display:block;width:' + koko + 'px;height:' + koko + 'px;image-rendering:pixelated;pointer-events:none');
+  v2kerros = document.createElement('div'); v2kerros.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none';
+  laatikko.appendChild(v2kuva); laatikko.appendChild(v2kerros);
+  ikk2.appendChild(kop); ikk2.appendChild(laatikko);
+  nielePelilta(ikk2);
+  teeVedettava(ikk2, kop, (x, y) => { sij[2] = { x, y }; }, (liikkui, x, y) => { if (liikkui) sij[2] = { x, y }; });
+  document.body.appendChild(ikk2);
+};
+const piirraV2 = () => {
+  const k = kerroin(), s = V2_SKAALA * k;
+  for (const c of [...v2kerros.children]) c.remove();
+  for (let i = 0; i < PAIKKOJA; i++) {
+    const t = paikat[i]; if (!t) continue;
+    const [px, py, sk] = V2_PAIKAT[i], pos = 'position:absolute;left:' + Math.round(px * s) + 'px;top:' + Math.round(py * s) + 'px;';
+    if (t.kuva) { const im = kuvaEl(t.kuva, pos + 'transform-origin:0 0;transform:scale(' + (sk * k) + ');opacity:.62;image-rendering:pixelated;pointer-events:none'); im.title = t.nimi; v2kerros.appendChild(im); }
+    else { const d = document.createElement('div'); d.textContent = t.nimi.slice(0, 8); d.title = t.nimi;
+      d.style.cssText = pos + 'max-width:' + Math.round(34 * k * sk) + 'px;font:bold ' + Math.max(9, Math.round(11 * k)) + 'px sans-serif;color:#fff;opacity:.85;text-shadow:0 1px 2px #000;word-break:break-all;line-height:1.1';
+      v2kerros.appendChild(d); }
+  }
+};
+const kutistaV2 = () => {
+  const r = suorak(ikk2), i = suorak(v2kuva);
+  if (r.width || r.height || r.left || r.top) sij[2] = { x: r.left, y: r.top };
+  ankkuri = { x: i.left, y: i.top }; kiinni = true; poistaV2(); piirra();
+};
+
+// -- variantti 3: infostand-kortti. Tyylit pelin client/Nitro-V3/src/components/room/widgets/avatar-info/infostand/InfoStandWidgetFurniView.tsx:540 (kortti), :544-549 (otsikko + × + hr),
+//    :603 (linkki: valkoinen, alleviivattu, text-sm) ja common/Text.tsx:68 (small = text-sm = 0.7875rem, tailwind.config.js:68), fontti Ubuntu (tailwind.config.js:77).
+const KORTTI_TYYLI = 'background:rgba(28,28,32,.95);box-shadow:inset 0 5px #22222799,inset 0 -4px #12121599;border-radius:.25rem';
+const poistaV3 = () => { if (kortti) { kortti.remove(); kortti = null; kortKuva = null; v3ruudut = []; } };
+const rakennaV3 = (ank) => {
+  if (kortti) return;
+  const k = kerroin(), slotti = Math.round(54 * k), kuvaPx = Math.round(SAEKKI_PX * k), leveys = Math.max(150, 3 * slotti + 12 + 16);
+  kortti = document.createElement('div'); merkitse(kortti, 'v3');
+  kortti.style.cssText = 'position:fixed;left:0;top:0;z-index:' + V23_Z + ';width:' + leveys + 'px;max-width:96vw;box-sizing:border-box;padding:8px;' + KORTTI_TYYLI + ';'
+    + 'font:0.7875rem/1.4 Ubuntu,sans-serif;color:#fff;text-align:center;user-select:none;touch-action:none;visibility:hidden';
+  const hr = () => { const h = document.createElement('div'); h.style.cssText = 'height:1px;margin:4px 0;background:#0003;opacity:.5'; return h; };
+  const kop = document.createElement('div'); kop.style.cssText = 'position:relative;padding:0 24px;min-height:22px;line-height:22px;cursor:move;touch-action:none';
+  const otsikko3 = document.createElement('span'); otsikko3.textContent = 'Kankainen pussi'; kop.appendChild(otsikko3);
+  const x = ruksi(() => kutistaV3()); x.style.position = 'absolute'; x.style.right = '-2px'; x.style.top = '0'; kop.appendChild(x);
+  kortKuva = kuvaEl(SAEKKI_URI, 'display:block;margin:4px auto;width:' + kuvaPx + 'px;height:' + kuvaPx + 'px;image-rendering:pixelated;pointer-events:none');
+  const rivi = document.createElement('div'); rivi.style.cssText = 'display:flex;justify-content:center;gap:6px';
+  v3ruudut = [];
+  for (let i = 0; i < PAIKKOJA; i++) {
+    const r = document.createElement('div');
+    r.style.cssText = 'width:' + slotti + 'px;height:' + slotti + 'px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;overflow:hidden;'
+      + 'background:#121215;border:1px solid #ffffff33;border-radius:.25rem;text-align:center;font-size:11px;line-height:12px;word-break:break-all;color:#fff';
+    rivi.appendChild(r); v3ruudut.push(r);
+  }
+  kortti.appendChild(kop); kortti.appendChild(hr()); kortti.appendChild(kortKuva); kortti.appendChild(hr()); kortti.appendChild(rivi);
+  nielePelilta(kortti);
+  teeVedettava(kortti, kortti, (px, py) => { sij[3] = { x: px, y: py }; }, (liikkui, px, py) => { if (liikkui) sij[3] = { x: px, y: py }; });
+  document.body.appendChild(kortti);
+  if (ank) {   // avaus pillerin napautuksesta: säkkikuva täsmälleen pillerin säkkikuvan päälle (mitataan, ei arvata), vähimmäissiirto jos ulos ruudulta
+    kortti.style.left = '0px'; kortti.style.top = '0px'; kortti.style.transform = 'none';
+    const R = suorak(kortti), I = suorak(kortKuva);
+    const p = sijoitaKortti(ank.x, ank.y, I.left - R.left, I.top - R.top, kortti.offsetWidth || R.width, kortti.offsetHeight || R.height, window.innerWidth || 0, window.innerHeight || 0);
+    kortti.style.left = p.x + 'px'; kortti.style.top = p.y + 'px'; sij[3] = { x: p.x, y: p.y };
+  } else if (sij[3]) { kortti.style.left = sij[3].x + 'px'; kortti.style.top = sij[3].y + 'px'; kortti.style.transform = 'none'; }
+  else { kortti.style.left = '50%'; kortti.style.top = '50%'; kortti.style.transform = 'translate(-50%,-50%)'; }
+  kortti.style.visibility = 'visible';
+};
+const piirraV3 = () => { for (let i = 0; i < PAIKKOJA; i++) taytaPaikka(v3ruudut[i], paikat[i]); };
+const kutistaV3 = () => { const i = suorak(kortKuva); ankkuri = { x: i.left, y: i.top }; kiinni = true; poistaV3(); piirra(); };
+
+// -- pilleri (v2:n ja v3:n yhteinen "kutistettu" tila): säkkikuva pyöreässä napissa, raahattava, napautus avaa
+const poistaPilli = () => { if (pilli) { pilli.remove(); pilli = null; } };
+const avaa = () => { kiinni = false; avaaAnkkuriin = ankkuri; piirra(); avaaAnkkuriin = null; };
+const naytaPilli = () => {
+  if (pilli || !ankkuri) return;
+  const kuvaPx = Math.round(SAEKKI_PX * kerroin()), koko = kuvaPx + 2 * PILLI_PAD, iw = window.innerWidth || 0, ih = window.innerHeight || 0;
+  const x = rajaa(ankkuri.x - PILLI_PAD, 0, iw - koko), y = rajaa(ankkuri.y - PILLI_PAD, 0, ih - koko);
+  ankkuri = { x: x + PILLI_PAD, y: y + PILLI_PAD };   // pysyy ruudulla
+  pilli = document.createElement('div'); merkitse(pilli, 'pilli'); pilli.title = 'Pussi';
+  pilli.style.cssText = 'position:fixed;left:' + x + 'px;top:' + y + 'px;z-index:' + V23_Z + ';width:' + koko + 'px;height:' + koko + 'px;box-sizing:border-box;padding:' + PILLI_PAD + 'px;'
+    + KORTTI_TYYLI.replace('.25rem', '999px') + ';cursor:pointer;touch-action:none;user-select:none';
+  pilli.appendChild(kuvaEl(SAEKKI_URI, 'display:block;width:' + kuvaPx + 'px;height:' + kuvaPx + 'px;image-rendering:pixelated;pointer-events:none'));
+  nielePelilta(pilli);
+  teeVedettava(pilli, pilli, null, (liikkui, px, py) => { if (liikkui) ankkuri = { x: px + PILLI_PAD, y: py + PILLI_PAD }; else avaa(); });
+  document.body.appendChild(pilli);
+};
+
+// -- piirto: yksi sisäänkäynti. Pussi pois -> kaikki pois; muuten vain aktiivisen variantin elementit.
+const piirra = () => {
+  if (!pussi) { poistaV1(); poistaV2(); poistaV3(); poistaPilli(); return; }
+  if (variantti === 1) { poistaV2(); poistaV3(); poistaPilli(); piirraV1(); return; }
+  poistaV1();
+  if (kiinni) { poistaV2(); poistaV3(); naytaPilli(); return; }
+  poistaPilli();
+  if (variantti === 2) { poistaV3(); rakennaV2(); piirraV2(); }
+  else { poistaV2(); rakennaV3(avaaAnkkuriin); avaaAnkkuriin = null; piirraV3(); }
 };
 
 // ---- ilmoitus kuten 684.js ilmoita()
@@ -130,7 +292,10 @@ tila.lisaa = (nimi, kuvaUrl) => {
   paikat[i] = t; piirra(); lokiin({ lisaa: t.nimi, paikka: i }); return i; };
 tila.poista = (nimi) => { const i = paikat.findIndex(p => p && p.nimi === String(nimi).trim()); if (i < 0) return false;
   paikat[i] = null; piirra(); lokiin({ poista: String(nimi), paikka: i }); return true; };
-tila.nollaa = () => { pussi = false; paikat = new Array(PAIKKOJA).fill(null); piirra(); lokiin({ nollaa: 1 }); };
+tila.nollaa = () => { pussi = false; paikat = new Array(PAIKKOJA).fill(null); kiinni = false; ankkuri = null; avaaAnkkuriin = null; sij[2] = null; sij[3] = null; piirra(); lokiin({ nollaa: 1 }); };
+// variantti(n): vaihda ulkoasu 1/2/3 (sisältö ja pussi-tila pysyvät, vain piirretään uudelleen); ilman argumenttia palauttaa nykyisen; virheellinen n ei muuta mitään. Palauttaa aktiivisen variantin.
+tila.variantti = (n) => { if (n === undefined || n === null) return variantti; const v = Number(n); if (v !== 1 && v !== 2 && v !== 3) return variantti;
+  if (v !== variantti) { variantti = v; if (v === 1) kiinni = false; lokiin({ variantti: v }); piirra(); } return variantti; };
 
 // ---- klikkaus pussiin
 const onPussiFurni = (ev) => {
@@ -179,9 +344,11 @@ return () => {
   // siivous: pussi ja paikat nollataan (sona 14:42:21 "ei" pysyvyydelle), paneeli ja ilmoitus pois, kuuntelija pois, API pois
   pussi = false; paikat = new Array(PAIKKOJA).fill(null);
   clearInterval(ambulanssiVali); ambulanssissa = null;
+  kiinni = false; ankkuri = null; avaaAnkkuriin = null; sij[2] = null; sij[3] = null;
   vedto = null; otsikko = null;   // raahauksen kaappaus loppuu kun otsikko poistuu (paneeli poistetaan yllä)
   for (const a of ajastimet) clearTimeout(a); ajastimet.clear();
   for (const d of document.querySelectorAll('.h683-pussi')) d.remove(); paneeli = null; ruudut = [];
+  ikk2 = null; v2kerros = null; v2kuva = null; kortti = null; kortKuva = null; v3ruudut = []; pilli = null;
   try { if (vayla && vayla.removeEventListener) vayla.removeEventListener('REOE_SELECTED', valittu); } catch (x) {}
   if (window.kupla683 === tila) delete window.kupla683;
 };
