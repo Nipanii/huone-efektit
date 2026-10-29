@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Huoneskriptit (moottori)
-// @version      0.6.8
+// @version      0.6.9
 // @match        https://kupla.cc/*
 // @grant        none
 // ==/UserScript==
@@ -28,7 +28,7 @@
 //   itsensä roomEngine.activeRoomId:stä (pelin oma, -1 kun sessio päättyy) jos huone on silti mennyt ristiin.
 // Konsolissa: huoneskriptit.ajossa (mitä ajetaan) · huoneskriptit.loki · huoneskriptit.paivita(true) (hae ja käynnistä uudelleen)
 (() => {
-  const hs = { versio: '0.6.8', huone: 0, ajossa: new Map(), loki: [], pysaytetty: false };   // versio: myös 0.4.x:n itsepäivitys lukee tämän
+  const hs = { versio: '0.6.9', huone: 0, ajossa: new Map(), loki: [], pysaytetty: false };   // versio: myös 0.4.x:n itsepäivitys lukee tämän
   const POHJA = 'https://nipanii.github.io/huone-efektit/';
   const uudempi = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number);
     for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); return false; };
@@ -233,6 +233,10 @@
     if (ohitus) try { delete v.updateIgnoreHiddenState; for (const k of Object.keys(v)) if (k.startsWith('__piilo')) delete v[k]; } catch (x) {}
     ITSE.korjattu++; ITSE.viimeisin = { huone: r, indeksi: i, mykistys: m, ohitus, aika: new Date().toTimeString().slice(0, 8) };
     merkitse({ itse: 'oma hahmo palautettu näkyviin', huone: r, mykistys: m, ohitus, skriptit: [...hs.ajossa.keys()].join(' ') });
+    // 0.6.9 (kp 29.10. 02:07 "Hahmo ei pysy piilossa ehkä kun lisäsit moottoriin hahmon epäpiilotuksen"): kaukoputki piilotti
+    //   oman hahmon tahallaan ja tämä palautti sen 209 ms:ssa hiljaa. Ääneen, jotta seuraava törmäys näkyy konsolista heti.
+    console.warn('[huoneskriptit] oma hahmo palautettu näkyviin huoneessa ' + r + ' (mykistys ' + m + (ohitus ? ', ohitus' : '') + '). Ajossa: '
+      + [...hs.ajossa.keys()].join(', ') + '. Tahallinen piilotus: huoneskriptit.itse.salli("<syy>") ennen ja itse.kiella() jälkeen.');
     return true; };
   hs._itseAjastin = setInterval(() => { try { ITSE.tarkista(); } catch (x) {} }, 250);
 
