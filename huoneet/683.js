@@ -441,7 +441,7 @@ const avaaLappu = () => {
     (PYSAKKI_SUUNTA ? '<br>' + esc(PYSAKKI_SUUNTA) : '') + '</div>';
   d.innerHTML = '<div style="position:absolute;right:8px;top:4px;cursor:pointer;font:bold 18px sans-serif" title="Sulje">✕</div>' +
     '<div style="text-align:center">' + BUSSI_SVG + '</div>' +
-    '<div style="text-align:center;font-weight:bold;font-size:16px;letter-spacing:1px;margin:4px 0 2px">' + (tila_ === 'pulma' ? 'Linja XXXX' : 'LINJA 13') + '</div>'   // sona 19:20 'Laitetaa vaikka "Linja XXXX"' +
+    '<div style="text-align:center;font-weight:bold;font-size:16px;letter-spacing:1px;margin:4px 0 2px">' + (tila_ === 'pulma' ? 'Linja XXXX' : 'LINJA 13') + '</div>' +   // sona 19:20 'Laitetaa vaikka "Linja XXXX"' +
     (ilmanAikataulua ? '' : '<div style="text-align:center;font-size:12px;margin-bottom:8px">Pysäkki → ' + esc(PYSAKKI_MAARANPAA) + ' → Sairaala</div>') +
     '<table style="width:100%;border-collapse:collapse;font-family:monospace;font-size:14px">' + rivit.join('') + '</table>' + kyna +
     // 18:56 POISTETTU sonan rivi "Kuljettaja jätti autonsa kesken matkan. Hän otti mukaansa vain sen, mikä yhdistää virran moottoriin, ja piilotti sen
