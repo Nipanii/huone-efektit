@@ -273,16 +273,18 @@ const piirra = () => {
 // ---- ilmoitus kuten 684.js ilmoita()
 const ajastimet = new Set();
 // sona 15:18:39-54: laatikko ympärille + animaatio että erottuu huoneen muusta käyttöliittymästä, poimintatekstiin pussin kuva.
-const ilmoita = (teksti, ms = 1600, kuvaUrl) => { const d = document.createElement('div'); d.className = 'h683-pussi';
+// vari: { reuna: 'r,g,b', tausta: 'r,g,b' } — sona 15:58 "Voisko sait akun laatikko olla vihree 'positiivinen väri'"; oletus violetti.
+const VIHREA = { reuna: '92,200,110', tausta: '14,40,20' };
+const ilmoita = (teksti, ms = 1600, kuvaUrl, vari) => { const R = (vari && vari.reuna) || '184,156,224', T = (vari && vari.tausta) || '20,17,26'; const d = document.createElement('div'); d.className = 'h683-pussi';
   d.style.cssText = 'position:fixed;left:50%;top:14%;transform:translateX(-50%);z-index:99999;pointer-events:none;padding:10px 18px;max-width:90vw;box-sizing:border-box;'
-    + 'display:flex;align-items:center;gap:12px;background:rgba(20,17,26,.95);color:#fff;font:bold 15px sans-serif;border:2px solid #b89ce0;border-radius:10px;'
-    + 'box-shadow:0 0 14px rgba(184,156,224,.6),0 3px 10px rgba(0,0,0,.6);transition:opacity .4s';
+    + 'display:flex;align-items:center;gap:12px;background:rgba(' + T + ',.95);color:#fff;font:bold 15px sans-serif;border:2px solid rgb(' + R + ');border-radius:10px;'
+    + 'box-shadow:0 0 14px rgba(' + R + ',.6),0 3px 10px rgba(0,0,0,.6);transition:opacity .4s';
   if (kuvaUrl) { const k = document.createElement('img'); k.src = kuvaUrl; k.alt = ''; k.draggable = false; k.style.cssText = 'width:40px;height:40px;object-fit:contain;image-rendering:pixelated;flex:none'; d.appendChild(k); }
   const t = document.createElement('span'); t.textContent = teksti; d.appendChild(t);
   document.body.appendChild(d);
   try { if (d.animate) {   // sisääntulo: pomppaa esiin, sitten reunan hehku sykkii kunnes häviää
     d.animate([{ opacity: 0, transform: 'translateX(-50%) scale(.6)' }, { opacity: 1, transform: 'translateX(-50%) scale(1.08)' }, { transform: 'translateX(-50%) scale(1)' }], { duration: 450, easing: 'ease-out' });
-    d.animate([{ boxShadow: '0 0 6px rgba(184,156,224,.35),0 3px 10px rgba(0,0,0,.6)' }, { boxShadow: '0 0 22px rgba(184,156,224,.95),0 3px 10px rgba(0,0,0,.6)' }], { duration: 900, iterations: Infinity, direction: 'alternate', easing: 'ease-in-out' }); } } catch (x) {}
+    d.animate([{ boxShadow: '0 0 6px rgba(' + R + ',.35),0 3px 10px rgba(0,0,0,.6)' }, { boxShadow: '0 0 22px rgba(' + R + ',.95),0 3px 10px rgba(0,0,0,.6)' }], { duration: 900, iterations: Infinity, direction: 'alternate', easing: 'ease-in-out' }); } } catch (x) {}
   const a = setTimeout(() => { d.style.opacity = '0'; ajastimet.delete(a); }, ms), b = setTimeout(() => { d.remove(); ajastimet.delete(b); }, ms + 500); ajastimet.add(a); ajastimet.add(b); };
 
 // ---- API
@@ -342,7 +344,7 @@ const ambulanssiVali = setInterval(() => { try {
   if (!pussi) { lokiin({ akku: 'ei pussia' }); return; }   // ei ilmoitusta: spoileri (kp 29.10. 15:17), sona pyysi vain akun saamisviestin
   if (paikat.some(p => p && p.nimi === AKKU)) return;   // jo saatu
   const i = tila.lisaa(AKKU, AKKU_KUVA);
-  if (i >= 0) { lokiin({ akku: 'saatu', paikka: i }); ilmoita('Sait akun', 8000); }   /* sona 15:19:57: 8 s */ else lokiin({ akku: 'pussi täynnä' });   // täynnä: ei ilmoitusta (speksissä ei ole), yritys jatkuu seuraavassa sisääntulossa
+  if (i >= 0) { lokiin({ akku: 'saatu', paikka: i }); ilmoita('Sait akun', 8000, undefined, VIHREA); }   /* sona 15:19:57: 8 s */ else lokiin({ akku: 'pussi täynnä' });   // täynnä: ei ilmoitusta (speksissä ei ole), yritys jatkuu seuraavassa sisääntulossa
 } catch (err) { lokiin({ virhe: 'ambulanssi: ' + String(err) }); } }, AMBULANSSI_VALI);
 
 // ---- JOHTOLAATAT: akku ei kelpaa sellaisenaan. sona 29.10. 15:50-15:52 "pelaaja ottaa sen akun. sitte se menee sinne lähetyshuoneesee
@@ -352,7 +354,11 @@ const JOHTOLAATAT = [438211, 438205];
 let laatalla = null;
 const laattaVali = setInterval(() => { try {
   const r = omaRuutu(); if (!r) return;
-  const paalla = JOHTOLAATAT.some(id => { const o = e.getRoomObject(huone, id, 10), L = o && o.getLocation && o.getLocation(); return !!L && Math.round(L.x) === r.x && Math.round(L.y) === r.y; });
+  // koko laatan ala (2x2), ei vain kulmaruutu: mitattu 16:00 furniture_size 2x2, sona seisoi 32,6/33,6/34,6 eikä mitään tapahtunut
+  const paalla = JOHTOLAATAT.some(id => { const o = e.getRoomObject(huone, id, 10), L = o && o.getLocation && o.getLocation(); if (!L) return false;
+    const m = o.model, g = k => Number(m && m.getValue && m.getValue(k)); let w = g('furniture_size_x') || 1, h = g('furniture_size_y') || 1;
+    const d = o.getDirection && o.getDirection(); if (d && Math.round(d.x) % 180 === 90) { const t = w; w = h; h = t; }
+    const x = Math.round(L.x), y = Math.round(L.y); return r.x >= x && r.x < x + w && r.y >= y && r.y < y + h; });
   const oli = laatalla; laatalla = paalla;
   if (!paalla || oli !== false) return;
   if (!pussi || !paikat.some(p => p && p.nimi === AKKU)) { lokiin({ johto: 'ei akkua' }); return; }
