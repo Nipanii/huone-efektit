@@ -435,7 +435,10 @@ const avaaLappu = () => {
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const rivi = ([k, m], revitty) => '<tr><td style="border-top:1px dashed #111;padding:2px 0' + (revitty ? ';color:#7a6512;letter-spacing:1px' : '') + '">' + esc(k) + '</td>' +
     '<td style="border-top:1px dashed #111;text-align:right">' + esc(m) + '</td></tr>';
-  const rivit = tila_ === 'pulma' ? PYSAKKI_PULMA.map(r => rivi(r)) : (ilmanAikataulua ? [] : AIKATAULU.map(r => rivi(r))).concat(tila_ === 'vanha' || !PYSAKKI_UUSI_RIVI ? [] : [rivi(PYSAKKI_UUSI_RIVI, true)]);
+  // sona 19:27 "rivien välissä enemmän padding. ja että teksti on aligned vasemmalle ei oikealle"
+  const pulmaRivi = ([k, m]) => '<tr><td style="border-top:1px dashed #111;padding:8px 10px 8px 0;vertical-align:top;white-space:nowrap">' + esc(k) + '</td>' +
+    '<td style="border-top:1px dashed #111;padding:8px 0;text-align:left">' + esc(m) + '</td></tr>';
+  const rivit = tila_ === 'pulma' ? PYSAKKI_PULMA.map(pulmaRivi) : (ilmanAikataulua ? [] : AIKATAULU.map(r => rivi(r))).concat(tila_ === 'vanha' || !PYSAKKI_UUSI_RIVI ? [] : [rivi(PYSAKKI_UUSI_RIVI, true)]);
   const kyna = tila_ === 'vanha' ? '' : (PYSAKKI_REVITTY ? '<div style="font-size:11px;margin:2px 0 6px">' + esc(PYSAKKI_REVITTY) + '</div>' : '') +
     '<div style="margin:6px 0 8px;' + (tila_ === 'pulma' ? 'font:15px/1.5 Verdana,sans-serif;color:#111' : 'font:italic 15px/1.3 \'Comic Sans MS\',\'Segoe Print\',cursive;color:#3b3b3b;transform:rotate(-2deg)') + '">' + esc(PYSAKKI_KYNA).split('\n').join('<br>') +
     (PYSAKKI_SUUNTA ? '<br>' + esc(PYSAKKI_SUUNTA) : '') + '</div>';
