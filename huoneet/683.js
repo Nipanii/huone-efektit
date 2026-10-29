@@ -342,6 +342,18 @@ const avaaLappu = () => {
     '<div style="border-top:2px solid #111;padding-top:8px;font-style:italic">Kuljettaja jätti autonsa kesken matkan. Hän otti mukaansa vain sen, mikä yhdistää virran moottoriin, ' +
     'ja piilotti sen sinne, missä kukaan ei enää odota bussia.</div>';
   d.firstChild.addEventListener('click', ev => { ev.stopPropagation(); suljeLappu(); });
+  // sona 16:56:37 "Tee tosta linja auton lapusta semmonen et sitä ikkunaa voi siirtää": koko lappu on kahva (✕ ei aloita raahausta), pysyy ikkunan sisällä
+  d.style.cursor = 'move'; d.style.touchAction = 'none'; d.style.userSelect = 'none'; nielePelilta(d);
+  d.firstChild.addEventListener('pointerdown', ev => ev.stopPropagation());
+  let veto = null;
+  d.addEventListener('pointerdown', ev => { if (ev.button && ev.button !== 0) return; const r = d.getBoundingClientRect();
+    veto = { id: ev.pointerId, dx: ev.clientX - r.left, dy: ev.clientY - r.top };
+    d.style.left = r.left + 'px'; d.style.top = r.top + 'px'; d.style.transform = 'rotate(-1.5deg)';
+    try { d.setPointerCapture(ev.pointerId); } catch (x) {} });
+  d.addEventListener('pointermove', ev => { if (!veto || ev.pointerId !== veto.id) return;
+    d.style.left = Math.max(0, Math.min(innerWidth - d.offsetWidth, ev.clientX - veto.dx)) + 'px';
+    d.style.top = Math.max(0, Math.min(innerHeight - d.offsetHeight, ev.clientY - veto.dy)) + 'px'; });
+  for (const t of ['pointerup', 'pointercancel', 'lostpointercapture']) d.addEventListener(t, () => { veto = null; });
   document.body.appendChild(d); lappu = d; lokiin({ lappu: 'auki' });
 };
 const pysakkiValittu = (ev) => { try { if (ev && ev.category === 10 && ev.objectId === PYSAKKI) avaaLappu(); } catch (x) { lokiin({ virhe: 'pysäkki: ' + String(x) }); } };
@@ -409,7 +421,7 @@ const akkuVahti = new MutationObserver(() => { for (const b of document.querySel
 akkuVahti.observe(document.body, { childList: true, subtree: true, characterData: true });
 // 16:42-16:47 "observer lakkasi" oli väärä diagnoosi: VIESTI_TYHJA:ssa oli kirjaimellinen 0x08 (\b kirjoittui backspace-tavuksi), joten
 //   "tyhjä" ei osunut koskaan. Observer toimi koko ajan. Testikahva jätetään: tila._kupla.tarkista(el) ajaa suodattimen yhdelle elementille.
-tila._kupla = { onAkku: ON_AKKU, tarkista: el => { akkuKupla(el); return el.style.display; } };
+tila._kupla = { onAkku: ON_AKKU, tarkista: el => { akkuKupla(el); return el.style.display; }, avaaLappu };
 
 // ---- PIMENNYS: huoneen irralliset lattiasaarekkeet piilossa kunnes oma hahmo astuu sinne. Malli huoneet/682.js (kaikki mekanismit sieltä).
 // sona 29.10. 15:28-15:33 "nää kaikki muut tilat jotka ei oo tässä keskellä on pimennetty, eli että sinne ei näe kunnes astuu wirediin ja menee sinne" ·
