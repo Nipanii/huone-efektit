@@ -669,7 +669,15 @@ tila._kello = { vastaus: kelloVastaus, vieressa: kelloVieressa, avaaLappu: avaaK
 // kokeilee ja ei toimi. Sitten kun se astuu tähän … niin tulee viesti että akku tarvitsee erilaisen johdon tms. kirjota paremmin" (osoitti f438211, f438205).
 // Laukeaa vain laatalle astuttaessa ja vain jos pussissa on akku; ilman akkua ei mitään (spoileri, kuten ambulanssissa).
 const JOHTOLAATAT = [438211, 438205];
-const RADIO_AANI = 'https://kuplafix-voice-worker.kuplafix.workers.dev/v/5aa6b311-6dc6-4e';   // sonan oma ääniviesti 20:57:15 ('suuri zombilauma saapuu lauantaina')
+const RADIO_AANI = 'https://kuplafix-voice-worker.kuplafix.workers.dev/v/3ea6a729-8cfc-42';   /* TTS pegasus 21:17 'Zombilauma saapuu lauantaina.' */   // sona 21:06 'ei sitä ääniviestiä minkä mä latoin vaa generoi oma' + kp 'miesääni' -> TTS-tiedosto tähän (oli sonan 5aa6b311-6dc6-4e)
+const RADIO_LAPI_KOODI = 'radio683lapi';   // W12: wired-viesti 'Korjasit radion. Pääsit radan 4 läpi.' + ratoja_tehty
+let radioKupla = null;
+const naytaRadioKupla = () => { if (radioKupla) return; const d = document.createElement('div'); d.className = 'h683-radiokupla';
+  d.style.cssText = 'position:fixed;left:50%;top:22%;transform:translateX(-50%);z-index:99999;cursor:pointer;padding:10px 16px;background:#fff;color:#111;border:2px solid #111;border-radius:14px;font:bold 14px Ubuntu,Arial,sans-serif;box-shadow:0 3px 0 rgba(0,0,0,.35)';
+  d.innerHTML = '📻 Radiosta kuuluu ääniviesti. <span style="color:#2a7">▶ Kuuntele</span><div style="position:absolute;left:50%;bottom:-10px;margin-left:-8px;width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-top:10px solid #111"></div>';
+  d.addEventListener('pointerdown', ev => ev.stopPropagation());
+  d.addEventListener('click', ev => { ev.stopPropagation(); if (!RADIO_AANI) { lokiin({ radio: 'ääni puuttuu' }); return; } try { const a = new Audio(RADIO_AANI); a.play().catch(x => lokiin({ virhe: 'radioääni: ' + String(x) })); } catch (x) {} lokiin({ radio: 'kuunneltu' }); });
+  document.body.appendChild(d); radioKupla = d; setTimeout(() => { if (radioKupla === d) { d.remove(); radioKupla = null; } }, 30000); };
 const LAPI_TEKSTI = 'Radio toimii! Radiosta kuuluu ääniviesti.';   // sona 20:56
 const JOHTO_AKKU_KOODI = 'akku683on', JOHTO_TYHJA_KOODI = 'akku683ei';
 let laatalla = null;
@@ -686,7 +694,7 @@ const laattaVali = setInterval(() => { try {
   //   skripti sanoo oikean koodin: akku pussissa -> JOHTO_AKKU_KOODI ('Akku ei sovi…'), muuten JOHTO_TYHJA_KOODI (sonan 'akku tyhjä').
   const onAkku = !!(pussi && paikat.some(p => p && p.nimi === AKKU));
   const onJohto = !!(pussi && paikat.some(p => p && p.nimi === KAAPELI.nimi));
-  if (onAkku && onJohto) { lokiin({ johto: 'läpi' }); ilmoita(LAPI_TEKSTI, 10000, null, VIHREA); try { const a = new Audio(RADIO_AANI); a.volume = 1; a.play().catch(x => lokiin({ virhe: 'radioääni: ' + String(x) })); } catch (x) {} return; }   // sona 20:54-55: akku + johto ja laatoille -> pääsi huoneen läpi
+  if (onAkku && onJohto) { lokiin({ johto: 'läpi' }); if (tila._sanoSalainen) tila._sanoSalainen(RADIO_LAPI_KOODI); naytaRadioKupla(); return; }   // viesti = wired W12, ääni = klikattava kupla   // sona 20:54-55: akku + johto ja laatoille -> pääsi huoneen läpi
   if (tila._sanoSalainen) tila._sanoSalainen(onAkku ? JOHTO_AKKU_KOODI : JOHTO_TYHJA_KOODI);
   lokiin({ johto: onAkku ? 'akku' : 'ei akkua' }); return;   // viestin näyttää nyt wired 445889 kuiskauksena (sona 16:12 "chätissä kuiskauksena"), alla oleva kuplasuodatin valitsee
 } catch (err) { lokiin({ virhe: 'johtolaatta: ' + String(err) }); } }, AMBULANSSI_VALI);
@@ -733,7 +741,7 @@ let pulmaPois = () => {};
 
   // salainen koodi -> wired (682.js:150-175, 196, 442 malli): oma kaiku (palvelin palauttaa sen lähettäjälle kuiskauksena) niellään ennen kuin suu liikkuu
   // kp 20:12 'ovi683 ovi pw näky omas clientis': kaikki salaiset koodit (kaupan ovi, pussi, lukko) niellään samalla tavalla kuin radion
-  const SALAISET = new Set([RADIO_KOODI, KAUPPA_KOODI, PUSSI_KOODI, KAUPPA_LUKKO_KOODI, KASSA_KOODI, JOHTO_AKKU_KOODI, JOHTO_TYHJA_KOODI].filter(Boolean).map(s => s.toLowerCase()));
+  const SALAISET = new Set([RADIO_KOODI, KAUPPA_KOODI, PUSSI_KOODI, KAUPPA_LUKKO_KOODI, KASSA_KOODI, JOHTO_AKKU_KOODI, JOHTO_TYHJA_KOODI, RADIO_LAPI_KOODI].filter(Boolean).map(s => s.toLowerCase()));
   let koukkuC = null, koukkuOma = null, koukkuAlkup = null, koodiAika = 0, kuplaVahti = null;
   const yhteys = () => { const nahty = new Set(); let c = null;
     const etsi = (o, d) => { if (!o || c || d > 4 || typeof o !== 'object' || nahty.has(o)) return; nahty.add(o);
@@ -972,7 +980,7 @@ return () => {
   // siivous: pussi ja paikat nollataan (sona 14:42:21 "ei" pysyvyydelle), paneeli ja ilmoitus pois, kuuntelija pois, API pois
   try { pimennysPois(); } catch (x) {}
   try { pulmaPois(); } catch (x) {}
-  clearInterval(tallennusVali); tallennaTila(); try { avainTyyli.remove(); } catch (x) {} document.removeEventListener('keydown', escSulje, true);   // päivityksen yli (ks. alku)
+  clearInterval(tallennusVali); tallennaTila(); if (radioKupla) { radioKupla.remove(); radioKupla = null; } try { avainTyyli.remove(); } catch (x) {} document.removeEventListener('keydown', escSulje, true);   // päivityksen yli (ks. alku)
   pussi = false; kuittiOdottaa = false; paikat = new Array(PAIKKOJA).fill(null);
   clearInterval(ambulanssiVali); ambulanssissa = null; clearInterval(kauppaVali); kaupanNuolella = null;
   clearInterval(chatVali); try { chatPalauta(); } catch (x) {} suljeKelloLappu(); suljeKassaNaytto();
