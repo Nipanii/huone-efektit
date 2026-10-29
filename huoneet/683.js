@@ -672,7 +672,13 @@ const JOHTOLAATAT = [438211, 438205];
 const RADIO_AANI = 'https://kuplafix-voice-worker.kuplafix.workers.dev/v/3ea6a729-8cfc-42';   /* TTS pegasus 21:17 'Zombilauma saapuu lauantaina.' */   // sona 21:06 'ei sitä ääniviestiä minkä mä latoin vaa generoi oma' + kp 'miesääni' -> TTS-tiedosto tähän (oli sonan 5aa6b311-6dc6-4e)
 const RADIO_LAPI_KOODI = 'radio683lapi';   // W12: wired-viesti 'Korjasit radion. Pääsit radan 4 läpi.' + ratoja_tehty
 let radioKupla = null;
-const naytaRadioKupla = () => { if (radioKupla) return; const d = document.createElement('div'); d.className = 'h683-radiokupla';
+const ANTENNI = 444848;
+const antenniPaalle = () => { try { const o = e.getRoomObject(huone, ANTENNI, 10); if (!o) { lokiin({ antenni: 'ei löydy' }); return; }
+  const st = '1', dt = { flags: 0, uniqueNumber: 0, uniqueSeries: 0, rarityLevel: -1, state: 0,
+    writeRoomObjectModel(m) { m.setValue('furniture_data_format', 0); m.setValue('furniture_data', st); },
+    initializeFromRoomObjectModel() {}, parseWrapper() {}, getLegacyString() { return st; }, compare() { return false; }, setString() {}, getValue() { return ''; } };
+  e.updateRoomObjectFloor(huone, ANTENNI, o.getLocation(), o.getDirection(), 1, dt); lokiin({ antenni: 'päälle' }); } catch (x) { lokiin({ virhe: 'antenni: ' + String(x) }); } };
+const naytaRadioKupla = () => { antenniPaalle(); if (radioKupla) return; const d = document.createElement('div'); d.className = 'h683-radiokupla';
   d.style.cssText = 'position:fixed;left:50%;top:22%;transform:translateX(-50%);z-index:99999;cursor:pointer;padding:10px 16px;background:#fff;color:#111;border:2px solid #111;border-radius:14px;font:bold 14px Ubuntu,Arial,sans-serif;box-shadow:0 3px 0 rgba(0,0,0,.35)';
   d.innerHTML = '📻 Radiosta kuuluu ääniviesti. <span style="color:#2a7">▶ Kuuntele</span><div style="position:absolute;left:50%;bottom:-10px;margin-left:-8px;width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-top:10px solid #111"></div>';
   d.addEventListener('pointerdown', ev => ev.stopPropagation());
