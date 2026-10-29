@@ -275,7 +275,7 @@ const esilataus = setTimeout(() => tila.rajayta(-60, -60, 0, ASETUS.furni, 3000)
 
 // Viimeisin miina jää näkyviin (kp 29.10. 12:49 "viimenen ruutu mis pelaaja räjähti nii jää miina esii" · "kunnes räjähtää ite
 //   seuraavan kerran" · "muille ei näy toisen pelaajan last mine"). 12:57 muutettu: kaikki näkevät yhden kallon, kenen tahansa viimeisimmän räjähdyksen kohdalla (kp "pitäskö kallot näkyy kaikille" · "viimesin kallo" · "mut näkee vaan yhden kallon" · "tää rata on hemmetin vaikee"). Yksi merkki
-//   kerrallaan: uusi räjähdys siirtää sen. Suunta arvotaan kameraan päin, oikealle tai vasemmalle (270 tai 0; 90/180 osoitti poispäin, kp 12:54 "sun eteenpäin oli taaksepäin"), ei koskaan poispäin (kp 12:53 "ei koskaa poispäin"). Konsolissa: miina.merkkiFurni = '<luokka>' · miina.merkkiFurni = '' (pois).
+//   kerrallaan: uusi räjähdys siirtää sen. Suunta arvotaan kameraan päin, oikealle tai vasemmalle (90 tai 180 = sprite-suunnat 2 ja 4. 270/0 = suunnat 6 ja 0 osoittivat poispäin, kp 12:58 "kallot on taas poispäin"; kp:n 12:54 palaute koski vielä edellistä satunnaisversiota), ei koskaan poispäin (kp 12:53 "ei koskaa poispäin"). Konsolissa: miina.merkkiFurni = '<luokka>' · miina.merkkiFurni = '' (pois).
 tila.merkkiFurni = 'LT_skull';
 let merkkiId = null;
 const merkkiPois = () => { if (merkkiId == null) return; try { const e = window.NitroDevTools.roomEngine; e.removeRoomObjectFloor(e.activeRoomId, merkkiId); } catch (x) {} merkkiId = null; };
@@ -285,7 +285,7 @@ tila.merkki = (oid, x, y, z) => {
   const r = e.activeRoomId, V = e.getRoomObjects(r, 100)[0]?.getLocation().constructor; if (!V) return false;
   merkkiPois();
   const id = seuraavaId--;
-  if (!e.addFurnitureFloorByTypeName(r, id, tila.merkkiFurni, new V(x, y, z || 0), new V(Math.random() < 0.5 ? 270 : 0), 0, data('0'), NaN, -1, 0, -1, '', true, false)) {
+  if (!e.addFurnitureFloorByTypeName(r, id, tila.merkkiFurni, new V(x, y, z || 0), new V(Math.random() < 0.5 ? 90 : 180), 0, data('0'), NaN, -1, 0, -1, '', true, false)) {
     tila.loki.push({ merkki: 'ei piirtynyt', furni: tila.merkkiFurni, x, y }); return false; }
   merkkiId = id; tila.loki.push({ merkki: [x, y] }); return true;
 };
