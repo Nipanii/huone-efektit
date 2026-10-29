@@ -123,7 +123,8 @@ const KELLO_ETAISYYS = 12; // kp 19:58 "ei koko huone vaa antiikkikauppa": koko 
 const KELLO_NIELE_AINA = true;       // true = oikea vastaus ei lähde chattiin missään huoneen kohdassa (ei paljasta vastausta muille); false = niellään vain kellon vieressä
 const AVAIN = 'Avain', AVAIN_KUVA = 'https://kupla.cc/swf/dcr/hof_furni/icons/easter_c26_elvenkey_icon.png';   // robon kokeilu 15:35 (scratchpad avain.js)
 const AVAIN_SAIT = 'Kellon pohjasta putoaa avain.', AVAIN_MS = 8000;
-const AVAIN_EI_PUSSIA = 'Kellokaappi aukeaa, mutta sinulla ei ole mitään mihin laittaa avain.';   // sona 20:05 valitsi vaihtoehdon 1   // '' = ei viestiä (huom: akku/kaapeli ilman pussia eivät näytä mitään, kp 15:17 spoileri)
+const AVAIN_EI_PUSSIA = '';   // sona 20:07 'laitetaa sen tilalle wired ilmoitus': teksti on nyt wiredissä (PUSSI_KOODI alla), ei skriptipopupia
+const PUSSI_KOODI = 'pussi683ei';   // kp 20:07 'script triggeröi wired, user says salainen koodi': says_something [1,1,0] + show_message 'Kellokaappi aukeaa, mutta sinulla ei ole mitään mihin laittaa avain.'   // sona 20:05 valitsi vaihtoehdon 1   // '' = ei viestiä (huom: akku/kaapeli ilman pussia eivät näytä mitään, kp 15:17 spoileri)
 const AUTO_LUKOSSA = 'Auto on lukossa.', AUTO_LUKOSSA_MS = 5000;     // ambulanssiin astuessa pussi + ei avainta + ei akkua; kerran per astuminen
 
 const vayla = e.events;
@@ -554,7 +555,7 @@ const ambulanssiVali = setInterval(() => { try {
 //   ja ovi sanoo 'Ovi on lukittu'"). Hybridi: nuolen walks_on 426068 (pino 4,10) tyhjennetään, ja samaan pinoon says_something (piilota, tarkka)
 //   KAUPPA_KOODI -> sama teleport 427489. Tämä skripti sanoo koodin vain kun pelaaja astuu laatalle avain pussissa; avain kuluu (vapauttaa paikan 1).
 //   RAJA: ilman huone-efektejä pelaaja ei pääse kauppaan lainkaan (pussi on vain skriptissä).
-const KAUPPA_NUOLI = { id: 438321, x: 24, y: 23 }, KAUPPA_KOODI = 'ovi683avain', KAUPPA_LUKITTU = 'Ovi on lukittu.', KAUPPA_LUKITTU_MS = 4000;
+const KAUPPA_NUOLI = { id: 438321, x: 24, y: 23 }, KAUPPA_KOODI = 'ovi683avain', KAUPPA_LUKITTU = '', KAUPPA_LUKITTU_MS = 4000, KAUPPA_LUKKO_KOODI = 'lukko683ei';   // teksti 'Ovi on lukittu.' on wiredissä
 let kaupanNuolella = null;
 const kauppaVali = setInterval(() => { try {
   const r = omaRuutu(); if (!r) return;
@@ -562,9 +563,10 @@ const kauppaVali = setInterval(() => { try {
   const L = o && o.getLocation && o.getLocation(), x = L ? Math.round(L.x) : KAUPPA_NUOLI.x, y = L ? Math.round(L.y) : KAUPPA_NUOLI.y;
   const paalla = r.x === x && r.y === y, oli = kaupanNuolella; kaupanNuolella = paalla;
   if (!paalla || oli !== false) return;   // vain astuttaessa
-  if (!pussi || !paikat.some(p => p && p.nimi === AVAIN)) { lokiin({ kauppa: 'lukossa' }); ilmoita(KAUPPA_LUKITTU, KAUPPA_LUKITTU_MS); return; }
   const sm = Object.getOwnPropertyDescriptor(e, '_roomSessionManager'), s = sm && sm.value && sm.value.getSession && sm.value.getSession(huone);
   if (!s || typeof s.sendChatMessage !== 'function') { lokiin({ kauppa: 'ei istuntoa' }); return; }
+  // kp 20:09 'tää piti olla kans wired viesti': lukittu-viesti wiredinä (says KAUPPA_LUKKO_KOODI + show_message), ei popupia
+  if (!pussi || !paikat.some(p => p && p.nimi === AVAIN)) { lokiin({ kauppa: 'lukossa' }); if (KAUPPA_LUKITTU) ilmoita(KAUPPA_LUKITTU, KAUPPA_LUKITTU_MS); if (KAUPPA_LUKKO_KOODI) s.sendChatMessage(KAUPPA_LUKKO_KOODI, 0); return; }
   s.sendChatMessage(KAUPPA_KOODI, 0); tila.poista(AVAIN); lokiin({ kauppa: 'avattu', avain: 'kului' });
 } catch (err) { lokiin({ virhe: 'kauppa: ' + String(err) }); } }, AMBULANSSI_VALI);
 
@@ -585,7 +587,7 @@ const kelloVastaus = (teksti) => {
   if (!KELLO_OK.has(kelloNorm(teksti))) return false;
   const vieressa = kelloVieressa();
   if (!vieressa) { lokiin({ kello: 'vastaus kaukana', niellty: KELLO_NIELE_AINA }); return KELLO_NIELE_AINA; }
-  if (!pussi) { lokiin({ kello: 'ei pussia' }); if (AVAIN_EI_PUSSIA) ilmoita(AVAIN_EI_PUSSIA, 5000); return true; }
+  if (!pussi) { lokiin({ kello: 'ei pussia' }); if (AVAIN_EI_PUSSIA) ilmoita(AVAIN_EI_PUSSIA, 5000); if (PUSSI_KOODI) { try { const s = chatIst; s && s.sendChatMessage && s.sendChatMessage(PUSSI_KOODI, 0); } catch (x) {} } return true; }
   if (paikat.some(p => p && (p.nimi === AVAIN || p.nimi === AKKU))) { lokiin({ kello: 'avain/akku jo pussissa' }); return true; }   // ei toista avainta (paikka 1 varattu)
   const i = tila.lisaa(AVAIN, AVAIN_KUVA);
   if (i >= 0) { lokiin({ kello: 'avain', paikka: i }); ilmoita(AVAIN_SAIT, AVAIN_MS, AVAIN_KUVA, VIHREA); } else lokiin({ kello: 'pussi täynnä' });
