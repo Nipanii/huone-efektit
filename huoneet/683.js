@@ -660,6 +660,7 @@ tila._kello = { vastaus: kelloVastaus, vieressa: kelloVieressa, avaaLappu: avaaK
 // kokeilee ja ei toimi. Sitten kun se astuu tähän … niin tulee viesti että akku tarvitsee erilaisen johdon tms. kirjota paremmin" (osoitti f438211, f438205).
 // Laukeaa vain laatalle astuttaessa ja vain jos pussissa on akku; ilman akkua ei mitään (spoileri, kuten ambulanssissa).
 const JOHTOLAATAT = [438211, 438205];
+const JOHTO_AKKU_KOODI = 'akku683on', JOHTO_TYHJA_KOODI = 'akku683ei';
 let laatalla = null;
 const laattaVali = setInterval(() => { try {
   const r = omaRuutu(); if (!r) return;
@@ -670,8 +671,11 @@ const laattaVali = setInterval(() => { try {
     const x = Math.round(L.x), y = Math.round(L.y); return r.x >= x && r.x < x + w && r.y >= y && r.y < y + h; });
   const oli = laatalla; laatalla = paalla;
   if (!paalla || oli !== false) return;
-  if (!pussi || !paikat.some(p => p && p.nimi === AKKU)) { lokiin({ johto: 'ei akkua' }); return; }
-  lokiin({ johto: 'viesti' });   // viestin näyttää nyt wired 445889 kuiskauksena (sona 16:12 "chätissä kuiskauksena"), alla oleva kuplasuodatin valitsee
+  // kp 20:28 'miks täs lukee et akku ei sovi sellaisenaan jos akkua ei ole vielä': wiredit (pino 16,9 + sonan 'tyhjä') muutettu says-laukaisimiksi,
+  //   skripti sanoo oikean koodin: akku pussissa -> JOHTO_AKKU_KOODI ('Akku ei sovi…'), muuten JOHTO_TYHJA_KOODI (sonan 'akku tyhjä').
+  const onAkku = !!(pussi && paikat.some(p => p && p.nimi === AKKU));
+  if (tila._sanoSalainen) tila._sanoSalainen(onAkku ? JOHTO_AKKU_KOODI : JOHTO_TYHJA_KOODI);
+  lokiin({ johto: onAkku ? 'akku' : 'ei akkua' }); return;   // viestin näyttää nyt wired 445889 kuiskauksena (sona 16:12 "chätissä kuiskauksena"), alla oleva kuplasuodatin valitsee
 } catch (err) { lokiin({ virhe: 'johtolaatta: ' + String(err) }); } }, AMBULANSSI_VALI);
 // ---- YKSI VIESTI KERRALLA (sona 29.10. 16:21 "jos on akku niin tulee toi että akku ei sovi · jos ei ole niin tulee toi että akku on tyhjä"):
 //   laatoilla on kaksi wirediä jotka kuiskaavat KAIKILLE: sonan "akku tyhjä" ja 445889 "Akku ei sovi…" (pino 16,9). Wired ei näe pussia, joten
@@ -716,7 +720,7 @@ let pulmaPois = () => {};
 
   // salainen koodi -> wired (682.js:150-175, 196, 442 malli): oma kaiku (palvelin palauttaa sen lähettäjälle kuiskauksena) niellään ennen kuin suu liikkuu
   // kp 20:12 'ovi683 ovi pw näky omas clientis': kaikki salaiset koodit (kaupan ovi, pussi, lukko) niellään samalla tavalla kuin radion
-  const SALAISET = new Set([RADIO_KOODI, KAUPPA_KOODI, PUSSI_KOODI, KAUPPA_LUKKO_KOODI, KASSA_KOODI].filter(Boolean).map(s => s.toLowerCase()));
+  const SALAISET = new Set([RADIO_KOODI, KAUPPA_KOODI, PUSSI_KOODI, KAUPPA_LUKKO_KOODI, KASSA_KOODI, JOHTO_AKKU_KOODI, JOHTO_TYHJA_KOODI].filter(Boolean).map(s => s.toLowerCase()));
   let koukkuC = null, koukkuOma = null, koukkuAlkup = null, koodiAika = 0, kuplaVahti = null;
   const yhteys = () => { const nahty = new Set(); let c = null;
     const etsi = (o, d) => { if (!o || c || d > 4 || typeof o !== 'object' || nahty.has(o)) return; nahty.add(o);
