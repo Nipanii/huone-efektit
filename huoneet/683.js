@@ -506,12 +506,12 @@ const suljeKelloLappu = () => { if (kelloLappu) { kelloLappu.remove(); kelloLapp
 //   KASSA_PULMA on PAIKKAMERKKI kunnes sona valitsee arvoituksen.
 const KASSA = { id: 444817, tyyppi: 'market_c19_checkoutdesk', x: 30, y: 25 };
 const KASSA_OTSIKKO = 'Kassan näyttö';
-const KASSA_PULMA = '1) Olen raidallinen kuin seepra, mutta kone lukee minut. Mikä olen?\n2) Minulla on näppäimiä mutta ei lukkoja. Mikä olen?\n3) Mitä enemmän otat, sitä enemmän jätät jälkeesi?\nSano vastaukset kassan edessä.';   // sona 20:26 'otetaan nuo kaikki'
+const KASSA_PULMA = '1) Minulla on viivoja, jotka kertovat hinnan, mutta en osaa kirjoittaa. Mikä olen?\n2) Minulla on näppäimiä mutta ei lukkoja. Mikä olen?\n3) Mitä enemmän otat, sitä enemmän jätät jälkeesi?\nSano vastaukset kassan edessä.';   // sona 20:26 'otetaan nuo kaikki'
 const KASSA_VASTAUKSET = [['viivakoodi', 'viivakoodit'], ['näppäimistö', 'nappaimisto', 'näppäimistöt'], ['askeleet', 'askel', 'askelia', 'jalanjäljet']];
 const KASSA_KOODI = 'kassa683', KASSA_ETAISYYS = 2;   // kaikki kolme sanottu -> skripti sanoo KASSA_KOODIn -> wired W10 (22,10) näyttää palkintoviestin
 const kassaRatkaistu = new Set(palautus && palautus.kassaRatk || []); let kassaPalkittu = !!(palautus && palautus.kassaPalkittu);
 const KASSA_ONNI = 'Onnittelut! Kassa aukeaa. Kassan sisältä löytyi johto.';   // sona 20:35 'näyttöön tulee onnittelut ja että kassa aukeaa'
-const KASSA_ARVOITUKSET = ['Olen raidallinen kuin seepra, mutta kone lukee minut. Mikä olen?', 'Minulla on kirjaimet mutta en ole kirje, ja näppäimet mutta en ole piano. Mikä olen?', 'Mitä enemmän otat, sitä enemmän jätät jälkeesi?'];
+const KASSA_ARVOITUKSET = ['Minulla on viivoja, jotka kertovat hinnan, mutta en osaa kirjoittaa. Mikä olen?', 'Minulla on kirjaimet mutta en ole kirje, ja näppäimet mutta en ole piano. Mikä olen?', 'Mitä enemmän otat, sitä enemmän jätät jälkeesi?'];
 let kassaNaytto = null;
 const suljeKassaNaytto = () => { if (kassaNaytto) { kassaNaytto.remove(); kassaNaytto = null; } };
 const avaaKassaNaytto = () => {
