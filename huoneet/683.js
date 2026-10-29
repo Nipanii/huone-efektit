@@ -65,6 +65,7 @@ const siirra = (ev) => { if (!vedto || !paneeli || ev.pointerId !== vedto.id) re
   paneeli.style.left = x + 'px'; paneeli.style.top = y + 'px'; };
 const lopeta = (ev) => { if (!vedto || (ev && ev.pointerId !== undefined && ev.pointerId !== vedto.id)) return; vedto = null; };
 // Koko: ruudut 60 px, alle 600 px leveällä ruudussa suhteessa (ruutu 320 px -> 32 px). Paneeli max 92vw (CSS).
+const NIMI_K = 16;   // v1 nimirivin korkeus px (sona 15:28:08)
 const mitat = () => { const k = Math.min(1, (window.innerWidth || 1024) / 600); return { ruutu: Math.round(60 * k), kuva: Math.round(32 * k) }; };
 const rakennaPaneeli = () => {
   if (paneeli) return;
@@ -92,7 +93,8 @@ const rakennaPaneeli = () => {
   ruudut = [];
   for (let i = 0; i < PAIKKOJA; i++) {
     const r = document.createElement('div');
-    r.style.cssText = 'width:' + m.ruutu + 'px;height:' + m.ruutu + 'px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;overflow:hidden;'
+    // sona 15:28:08: esineen nimi kuvan alle, ikkuna saa kasvaa hieman -> ruutu on sarake: kuva + NIMI_K px nimirivi
+    r.style.cssText = 'width:' + (m.ruutu + 12) + 'px;height:' + (m.ruutu + NIMI_K) + 'px;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;padding:3px 2px 2px;'
       + 'background:#0c0a10;border:1px solid #3a3148;border-radius:6px;text-align:center;font-size:12px;line-height:13px;word-break:break-all';
     rivi.appendChild(r); ruudut.push(r);
   }
@@ -109,7 +111,10 @@ const piirraV1 = () => {
     r.style.borderColor = t ? '#7d6a9a' : '#3a3148';
     if (!t) continue;
     if (t.kuva) { const im = document.createElement('img'); im.src = t.kuva; im.alt = t.nimi; im.draggable = false;
-      im.style.cssText = 'max-width:100%;max-height:100%;image-rendering:pixelated'; r.appendChild(im); }
+      im.style.cssText = 'max-width:100%;max-height:calc(100% - ' + NIMI_K + 'px);min-height:0;flex:1 1 auto;object-fit:contain;image-rendering:pixelated'; r.appendChild(im);
+      const nm = document.createElement('div'); nm.className = 'h683-nimi'; nm.textContent = t.nimi;
+      nm.style.cssText = 'flex:none;width:100%;margin-top:2px;font:bold 11px sans-serif;line-height:13px;color:#e6dcf5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;word-break:normal';
+      r.appendChild(nm); }
     else r.textContent = t.nimi.slice(0, 8);
   }
 };
