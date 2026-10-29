@@ -84,7 +84,8 @@ const KAAPELI = { nimi: 'Koaksiaalikaapeli', kuva: null, furni: { id: 444821, ty
 const KAAPELI_SAIT = 'Otit pussiin: {nimi}';   // {nimi} korvataan
 const KAAPELI_TAYNNA = 'Pussi on täynnä.';      // '' = ei viestiä (ei pitäisi tapahtua: jokaisella pulmaesineellä on oma paikka, PAIKKA_JARJESTYS)
 // Pussin paikkajärjestys (sona 18:55): esine menee omaan paikkaansa ottojärjestyksestä riippumatta; muu (konsoli) ensimmäiseen vapaaseen.
-const PAIKKA_JARJESTYS = ['Akku', KUITTI, KAAPELI.nimi];
+// Paikka voi olla taulukko: avain ja akku jakavat paikan 1 (avain näkyy akun paikalla kunnes vaihtuu akuksi, sona 19:45).
+const PAIKKA_JARJESTYS = [['Akku', 'Avain'], KUITTI, KAAPELI.nimi];
 // Läppäri ja radio (radiohuone x28-36 y5-10, kartta: army_c15_deskcomp 33,5 · habbox_styx_plage_radio 34,5)
 const LAPPARI = { id: 438226, tyyppi: 'army_c15_deskcomp', x: 33, y: 5 };
 const LAPPARI_TEKSTI = 'Antenni ei saa signaalia. Tarvitaan kaapeli, sellaisen saa kaupasta.', LAPPARI_MS = 10000;
@@ -105,6 +106,22 @@ const SKRIPTI_NAYTTAA = { kuitti: true, lappari: true };
 //   Mitään ei tarvitse palauttaa: hylly ja kassat jäävät paikalleen (kaapelin ja kuitin voi ottaa uudelleen) ja akku tulee uudelleen kun astuu ambulanssiin.
 const HEITTO_SALLITTU = true;
 const HEITTO_TEKSTI = 'Heitit pois: {nimi}';   // '' = ei viestiä
+// ==== ISOISÄN KELLO -> AVAIN -> AUTO (sona 29.10. 19:45 valitsi kellopulman 7 "haljennut taulu"; robo 19:45: avain avaa auton, kuluu kun akku otetaan).
+//   Kellon klikkaus avaa lapun (kuten pysäkki). Vastaus sanotaan chatissa kellon vieressä -> AVAIN pussiin. Ambulanssin akku vain avaimella; akun
+//   otossa avain kuluu ja akku tulee sen paikalle (sama paikka 1), joten pussissa on yhä enintään 3 tavaraa (akku, kuitti, johto).
+//   Vastausrivi SIEPATAAN ENNEN LÄHETYSTÄ: pelaajan chat lähtee roomSession.sendChatMessage/sendShoutMessage-kutsulla (DarkUI useChatInputWidget.ts:255/258),
+//   ja skripti käärii saman istunnon metodit. Rivi ei lähde palvelimelle lainkaan -> kukaan (ei edes pelaaja itse) ei näe kuplaa. Kuiskausta ei kääritä.
+//   RAJA: pelaaja jolla ei ole huone-efektejä lähettää rivin normaalisti (näkyy kaikille) eikä saa avainta. VAIN OFFLINE-TESTATTU.
+const KELLO = { id: 443461, tyyppi: 'attic15_clock', x: 3, y: 38 };   // isoisän kello, antiikkikauppa (kp 19:42 osoitti); x,y = varafallback, sijainti luetaan huoneesta
+const KELLO_PULMA = 'Isoisän kellon taulu on haljennut. Yksi suora halkeama jakaa sen kahteen palaan, ja kummankin palan numerot yhteenlaskettuna antavat saman luvun.\nSano se luku kellon vieressä.';
+const KELLO_OTSIKKO = 'Isoisän kello';
+const KELLO_VASTAUKSET = ['39', 'kolmekymmentäyhdeksän', 'kolmekymmentayhdeksan'];   // verrataan pienaatioin, välilyönnit ja .,!? pois (1+2+...+12 = 78, 78/2 = 39)
+const KELLO_ETAISYYS = 2;            // ruutua (max(|dx|,|dy|)) kellosta, jotta vastaus kelpaa
+const KELLO_NIELE_AINA = true;       // true = oikea vastaus ei lähde chattiin missään huoneen kohdassa (ei paljasta vastausta muille); false = niellään vain kellon vieressä
+const AVAIN = 'Avain', AVAIN_KUVA = 'https://kupla.cc/swf/dcr/hof_furni/icons/easter_c26_elvenkey_icon.png';   // robon kokeilu 15:35 (scratchpad avain.js)
+const AVAIN_SAIT = 'Kellon pohjasta putoaa avain.', AVAIN_MS = 8000;
+const AVAIN_EI_PUSSIA = 'Tarvitset jotain mihin kerätä tavaroita.';   // '' = ei viestiä (huom: akku/kaapeli ilman pussia eivät näytä mitään, kp 15:17 spoileri)
+const AUTO_LUKOSSA = 'Auto on lukossa.', AUTO_LUKOSSA_MS = 5000;     // ambulanssiin astuessa pussi + ei avainta + ei akkua; kerran per astuminen
 
 const vayla = e.events;
 const loki = [];
@@ -394,7 +411,7 @@ tila.tavarat = () => paikat.filter(Boolean).map(t => ({ nimi: t.nimi, kuva: t.ku
 tila.lisaa = (nimi, kuvaUrl) => {
   if (typeof nimi !== 'string' || !nimi.trim()) return -1;
   const t = siisti({ nimi: nimi.trim(), kuva: kuvaUrl }), vanha = paikat.findIndex(p => p && p.nimi === t.nimi); if (vanha >= 0) return vanha;
-  const oma = PAIKKA_JARJESTYS.indexOf(t.nimi);   // pulmaesineellä oma paikka (sona 18:55: 1. akku 2. kuitti 3. johto)
+  const oma = PAIKKA_JARJESTYS.findIndex(p => [].concat(p).includes(t.nimi));   // pulmaesineellä oma paikka (sona 18:55: 1. akku/avain 2. kuitti 3. johto)
   const i = (oma >= 0 && oma < PAIKKOJA && !paikat[oma]) ? oma : paikat.indexOf(null); if (i < 0) { lokiin({ lisaa: 'täynnä', nimi: t.nimi }); return -1; }
   paikat[i] = t; piirra(); lokiin({ lisaa: t.nimi, paikka: i }); return i; };
 tila.poista = (nimi) => { const i = paikat.findIndex(p => p && p.nimi === String(nimi).trim()); if (i < 0) return false;
@@ -470,6 +487,34 @@ const avaaLappu = () => {
 const pysakkiValittu = (ev) => { try { if (ev && ev.category === 10 && ev.objectId === PYSAKKI) avaaLappu(); } catch (x) { lokiin({ virhe: 'pysäkki: ' + String(x) }); } };
 if (vayla && vayla.addEventListener) vayla.addEventListener('REOE_SELECTED', pysakkiValittu);
 
+// ---- ISOISÄN KELLON LAPPU (vakiot KELLO_* ylhäällä). Sama ikkuna kuin pysäkin lappu: ✕ sulkee, koko lappu raahattava, ei lähetä mitään.
+//   Klikkaus tulee pulma-lohkon pulmaValittu-kuuntelijasta (PIMENNYS-suoja nakyvissa() + luokka/paikka-varatunnistus osuu()).
+let kelloLappu = null;
+const suljeKelloLappu = () => { if (kelloLappu) { kelloLappu.remove(); kelloLappu = null; } };
+const avaaKelloLappu = () => {
+  if (kelloLappu) return;
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const d = document.createElement('div'); d.className = 'h683-kello';
+  d.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) rotate(-1deg);z-index:99998;width:320px;max-width:92vw;box-sizing:border-box;padding:18px 22px 18px;' +
+    'background:#efe3c4;color:#111;font:15px/1.6 Verdana,sans-serif;box-shadow:4px 6px 0 rgba(0,0,0,.45);border:2px solid #111';
+  d.innerHTML = '<div style="position:absolute;right:8px;top:4px;cursor:pointer;font:bold 18px sans-serif" title="Sulje">✕</div>' +
+    '<div style="text-align:center;font-weight:bold;font-size:16px;letter-spacing:1px;margin:2px 0 12px">' + esc(KELLO_OTSIKKO) + '</div>' +
+    '<div style="text-align:left">' + esc(KELLO_PULMA).split('\n').join('<br><br>') + '</div>';
+  d.firstChild.addEventListener('click', ev => { ev.stopPropagation(); suljeKelloLappu(); });
+  d.style.cursor = 'move'; d.style.touchAction = 'none'; d.style.userSelect = 'none'; nielePelilta(d);
+  d.firstChild.addEventListener('pointerdown', ev => ev.stopPropagation());
+  let veto = null;   // sama raahaus kuin avaaLappu()
+  d.addEventListener('pointerdown', ev => { if (ev.button && ev.button !== 0) return; const r = d.getBoundingClientRect();
+    veto = { id: ev.pointerId, dx: ev.clientX - r.left, dy: ev.clientY - r.top };
+    d.style.left = r.left + 'px'; d.style.top = r.top + 'px'; d.style.transform = 'rotate(-1deg)';
+    try { d.setPointerCapture(ev.pointerId); } catch (x) {} });
+  d.addEventListener('pointermove', ev => { if (!veto || ev.pointerId !== veto.id) return;
+    d.style.left = Math.max(0, Math.min(innerWidth - d.offsetWidth, ev.clientX - veto.dx)) + 'px';
+    d.style.top = Math.max(0, Math.min(innerHeight - d.offsetHeight, ev.clientY - veto.dy)) + 'px'; });
+  for (const t of ['pointerup', 'pointercancel', 'lostpointercapture']) d.addEventListener(t, () => { veto = null; });
+  document.body.appendChild(d); kelloLappu = d; lokiin({ kello: 'lappu auki' });
+};
+
 // ---- akku ambulanssista. Oman hahmon ruutu luetaan samalla idiomilla kuin 681.js omaIndeksi() + naapurit(); ei muokata engineä.
 let ambulanssissa = null, varoitettu = false;   // null = ei vielä mitattu (ensimmäinen mittaus ei laukaise)
 const omaRuutu = () => {
@@ -497,9 +542,50 @@ const ambulanssiVali = setInterval(() => { try {
   if (!sisalla || oli !== false) return;   // laukeaa vain sisään astuttaessa (oli === false), ei joka ruudussa
   if (!pussi) { lokiin({ akku: 'ei pussia' }); return; }   // ei ilmoitusta: spoileri (kp 29.10. 15:17), sona pyysi vain akun saamisviestin
   if (paikat.some(p => p && p.nimi === AKKU)) return;   // jo saatu
+  // sona 19:45: auto on lukossa ilman avainta (kellon pulma). Ilmoitus kerran per astuminen (tämä kohta ajetaan vain sisään astuttaessa).
+  if (!paikat.some(p => p && p.nimi === AVAIN)) { lokiin({ akku: 'lukossa' }); if (AUTO_LUKOSSA) ilmoita(AUTO_LUKOSSA, AUTO_LUKOSSA_MS); return; }
+  tila.poista(AVAIN);   // avain kuluu; akku menee samaan paikkaan (PAIKKA_JARJESTYS[0])
   const i = tila.lisaa(AKKU, AKKU_KUVA);
-  if (i >= 0) { lokiin({ akku: 'saatu', paikka: i }); ilmoita('Sait akun', 8000, undefined, VIHREA); }   /* sona 15:19:57: 8 s */ else lokiin({ akku: 'pussi täynnä' });   // täynnä: ei ilmoitusta (speksissä ei ole), yritys jatkuu seuraavassa sisääntulossa
+  if (i >= 0) { lokiin({ akku: 'saatu', paikka: i, avain: 'kului' }); ilmoita('Sait akun', 8000, undefined, VIHREA); }   /* sona 15:19:57: 8 s */ else { lokiin({ akku: 'pussi täynnä' }); tila.lisaa(AVAIN, AVAIN_KUVA); }   // täynnä (ei pitäisi tapahtua: oma paikka): avain takaisin, ei ilmoitusta
 } catch (err) { lokiin({ virhe: 'ambulanssi: ' + String(err) }); } }, AMBULANSSI_VALI);
+
+// ---- KELLON VASTAUS (vakiot KELLO_* ylhäällä). Oma lähtevä chat-rivi siepataan ENNEN lähetystä: istunnon sendChatMessage/sendShoutMessage
+//   kääritään (instanssin oma ominaisuus varjostaa RoomSession-prototyypin metodin). Oikea vastaus -> ei lähetetä; muu teksti -> alkuperäiselle.
+//   Istunto voi vaihtua tai puuttua käynnistyessä -> käärintä tarkistetaan AMBULANSSI_VALI-välein. Siivous palauttaa alkuperäiset (jos yhä meidän).
+const kelloNorm = (s) => String(s == null ? '' : s).trim().toLowerCase().replace(/[\s.,!?]+/g, '');
+const KELLO_OK = new Set(KELLO_VASTAUKSET.map(kelloNorm));
+const kelloRuutu = () => { let o = null; try { o = e.getRoomObject(huone, KELLO.id, 10); } catch (x) { o = null; }
+  const L = o && o.getLocation && o.getLocation(); if (L && isFinite(L.x) && isFinite(L.y)) return { x: Math.round(L.x), y: Math.round(L.y), o };
+  return { x: KELLO.x, y: KELLO.y, o: null }; };
+const kelloVieressa = () => { const r = omaRuutu(); if (!r) return false; const k = kelloRuutu();
+  // PIMENNYS: kellon alue piilossa = pelaaja ei ole antiikkikaupassa -> ei kelpaa (sama ehto kuin nakyvissa() pulma-lohkossa)
+  try { if (k.o && k.o.model && k.o.model.getValue('furniture_wired_opacity') === 0) return false; } catch (x) {}
+  return Math.max(Math.abs(r.x - k.x), Math.abs(r.y - k.y)) <= KELLO_ETAISYYS; };
+// Palauttaa true jos rivi niellään (ei lähetetä).
+const kelloVastaus = (teksti) => {
+  if (!KELLO_OK.has(kelloNorm(teksti))) return false;
+  const vieressa = kelloVieressa();
+  if (!vieressa) { lokiin({ kello: 'vastaus kaukana', niellty: KELLO_NIELE_AINA }); return KELLO_NIELE_AINA; }
+  if (!pussi) { lokiin({ kello: 'ei pussia' }); if (AVAIN_EI_PUSSIA) ilmoita(AVAIN_EI_PUSSIA, 5000); return true; }
+  if (paikat.some(p => p && (p.nimi === AVAIN || p.nimi === AKKU))) { lokiin({ kello: 'avain/akku jo pussissa' }); return true; }   // ei toista avainta (paikka 1 varattu)
+  const i = tila.lisaa(AVAIN, AVAIN_KUVA);
+  if (i >= 0) { lokiin({ kello: 'avain', paikka: i }); ilmoita(AVAIN_SAIT, AVAIN_MS, AVAIN_KUVA, VIHREA); } else lokiin({ kello: 'pussi täynnä' });
+  return true; };
+let chatIst = null; const chatAlkup = {};
+const chatKaari = () => { try {
+  const sm = Object.getOwnPropertyDescriptor(e, '_roomSessionManager'); const s = sm && sm.value && sm.value.getSession && sm.value.getSession(huone);
+  if (!s || s === chatIst) return;
+  chatPalauta(); chatIst = s;
+  for (const m of ['sendChatMessage', 'sendShoutMessage']) { const alkup = s[m]; if (typeof alkup !== 'function') continue;
+    const oma = function (teksti, ...muut) { try { if (kelloVastaus(teksti)) return; } catch (x) { lokiin({ virhe: 'kello: ' + String(x) }); } return alkup.call(this, teksti, ...muut); };
+    oma.h683 = true; chatAlkup[m] = { alkup, oma, oli: Object.prototype.hasOwnProperty.call(s, m) }; s[m] = oma; }
+} catch (x) { lokiin({ virhe: 'chat-kääre: ' + String(x) }); } };
+const chatPalauta = () => { const s = chatIst; if (s) for (const m of Object.keys(chatAlkup)) { const a = chatAlkup[m];
+    try { if (s[m] === a.oma) { if (a.oli) s[m] = a.alkup; else delete s[m]; } } catch (x) {} }
+  for (const m of Object.keys(chatAlkup)) delete chatAlkup[m]; chatIst = null; };
+chatKaari();
+const chatVali = setInterval(chatKaari, AMBULANSSI_VALI);
+tila._kello = { vastaus: kelloVastaus, vieressa: kelloVieressa, avaaLappu: avaaKelloLappu };
 
 // ---- JOHTOLAATAT: akku ei kelpaa sellaisenaan. sona 29.10. 15:50-15:52 "pelaaja ottaa sen akun. sitte se menee sinne lähetyshuoneesee
 // kokeilee ja ei toimi. Sitten kun se astuu tähän … niin tulee viesti että akku tarvitsee erilaisen johdon tms. kirjota paremmin" (osoitti f438211, f438205).
@@ -555,7 +641,7 @@ let pulmaPois = () => {};
     return false; };
   // Piilotetun alueen furni (pimennys: furniture_wired_opacity 0) ei reagoi, vaikka valinta jostain syystä tulisi -> ei paljasta aluetta etukäteen.
   const nakyvissa = (ev) => { try { const o = e.getRoomObject(huone, ev.objectId, 10), v = o && o.model && o.model.getValue('furniture_wired_opacity'); return v !== 0; } catch (x) { return true; } };
-  for (const s of [LAPPARI, RADIO, ...KASSAT, KAAPELI.furni]) if (s && s.id == null && !s.tyyppi) console.warn('683 pulma: furni ilman id:tä ja luokkaa', s);
+  for (const s of [LAPPARI, RADIO, KELLO, ...KASSAT, KAAPELI.furni]) if (s && s.id == null && !s.tyyppi) console.warn('683 pulma: furni ilman id:tä ja luokkaa', s);
   const onTavara = (n) => paikat.some(p => p && p.nimi === n);
   let radioKorjattu = false;
 
@@ -608,6 +694,7 @@ let pulmaPois = () => {};
     if (KASSAT.some(s => osuu(s, ev))) { kuitti(); return; }
     if (osuu(LAPPARI, ev)) { lokiin({ lappari: 1 }); if (SKRIPTI_NAYTTAA.lappari) ilmoita(LAPPARI_TEKSTI, LAPPARI_MS); return; }
     if (osuu(RADIO, ev)) { radio(); return; }
+    if (osuu(KELLO, ev)) { lokiin({ kello: 'klikattu' }); avaaKelloLappu(); return; }
     if (osuu(KAAPELI.furni, ev)) kaapeli(KAAPELI);
   } catch (x) { lokiin({ virhe: 'pulma: ' + String(x) }); } };
   if (vayla && vayla.addEventListener) vayla.addEventListener('REOE_SELECTED', pulmaValittu);
@@ -782,6 +869,7 @@ return () => {
   try { pulmaPois(); } catch (x) {}
   pussi = false; kuittiOdottaa = false; paikat = new Array(PAIKKOJA).fill(null);
   clearInterval(ambulanssiVali); ambulanssissa = null;
+  clearInterval(chatVali); try { chatPalauta(); } catch (x) {} suljeKelloLappu();
   clearInterval(laattaVali); laatalla = null; akkuVahti.disconnect(); suljeLappu(); if (vayla && vayla.removeEventListener) vayla.removeEventListener('REOE_SELECTED', pysakkiValittu);
   kiinni = false; ankkuri = null; avaaAnkkuriin = null; sij[2] = null; sij[3] = null;
   vedto = null; otsikko = null;   // raahauksen kaappaus loppuu kun otsikko poistuu (paneeli poistetaan yllä)
