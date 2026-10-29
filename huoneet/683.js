@@ -43,8 +43,56 @@ const PUSSI_KUVA = 'https://kupla.cc/swf/dcr/hof_furni/icons/hp_sack_icon.png';
 // Varianttien 2 ja 3 pussikuva: huonespriitti hp_sack_64_a_2_0, 57x57 px (hp_sack-64.png, kupla.cc/nitro-assets/bundled/furniture2test1/hp_sack.nitro).
 const SAEKKI_URI = 'data:image/png;base64,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', SAEKKI_PX = 57;
 const V2_SKAALA = 4, V2_PAIKAT = [[22, 8, 2], [14, 28, 2], [37, 12, 3]];   // v2: säkin skaala; tavaran vasen yläkulma spriitin pikseleinä + tavaran suurennus (kp:n mock)
-const V23_Z = 300, PILLI_PAD = 4;   // z: katso otsikko; PILLI_PAD = pillerin sisäreunus, josta säkkikuvan paikka pillerissä lasketaan
+const V23_Z = 300, PILLI_PAD = 9;   // kp 29.10. 18:50 "ympyrä pill iconissa on liian pieni … liian tiukka": 4 -> 9   // z: katso otsikko; PILLI_PAD = pillerin sisäreunus, josta säkkikuvan paikka pillerissä lasketaan
 const POIMINTA_TEKSTI = 'Otit pussin ja voit nyt kerätä tavaroita siihen.', POIMINTA_MS = 8000;   // sona 15:18:39: 8 s
+
+// ==== PULMA 29.10. (kp 18:38 "alahan sit rakentaa sitä uutta puzzlea"). EHDOTUS SONALLE: kaikki tekstit, furnit ja kytkimet tässä lohkossa.
+//   Ketju (nitro/data/683-kartta.md 18:13-18:37): pysäkin lappu (revitty lähtöaika + kahvi) -> itsepalvelukassan kuitti 12.28 -> +1 +1 = 12.30 ->
+//   koodi 1230 antiikkikaupan ovella (WIRED, ei tässä) -> pussi -> akku ambulanssista -> antennikaapeli kaupasta (3 vaihtoehtoa) -> läppäri kertoo oikean -> radio.
+//   Rakennusohjeet wiredeille ja tila per askel: D:/re-lab/nitro/data/683-tila.md. VAIN OFFLINE-TESTATTU (node, ei hotellia).
+//   Kaikki klikkaukset toimivat vain kun furni on NÄKYVISSÄ (pimennys alla piilottaa muut alueet: opacity 0 + click_through) -> ei paljasta aluetta etukäteen.
+// Pysäkin lappu: 'yhdistetty' = sonan LINJA 13 -lappu + uusi rivi ja lyijykynämerkintä (oletus, mitään sonan tekstiä ei poisteta) ·
+//   'uusi' = vain uusi aikataulu · 'vanha' = sonan lappu sellaisenaan (16:22-16:56).
+const PYSAKKI_LAPPU = 'yhdistetty';
+const PYSAKKI_UUSI_RIVI = ['12.░░', 'Hautausmaa'];   // kp 18:49:03: tunnit näkyy, minuutit revitty (12.28 +1 +1 = 12.30); "ei se voi olla antiikkikaupalle kun bussi on antiikkikaupan edessä"
+const PYSAKKI_REVITTY = 'Lähtöaika on revitty irti.';
+const PYSAKKI_KYNA = 'Kuski haki kahvin kaupasta juuri ennen lähtöä. Onneksi kauppaan kävelee minuutissa.';   // lyijykynällä, käsialana
+const PYSAKKI_SUUNTA = '';   // EHDOTUS (tyhjä = ei näytetä): esim. 'Kauppa on kadun päässä, nuolen takana.' — kauppa on piilossa kunnes sinne menee
+// Itsepalvelukassa (supermarket x27-33 y15-25). Furni-spec: id osuu suoraan; muuten luokka + x,y (jos furni nostetaan ja lasketaan, id vaihtuu mutta luokka ja paikka pysyvät).
+const KASSAT = [{ id: 444833, tyyppi: 'market_c19_selfcheckout', x: 30, y: 22 }, { id: 444834, tyyppi: 'market_c19_selfcheckout', x: 32, y: 22 }];
+const KUITTI_TEKSTI = 'Kuitti: Kahvi 1,20 € · klo 12.28', KUITTI_MS = 10000;
+// Kolme kaapelia kaupan hyllyillä. Vain pussi hallussa -> pussiin (ilman pussia ei mitään: spoileri, kuten akku). kuva null = paikassa nimen alku.
+//   Furnit = EHDOTUS (yksittäiset hyllyt). id:t robon furni-listasta re-lab/tmp/683-furni.txt (29.10. 17:06); vaihda tähän sonan/kp:n valinta.
+const KAAPELI_OIKEA = 'Koaksiaalikaapeli';
+const KAAPELIT = [
+  { nimi: 'Koaksiaalikaapeli', kuva: null, furni: { id: 444821, tyyppi: 'market_c19_drygoods', x: 27, y: 17 } },
+  { nimi: 'HDMI-kaapeli',      kuva: null, furni: { id: 444822, tyyppi: 'market_c19_dvds', x: 27, y: 25 } },
+  { nimi: 'USB-kaapeli',       kuva: null, furni: { id: 444818, tyyppi: 'market_c19_dairyfridge', x: 27, y: 19 } },
+];
+const KAAPELI_SAIT = 'Otit pussiin: {nimi}';   // {nimi} korvataan
+const KAAPELI_TAYNNA = 'Pussi on täynnä.';      // '' = ei viestiä
+const KAAPELI_VAIHTO = false;   // true: uusi kaapeli korvaa pussissa olevan (arvaus ilmainen). false: väärä kaapeli vie paikan (kp 18:05 "arvaaminen kallista")
+// Läppäri ja radio (radiohuone x28-36 y5-10, kartta: army_c15_deskcomp 33,5 · habbox_styx_plage_radio 34,5)
+const LAPPARI = { id: 438226, tyyppi: 'army_c15_deskcomp', x: 33, y: 5 };
+const LAPPARI_TEKSTI = 'Lautasantenni ei saa signaalia. Tarvitaan koaksiaalikaapeli.', LAPPARI_MS = 10000;
+const RADIO = { id: 438224, tyyppi: 'habbox_styx_plage_radio', x: 34, y: 5 };
+const RADIO_OK = 'Radio herää henkiin!';   // loppu sonalle muokattavaksi
+const RADIO_JO_OK = 'Radio soi.';
+const RADIO_KOHINA = 'Pelkkää kohinaa.';
+const RADIO_MYKKA = 'Radio on mykkä.';
+const RADIO_EI_JOHTOA = 'Akku ei sovi radioon ilman johtoa.';   // vain jos VAADI_JOHTO
+const VAADI_JOHTO = false, JOHTO = 'Johto';   // AUKI: mistä johto (sonan hautausmaa-/antiikkikauppa-idea vs ei johtoa ollenkaan)
+const RADIO_MS = 8000;
+// Skripti -> wired (682.js KAIVUKOODI-malli): radion korjaus sanoo salaisen koodin TAVALLISENA puheena (kuiskaus EI laukaise "Hahmo sanoo jotain",
+//   RoomChatManager.java:309). Wired says_something [piilota 1, tarkka 1, 0] nappaa sen ja näyttää kaikille. POIS PÄÄLTÄ kunnes wired on rakennettu ja
+//   testattu: ilman pinoa palvelin ei piilota riviä ja koodi näkyisi huoneen chatissa kaikille.
+const RADIO_KOODI = 'r4d10683', RADIO_KOODI_PAALLA = false;
+// Viestit skriptillä vai wiredillä: jos robo rakentaa vastaavan click/walks_on + show_message -wiredin ja se on testattu, aseta false (muuten tulee kahdesti).
+const SKRIPTI_NAYTTAA = { kuitti: true, lappari: true };
+// Heitä pois (kp 18:45:07 "jos voi ottaa väärän johdon: tavaroita pitää pystyy heittää pois pussista"): pieni × jokaisen tavaran kulmassa (kaikki variantit).
+//   Mitään ei tarvitse palauttaa: hyllyt jäävät paikalleen (kaapelin voi ottaa uudelleen) ja akku tulee uudelleen kun astuu ambulanssiin.
+const HEITTO_SALLITTU = true;
+const HEITTO_TEKSTI = 'Heitit pois: {nimi}';   // '' = ei viestiä
 
 const vayla = e.events;
 const loki = [];
@@ -66,6 +114,15 @@ const siirra = (ev) => { if (!vedto || !paneeli || ev.pointerId !== vedto.id) re
 const lopeta = (ev) => { if (!vedto || (ev && ev.pointerId !== undefined && ev.pointerId !== vedto.id)) return; vedto = null; };
 // Koko: ruudut 60 px, alle 600 px leveällä ruudussa suhteessa (ruutu 320 px -> 32 px). Paneeli max 92vw (CSS).
 const NIMI_K = 16;   // v1 nimirivin korkeus px (sona 15:28:08)
+// Heitä pois -nappi tavaran paikkaan (r = paikan elementti, t = tavara). pointerdown ei mene raahaukselle eikä pelille (sama kuin ruksi()).
+const heitaNappiin = (r, t) => { if (!HEITTO_SALLITTU || !r || !t) return;
+  if (!r.style.position) r.style.position = 'relative';
+  const b = document.createElement('div'); b.className = 'h683-heita'; b.textContent = '×'; b.title = 'Heitä pois: ' + t.nimi;
+  b.style.cssText = 'position:absolute;right:1px;top:1px;width:16px;height:16px;line-height:15px;text-align:center;font:bold 13px sans-serif;color:#fff;'
+    + 'background:rgba(120,30,30,.85);border-radius:50%;cursor:pointer;touch-action:manipulation;z-index:1';
+  b.addEventListener('pointerdown', ev => ev.stopPropagation());
+  b.addEventListener('click', ev => { ev.stopPropagation(); if (tila.poista(t.nimi)) { lokiin({ heitto: t.nimi }); if (HEITTO_TEKSTI) ilmoita(HEITTO_TEKSTI.replace('{nimi}', t.nimi), 4000); } });
+  r.appendChild(b); };
 const mitat = () => { const k = Math.min(1, (window.innerWidth || 1024) / 600); return { ruutu: Math.round(60 * k), kuva: Math.round(32 * k) }; };
 const rakennaPaneeli = () => {
   if (paneeli) return;
@@ -116,6 +173,7 @@ const piirraV1 = () => {
       nm.style.cssText = 'flex:none;width:100%;margin-top:2px;font:bold 11px sans-serif;line-height:13px;color:#e6dcf5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;word-break:normal';
       r.appendChild(nm); }
     else r.textContent = t.nimi.slice(0, 8);
+    heitaNappiin(r, t);
   }
 };
 
@@ -161,7 +219,8 @@ const taytaPaikka = (r, t) => { r.textContent = ''; r.title = t ? t.nimi : '';
   r.style.borderColor = t ? '#418db0' : '#ffffff33';
   if (!t) return;
   if (t.kuva) { const im = document.createElement('img'); im.src = t.kuva; im.alt = t.nimi; im.draggable = false; im.style.cssText = 'max-width:100%;max-height:100%;image-rendering:pixelated'; r.appendChild(im); }
-  else r.textContent = t.nimi.slice(0, 8); };
+  else r.textContent = t.nimi.slice(0, 8);
+  heitaNappiin(r, t); };
 
 // -- variantti 2: iso säkki
 const poistaV2 = () => { if (ikk2) { ikk2.remove(); ikk2 = null; v2kerros = null; v2kuva = null; } };
@@ -195,6 +254,9 @@ const piirraV2 = () => {
     else { const d = document.createElement('div'); d.textContent = t.nimi.slice(0, 8); d.title = t.nimi;
       d.style.cssText = pos + 'max-width:' + Math.round(34 * k * sk) + 'px;font:bold ' + Math.max(9, Math.round(11 * k)) + 'px sans-serif;color:#fff;opacity:.85;text-shadow:0 1px 2px #000;word-break:break-all;line-height:1.1';
       v2kerros.appendChild(d); }
+    // v2: tavarakerros on pointer-events:none -> oma kääre napille tavaran kohdalle
+    if (HEITTO_SALLITTU) { const kk = document.createElement('div'); kk.style.cssText = pos + 'width:' + Math.round(22 * k * sk) + 'px;height:' + Math.round(22 * k * sk) + 'px;pointer-events:none';
+      heitaNappiin(kk, t); const b = kk.lastChild; if (b) b.style.pointerEvents = 'auto'; v2kerros.appendChild(kk); }
   }
 };
 const kutistaV2 = () => {
@@ -336,15 +398,23 @@ const avaaLappu = () => {
   const d = document.createElement('div'); d.className = 'h683-lappu';
   d.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) rotate(-1.5deg);z-index:99998;width:300px;padding:16px 18px 14px;' +
     'background:#f4d23c;color:#111;font:14px/1.4 Verdana,sans-serif;box-shadow:4px 6px 0 rgba(0,0,0,.45);border:2px solid #111';
+  // PYSAKKI_LAPPU (ylhäällä): 'vanha' = sonan alkuperäinen sisältö sellaisenaan; 'yhdistetty' = sama + revitty vuoro (PYSAKKI_UUSI_RIVI) ja lyijykynämerkintä; 'uusi' = vain uusi vuoro
+  const tila_ = PYSAKKI_LAPPU === 'uusi' || PYSAKKI_LAPPU === 'vanha' ? PYSAKKI_LAPPU : 'yhdistetty';
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const rivi = ([k, m], revitty) => '<tr><td style="border-top:1px dashed #111;padding:2px 0' + (revitty ? ';color:#7a6512;letter-spacing:1px' : '') + '">' + esc(k) + '</td>' +
+    '<td style="border-top:1px dashed #111;text-align:right">' + esc(m) + '</td></tr>';
+  const rivit = (tila_ === 'uusi' ? [] : AIKATAULU.map(r => rivi(r))).concat(tila_ === 'vanha' ? [] : [rivi(PYSAKKI_UUSI_RIVI, true)]);
+  const kyna = tila_ === 'vanha' ? '' : '<div style="font-size:11px;margin:2px 0 6px">' + esc(PYSAKKI_REVITTY) + '</div>' +
+    '<div style="margin:6px 0 8px;font:italic 15px/1.3 \'Comic Sans MS\',\'Segoe Print\',cursive;color:#3b3b3b;transform:rotate(-2deg)">' + esc(PYSAKKI_KYNA) +
+    (PYSAKKI_SUUNTA ? '<br>' + esc(PYSAKKI_SUUNTA) : '') + '</div>';
   d.innerHTML = '<div style="position:absolute;right:8px;top:4px;cursor:pointer;font:bold 18px sans-serif" title="Sulje">✕</div>' +
     '<div style="text-align:center">' + BUSSI_SVG + '</div>' +
     '<div style="text-align:center;font-weight:bold;font-size:16px;letter-spacing:1px;margin:4px 0 2px">LINJA 13</div>' +
-    '<div style="text-align:center;font-size:12px;margin-bottom:8px">Pysäkki → Hautausmaa → Sairaala</div>' +
-    '<table style="width:100%;border-collapse:collapse;font-family:monospace;font-size:14px">' +
-    AIKATAULU.map(([k, m]) => '<tr><td style="border-top:1px dashed #111;padding:2px 0">' + k + '</td><td style="border-top:1px dashed #111;text-align:right">' + m + '</td></tr>').join('') +
-    '</table><div style="font-size:11px;margin:4px 0 10px">Yöbussi 00.13 lähti viimeisen kerran 13.10. eikä saapunut perille.</div>' +
+    (tila_ === 'uusi' ? '' : '<div style="text-align:center;font-size:12px;margin-bottom:8px">Pysäkki → Hautausmaa → Sairaala</div>') +
+    '<table style="width:100%;border-collapse:collapse;font-family:monospace;font-size:14px">' + rivit.join('') + '</table>' + kyna +
+    (tila_ === 'uusi' ? '' : '<div style="font-size:11px;margin:4px 0 10px">Yöbussi 00.13 lähti viimeisen kerran 13.10. eikä saapunut perille.</div>' +
     '<div style="border-top:2px solid #111;padding-top:8px;font-style:italic">Kuljettaja jätti autonsa kesken matkan. Hän otti mukaansa vain sen, mikä yhdistää virran moottoriin, ' +
-    'ja piilotti sen sinne, missä kukaan ei enää odota bussia.</div>';
+    'ja piilotti sen sinne, missä kukaan ei enää odota bussia.</div>');
   d.firstChild.addEventListener('click', ev => { ev.stopPropagation(); suljeLappu(); });
   // sona 16:56:37 "Tee tosta linja auton lapusta semmonen et sitä ikkunaa voi siirtää": koko lappu on kahva (✕ ei aloita raahausta), pysyy ikkunan sisällä
   d.style.cursor = 'move'; d.style.touchAction = 'none'; d.style.userSelect = 'none'; nielePelilta(d);
@@ -426,6 +496,86 @@ akkuVahti.observe(document.body, { childList: true, subtree: true, characterData
 // 16:42-16:47 "observer lakkasi" oli väärä diagnoosi: VIESTI_TYHJA:ssa oli kirjaimellinen 0x08 (\b kirjoittui backspace-tavuksi), joten
 //   "tyhjä" ei osunut koskaan. Observer toimi koko ajan. Testikahva jätetään: tila._kupla.tarkista(el) ajaa suodattimen yhdelle elementille.
 tila._kupla = { onAkku: ON_AKKU, tarkista: el => { akkuKupla(el); return el.style.display; }, avaaLappu };
+
+// ---- PULMA 29.10.: kassan kuitti, kaapelit, läppäri, radio (vakiot tiedoston alussa "PULMA 29.10." -lohkossa)
+let pulmaPois = () => {};
+{
+  const dv = (o, k) => { const d = o && Object.getOwnPropertyDescriptor(o, k); return d && !d.get ? d.value : undefined; };
+  const istunto = () => { const sm = dv(e, '_roomSessionManager'); return sm && sm.getSession && sm.getSession(huone); };
+  const omaIndeksi = () => { const s = istunto(); const i = s && s.ownRoomIndex; return (i == null || i < 0) ? null : i; };
+  const varoitettu = new Set();
+  // Furni-spec { id, tyyppi, x, y }: id ensisijainen; muuten luokka (o.type, kuten PUSSI.tyyppi) + x,y jos annettu (sama luokka voi olla huoneessa monta kertaa).
+  const osuu = (spec, ev) => { if (!spec || !ev || ev.category !== 10) return false;
+    if (spec.id != null && ev.objectId === spec.id) return true;
+    if (!spec.tyyppi) return false;
+    let o = null; try { o = e.getRoomObject(huone, ev.objectId, 10); } catch (x) { return false; }
+    if (!o || String(o.type || '').toLowerCase() !== String(spec.tyyppi || '').toLowerCase()) return false;
+    if (spec.x == null || spec.y == null) return true;
+    const L = o.getLocation && o.getLocation(); if (!L) return true;
+    if (Math.round(L.x) === spec.x && Math.round(L.y) === spec.y) return true;
+    const k = spec.tyyppi + '@' + Math.round(L.x) + ',' + Math.round(L.y);
+    if (!varoitettu.has(k)) { varoitettu.add(k); console.warn('683 pulma: ' + spec.tyyppi + ' id ' + ev.objectId + ' on ' + Math.round(L.x) + ',' + Math.round(L.y) + ', odotettu ' + spec.x + ',' + spec.y + ' -> ohitetaan (päivitä vakio)'); }
+    return false; };
+  // Piilotetun alueen furni (pimennys: furniture_wired_opacity 0) ei reagoi, vaikka valinta jostain syystä tulisi -> ei paljasta aluetta etukäteen.
+  const nakyvissa = (ev) => { try { const o = e.getRoomObject(huone, ev.objectId, 10), v = o && o.model && o.model.getValue('furniture_wired_opacity'); return v !== 0; } catch (x) { return true; } };
+  for (const s of [LAPPARI, RADIO, ...KASSAT, ...KAAPELIT.map(k => k.furni)]) if (s && s.id == null && !s.tyyppi) console.warn('683 pulma: furni ilman id:tä ja luokkaa', s);
+  const onTavara = (n) => paikat.some(p => p && p.nimi === n);
+  let radioKorjattu = false;
+
+  // salainen koodi -> wired (682.js:150-175, 196, 442 malli): oma kaiku (palvelin palauttaa sen lähettäjälle kuiskauksena) niellään ennen kuin suu liikkuu
+  let koukkuC = null, koukkuOma = null, koukkuAlkup = null, koodiAika = 0, kuplaVahti = null;
+  const yhteys = () => { const nahty = new Set(); let c = null;
+    const etsi = (o, d) => { if (!o || c || d > 4 || typeof o !== 'object' || nahty.has(o)) return; nahty.add(o);
+      if (Object.getOwnPropertyDescriptor(o, '_cryptoState')) { c = o; return; }
+      for (const k of Object.getOwnPropertyNames(o)) { const de = Object.getOwnPropertyDescriptor(o, k); if (de && !de.get && de.value && typeof de.value === 'object') etsi(de.value, d + 1); } };
+    etsi(dv(e, '_roomSessionManager'), 0); return c; };
+  const koukku = () => { const c = yhteys(); if (!c || typeof c.handleMessages !== 'function') return; if (koukkuC === c) return;
+    const alkup = c.handleMessages;
+    const oma = function (...viestit) { try { let i;
+      viestit = viestit.filter(v => { const p = v && v.parser;
+        if (p && typeof p.message === 'string' && p.message.trim().toLowerCase() === RADIO_KOODI.toLowerCase()) { if (i === undefined) i = omaIndeksi(); if (p.roomIndex === i) { lokiin({ koodi: 'kaiku niellty' }); return false; } }
+        return true; });
+      if (!viestit.length) return; } catch (x) {} return alkup.apply(this, viestit); };
+    c.handleMessages = oma; koukkuC = c; koukkuOma = oma; koukkuAlkup = alkup; };
+  const KOODI_KUPLA = new RegExp(':\\s*' + RADIO_KOODI.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*↩?\\s*$', 'i');
+  const kuplatPiiloon = () => { for (const b of document.querySelectorAll('.bubble-container')) { const t = b.textContent || '';
+    if (KOODI_KUPLA.test(t) && b.style.display !== 'none') b.style.display = 'none'; } };
+  const sanoKoodi = () => { if (!RADIO_KOODI_PAALLA) return false;
+    try { koukku(); if (!kuplaVahti) { kuplaVahti = new MutationObserver(kuplatPiiloon); kuplaVahti.observe(document.body, { childList: true, subtree: true, characterData: true }); }
+      const s = istunto(); if (!s || typeof s.sendChatMessage !== 'function') { lokiin({ koodi: 'ei istuntoa' }); return false; }
+      koodiAika = Date.now(); s.sendChatMessage(RADIO_KOODI, 0); for (const ms of [30, 300, 1000]) { const a = setTimeout(() => { ajastimet.delete(a); kuplatPiiloon(); }, ms); ajastimet.add(a); }
+      lokiin({ koodi: 'sanottu' }); return true; } catch (x) { lokiin({ koodi: 'virhe', viesti: String(x) }); return false; } };
+
+  const radio = () => {
+    if (radioKorjattu) { ilmoita(RADIO_JO_OK, RADIO_MS); return 'jo'; }
+    if (!pussi || !onTavara(AKKU)) { ilmoita(RADIO_MYKKA, RADIO_MS); lokiin({ radio: 'mykkä' }); return 'mykka'; }
+    if (VAADI_JOHTO && !onTavara(JOHTO)) { ilmoita(RADIO_EI_JOHTOA, RADIO_MS); lokiin({ radio: 'ei johtoa' }); return 'eijohtoa'; }
+    if (!onTavara(KAAPELI_OIKEA)) { ilmoita(RADIO_KOHINA, RADIO_MS); lokiin({ radio: 'kohina' }); return 'kohina'; }
+    radioKorjattu = true; lokiin({ radio: 'korjattu' }); ilmoita(RADIO_OK, RADIO_MS, undefined, VIHREA); sanoKoodi(); return 'ok'; };
+  const kaapeli = (k) => {
+    if (!pussi) { lokiin({ kaapeli: 'ei pussia', nimi: k.nimi }); return -2; }   // ei viestiä: spoileri (kuten akku)
+    if (onTavara(k.nimi)) return paikat.findIndex(p => p && p.nimi === k.nimi);
+    if (KAAPELI_VAIHTO) { const vanha = paikat.find(p => p && KAAPELIT.some(x => x.nimi === p.nimi)); if (vanha) tila.poista(vanha.nimi); }
+    const i = tila.lisaa(k.nimi, k.kuva || undefined);
+    if (i >= 0) ilmoita(KAAPELI_SAIT.replace('{nimi}', k.nimi), 8000, undefined, VIHREA); else if (KAAPELI_TAYNNA) ilmoita(KAAPELI_TAYNNA, 4000);
+    lokiin({ kaapeli: k.nimi, paikka: i }); return i; };
+  const pulmaValittu = (ev) => { try {
+    if (!ev || ev.category !== 10) return;
+    if (!nakyvissa(ev)) return;
+    if (KASSAT.some(s => osuu(s, ev))) { lokiin({ kuitti: 1 }); if (SKRIPTI_NAYTTAA.kuitti) ilmoita(KUITTI_TEKSTI, KUITTI_MS); return; }
+    if (osuu(LAPPARI, ev)) { lokiin({ lappari: 1 }); if (SKRIPTI_NAYTTAA.lappari) ilmoita(LAPPARI_TEKSTI, LAPPARI_MS); return; }
+    if (osuu(RADIO, ev)) { radio(); return; }
+    const k = KAAPELIT.find(x => osuu(x.furni, ev)); if (k) kaapeli(k);
+  } catch (x) { lokiin({ virhe: 'pulma: ' + String(x) }); } };
+  if (vayla && vayla.addEventListener) vayla.addEventListener('REOE_SELECTED', pulmaValittu);
+  tila.radioKorjattu = () => radioKorjattu;
+  tila._pulma = { radio, kaapeli: (nimi) => { const k = KAAPELIT.find(x => x.nimi === nimi); return k ? kaapeli(k) : -3; }, valittu: pulmaValittu, sanoKoodi, osuu };
+  pulmaPois = () => {
+    try { if (vayla && vayla.removeEventListener) vayla.removeEventListener('REOE_SELECTED', pulmaValittu); } catch (x) {}
+    if (kuplaVahti) { kuplaVahti.disconnect(); kuplaVahti = null; }
+    if (koukkuC && koukkuC.handleMessages === koukkuOma) koukkuC.handleMessages = koukkuAlkup; koukkuC = null;
+    radioKorjattu = false; };
+}
 
 // ---- PIMENNYS: huoneen irralliset lattiasaarekkeet piilossa kunnes oma hahmo astuu sinne. Malli huoneet/682.js (kaikki mekanismit sieltä).
 // sona 29.10. 15:28-15:33 "nää kaikki muut tilat jotka ei oo tässä keskellä on pimennetty, eli että sinne ei näe kunnes astuu wirediin ja menee sinne" ·
@@ -586,6 +736,7 @@ let pimennysPois = () => {};
 return () => {
   // siivous: pussi ja paikat nollataan (sona 14:42:21 "ei" pysyvyydelle), paneeli ja ilmoitus pois, kuuntelija pois, API pois
   try { pimennysPois(); } catch (x) {}
+  try { pulmaPois(); } catch (x) {}
   pussi = false; paikat = new Array(PAIKKOJA).fill(null);
   clearInterval(ambulanssiVali); ambulanssissa = null;
   clearInterval(laattaVali); laatalla = null; akkuVahti.disconnect(); suljeLappu(); if (vayla && vayla.removeEventListener) vayla.removeEventListener('REOE_SELECTED', pysakkiValittu);
