@@ -536,7 +536,7 @@ const avaaKassaNaytto = () => {
       if (KASSA_VASTAUKSET[i].map(kelloNorm).includes(kelloNorm(inp.value))) { kassaRatkaistu.add(i); inp.disabled = true; lokiin({ kassa: 'oikein', i }); }
       else { vaarin++; inp.value = ''; lokiin({ kassa: 'väärin', i }); } }
     if (kassaRatkaistu.size === KASSA_VASTAUKSET.length) { const r = omaRuutu(), edessa = r && r.x >= 29 && r.x <= 32 && r.y >= 25 && r.y <= 26;   // W10-ehto 446185: laatat 444791 @29,25 + 444790 @31,25 (2x2)
-      if (!edessa) { tilaRivi.textContent = 'SEISO KASSAN EDESSÄ JA PAINA ENTER'; for (const inp of d.querySelectorAll('input')) inp.disabled = false; return; }
+      // kp 20:45: ei seisomisvaatimusta, kassan klikkaus riittää
       tilaRivi.textContent = KASSA_ONNI; if (!kassaPalkittu && tila._pulma && tila._pulma.kaapeli) { kassaPalkittu = true; tila._pulma.kaapeli(); } return; }   // johto pussiin
     tilaRivi.textContent = (vaarin ? 'VÄÄRIN · ' : '') + kassaRatkaistu.size + ' / ' + KASSA_VASTAUKSET.length; }
   d.firstChild.addEventListener('pointerdown', ev => ev.stopPropagation());
