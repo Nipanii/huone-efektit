@@ -15,9 +15,9 @@ const ASETUS = {
   // kp 27.10. 18:13 "teleportti efekti näkyy edellee liian aikasin": NOPEA tele antaa efektin 235, ei 4 (Habbo-Daybreak
   //   WiredEffectTeleport.java:37-38 NORMAL 4 / FAST 235, :105 lähetys 1 tikin ennen siirtoa). Pidätys ja tunnistus kattavat molemmat.
   efektit: [4, 235],
-  furnit: [425447, 425455, 425528, 425463, 425510, 425486, 425487, 425459, 425490, 425456, 425505, 425457, 425506, 425488, 425526,
-    425493, 425466, 425503, 425479, 425527, 425454, 425514, 425471, 425461, 425453, 425476, 425518, 425497, 425499, 425502, 425473,
-    425452, 425515, 435482, 425470, 425483, 425512, 435377, 425513, 425448, 425462, 425519, 425511],
+  // kp 29.10. 13:07-13:10 vaihtoi reitin: lista = laukaisimen 296529 valinta (node nitro/miinat-wiredista.js), 35 nurmea.
+  furnit: [425448, 425447, 425457, 425471, 425491, 425470, 425473, 425456, 425452, 425494, 425461, 425462, 425476, 425511, 425488,
+    425499, 425513, 435377, 425507, 425463, 425506, 425490, 425527, 425479, 425519, 425487, 425459, 425512, 435482, 425454, 425455, 425528, 425514, 425453, 425505],
 };
 
 const e0 = window.NitroDevTools && window.NitroDevTools.roomEngine;
