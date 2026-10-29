@@ -93,7 +93,8 @@ const LAPPARI = { id: 438226, tyyppi: 'army_c15_deskcomp', x: 33, y: 5 };
 // sona 19:52 'Voisko olla että siinä lukee "puolikkaiden summa"' + kp 19:51 "jos kirjotuskoneessa olis vinkki tohon riddleen": vihje kellopulmaan
 const KIRJOITUSKONE = { id: 443476, tyyppi: 'rainyday_c20_typewriter', x: 9, y: 29 };
 const KIRJOITUSKONE_TEKSTI = ''   // sona 19:54 'laitetaa se lattialle kirjoituskoneen ympärillä' -> vihje wirediksi lattiaan, ei klikkausta (tyhjä = ei näytetä), KIRJOITUSKONE_MS = 8000;
-const LAPPARI_TEKSTI = 'Antenni ei saa signaalia. Tarvitaan kaapeli, sellaisen saa kaupasta.', LAPPARI_MS = 10000;
+const LAPPARI_TEKSTI = ''   // sona 20:45 'Poista viesti joka tulee kun klikkaa läppäriä' (oli: Antenni ei saa signaalia. Tarvitaan kaapeli, sellaisen saa kaupasta.)
+, LAPPARI_MS = 10000;
 const RADIO = { id: 438224, tyyppi: 'habbox_styx_plage_radio', x: 34, y: 5 };
 const RADIO_OK = 'Radio herää henkiin!';   // loppu sonalle muokattavaksi
 const RADIO_JO_OK = 'Radio soi.';
@@ -779,7 +780,7 @@ let pulmaPois = () => {};
     if (!ev || ev.category !== 10) return;
     if (!nakyvissa(ev)) return;
     if (KUITTI_PAALLA && KASSAT.some(s => osuu(s, ev))) { kuitti(); return; }   // kp 20:12 'kuittia ei kai tule'
-    if (osuu(LAPPARI, ev)) { lokiin({ lappari: 1 }); if (SKRIPTI_NAYTTAA.lappari) ilmoita(LAPPARI_TEKSTI, LAPPARI_MS); return; }
+    if (osuu(LAPPARI, ev)) { lokiin({ lappari: 1 }); if (SKRIPTI_NAYTTAA.lappari && LAPPARI_TEKSTI) ilmoita(LAPPARI_TEKSTI, LAPPARI_MS); return; }
     if (KIRJOITUSKONE_TEKSTI && osuu(KIRJOITUSKONE, ev)) { lokiin({ kirjoituskone: 1 }); ilmoita(KIRJOITUSKONE_TEKSTI, KIRJOITUSKONE_MS); return; }
     if (osuu(RADIO, ev)) { radio(); return; }
     if (osuu(KELLO, ev)) { lokiin({ kello: 'klikattu' }); avaaKelloLappu(); return; }
