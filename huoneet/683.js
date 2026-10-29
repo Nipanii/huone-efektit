@@ -81,6 +81,7 @@ const KUITTI_SIIRTYI = 'Kuitti siirtyi pussiin.', KUITTI_SIIRTYI_MS = 6000;
 // YKSI kaapeli (robo 18:56, sona 18:54 "vain 1 johto"): koaksiaalikaapeli ruokakaupan kuivatuotehyllystä. Vain pussi hallussa -> pussiin (ilman pussia
 //   ei mitään: spoileri, kuten akku). kuva null = paikassa nimen alku. id robon furni-listasta re-lab/tmp/683-furni.txt (29.10. 17:06).
 //   Kaksi väärää kaapelia ja väärän kaapelin logiikka (KAAPELIT[], KAAPELI_VAIHTO) poistettu 18:56 -> varmuuskopio 683.js.bak-1856.
+const KAAPELI_HYLLYSTA = false;
 const KAAPELI = { nimi: 'Koaksiaalikaapeli', kuva: null, furni: { id: 444821, tyyppi: 'market_c19_drygoods', x: 27, y: 17 } };
 const KAAPELI_SAIT = 'Otit pussiin: {nimi}';   // {nimi} korvataan
 const KAAPELI_TAYNNA = 'Pussi on täynnä.';      // '' = ei viestiä (ei pitäisi tapahtua: jokaisella pulmaesineellä on oma paikka, PAIKKA_JARJESTYS)
@@ -505,6 +506,7 @@ const KASSA_PULMA = '1) Minulla on viivoja, jotka kertovat hinnan, mutta en osaa
 const KASSA_VASTAUKSET = [['viivakoodi', 'viivakoodit'], ['näppäimistö', 'nappaimisto', 'näppäimistöt'], ['askeleet', 'askel', 'askelia', 'jalanjäljet']];
 const KASSA_KOODI = 'kassa683', KASSA_ETAISYYS = 2;   // kaikki kolme sanottu -> skripti sanoo KASSA_KOODIn -> wired W10 (22,10) näyttää palkintoviestin
 const kassaRatkaistu = new Set(); let kassaPalkittu = false;
+const KASSA_ONNI = 'Onnittelut! Kassa aukeaa. Kassan sisältä löytyi johto.';   // sona 20:35 'näyttöön tulee onnittelut ja että kassa aukeaa'
 const KASSA_ARVOITUKSET = ['Minulla on viivoja, jotka kertovat hinnan, mutta en osaa kirjoittaa. Mikä olen?', 'Minulla on näppäimiä mutta ei lukkoja. Mikä olen?', 'Mitä enemmän otat, sitä enemmän jätät jälkeesi?'];
 let kassaNaytto = null;
 const suljeKassaNaytto = () => { if (kassaNaytto) { kassaNaytto.remove(); kassaNaytto = null; } };
@@ -528,7 +530,7 @@ const avaaKassaNaytto = () => {
       if (KASSA_VASTAUKSET[i].map(kelloNorm).includes(n)) { kassaRatkaistu.add(i); inp.disabled = true; inp.style.borderColor = '#7dff9b'; lokiin({ kassa: 'oikein', i });
         if (kassaRatkaistu.size === KASSA_VASTAUKSET.length) { const r = omaRuutu(), edessa = r && r.x >= 29 && r.x <= 32 && r.y >= 25 && r.y <= 26;   // W10-ehto 446185: laatat 444791 @29,25 + 444790 @31,25 (2x2)
           if (!edessa) { tilaRivi.textContent = 'SEISO KASSAN EDESSÄ JA PAINA ENTER'; kassaRatkaistu.delete(i); inp.disabled = false; return; }
-          tilaRivi.textContent = 'HYVÄKSYTTY'; if (!kassaPalkittu && tila._sanoSalainen) { kassaPalkittu = true; tila._sanoSalainen(KASSA_KOODI); } }
+          tilaRivi.textContent = KASSA_ONNI; if (!kassaPalkittu && tila._pulma && tila._pulma.kaapeli) { kassaPalkittu = true; tila._pulma.kaapeli(); } }   // johto pussiin (kaapeli() hoitaa ei-pussia / jo hallussa)
         else tilaRivi.textContent = kassaRatkaistu.size + ' / ' + KASSA_VASTAUKSET.length; }
       else { tilaRivi.textContent = 'VÄÄRIN'; inp.value = ''; lokiin({ kassa: 'väärin', i }); } }); }
   d.firstChild.addEventListener('pointerdown', ev => ev.stopPropagation());
@@ -776,7 +778,7 @@ let pulmaPois = () => {};
     if (osuu(RADIO, ev)) { radio(); return; }
     if (osuu(KELLO, ev)) { lokiin({ kello: 'klikattu' }); avaaKelloLappu(); return; }
     if (osuu(KASSA, ev) && nakyvissa(ev)) { avaaKassaNaytto(); return; }
-    if (osuu(KAAPELI.furni, ev)) kaapeli(KAAPELI);
+    if (KAAPELI_HYLLYSTA && osuu(KAAPELI.furni, ev)) kaapeli(KAAPELI);   // sona 20:35: johto löytyy kassan sisältä, ei hyllystä
   } catch (x) { lokiin({ virhe: 'pulma: ' + String(x) }); } };
   if (vayla && vayla.addEventListener) vayla.addEventListener('REOE_SELECTED', pulmaValittu);
   tila.radioKorjattu = () => radioKorjattu;
