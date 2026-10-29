@@ -1,4 +1,4 @@
-// Käyttäjäkohtaiset skriptit (versio 0.2.0). Moottori (0.6.2+) ajaa tämän kaikissa huoneissa huoneet.json:n "kaikki"-listalta.
+// Käyttäjäkohtaiset skriptit (versio 0.2.1). Moottori (0.6.2+) ajaa tämän kaikissa huoneissa huoneet.json:n "kaikki"-listalta.
 // Tämä skripti sisältää KAIKEN käyttäjälogiikan; moottori ei tiedä kenestäkään mitään (kp 28.10. 15:07-15:12 "lisää res whitelistille",
 //   "ja se auto updatee", "whitelist ei saa välttämättä antaa kaikkia scriptejä yhdelle henkilölle").
 // Hakee 15 s välein kayttajat.json:n samasta Pagesista: { ryhmat: [ { nimi, kayttajat: [id], skriptit: [{ polku, globaali }] } ] }.
@@ -14,7 +14,7 @@
 //   Pois kytkettäessä TÄMÄN käynnistämät skriptit pysäytetään pois():lla; muualta käynnistetyt (esim. kp:n lataaja) jäävät ennalleen.
 // Testikäyttö: window.kayttajaskriptitTiedosto = 'kayttajat-testi.json' ennen käynnistystä.
 const POHJA = 'https://nipanii.github.io/huone-efektit/';
-const VERSIO = '0.2.0';
+const VERSIO = '0.2.1';
 const S = { versio: VERSIO, id: 0, ajossa: {}, vaatiiLatauksen: [], virhe: null, haettu: null, tiedosto: window.kayttajaskriptitTiedosto || 'kayttajat.json', pysaytetty: false };
 const omat = {};   // polku -> { globaali, versio, g }  (vain TÄMÄN käynnistämät)
 try { if (window.kayttajaskriptit && typeof window.kayttajaskriptit.pysayta === 'function') window.kayttajaskriptit.pysayta(); } catch (e) {}
@@ -75,7 +75,10 @@ S.paivita = async () => {
   } finally { kesken = false; }
 };
 const KENTTA = 'input.nitro-chat-input-control';
-const ilmoita = (el, teksti) => { const vanha = el.placeholder; el.placeholder = teksti; setTimeout(() => { if (el.placeholder === teksti) el.placeholder = vanha; }, 4000); console.info('[kayttajaskriptit] ' + teksti); };
+const ilmoita = (el, teksti) => {   // erillinen toast: chat-kentän placeholder (pelaajamäärä) jää rauhaan (Res 30.10. 01:20)
+  const r = el.getBoundingClientRect(), d = document.createElement('div'); d.textContent = teksti;
+  d.style.cssText = 'position:fixed;z-index:99999;left:' + Math.round(r.left) + 'px;top:' + Math.round(r.top - 34) + 'px;padding:4px 10px;border-radius:6px;background:rgba(20,20,30,.9);color:#fff;font:12px sans-serif;pointer-events:none';
+  document.body.appendChild(d); setTimeout(() => d.remove(), 3000); console.info('[kayttajaskriptit] ' + teksti); };
 const kuule = (ev) => {
   if (ev.key !== 'Enter' && ev.key !== 'NumpadEnter') return;
   const el = ev.target; if (!(el instanceof HTMLInputElement) || !el.matches(KENTTA)) return;
