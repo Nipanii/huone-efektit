@@ -123,7 +123,7 @@ const KELLO_ETAISYYS = 12; // kp 19:58 "ei koko huone vaa antiikkikauppa": koko 
 const KELLO_NIELE_AINA = true;       // true = oikea vastaus ei lähde chattiin missään huoneen kohdassa (ei paljasta vastausta muille); false = niellään vain kellon vieressä
 const AVAIN = 'Avain', AVAIN_KUVA = 'https://kupla.cc/swf/dcr/hof_furni/icons/easter_c26_elvenkey_icon.png';   // robon kokeilu 15:35 (scratchpad avain.js)
 const AVAIN_SAIT = 'Kellon pohjasta putoaa avain.', AVAIN_MS = 8000;
-const AVAIN_EI_PUSSIA = 'Tarvitset jotain mihin kerätä tavaroita.';   // '' = ei viestiä (huom: akku/kaapeli ilman pussia eivät näytä mitään, kp 15:17 spoileri)
+const AVAIN_EI_PUSSIA = 'Kellokaappi aukeaa, mutta sinulla ei ole mitään mihin laittaa avain.';   // sona 20:05 valitsi vaihtoehdon 1   // '' = ei viestiä (huom: akku/kaapeli ilman pussia eivät näytä mitään, kp 15:17 spoileri)
 const AUTO_LUKOSSA = 'Auto on lukossa.', AUTO_LUKOSSA_MS = 5000;     // ambulanssiin astuessa pussi + ei avainta + ei akkua; kerran per astuminen
 
 const vayla = e.events;
