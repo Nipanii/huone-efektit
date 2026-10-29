@@ -1,4 +1,4 @@
-// Käyttäjäkohtaiset skriptit (versio 0.1.0). Moottori (0.6.2+) ajaa tämän kaikissa huoneissa huoneet.json:n "kaikki"-listalta.
+// Käyttäjäkohtaiset skriptit (versio 0.2.0). Moottori (0.6.2+) ajaa tämän kaikissa huoneissa huoneet.json:n "kaikki"-listalta.
 // Tämä skripti sisältää KAIKEN käyttäjälogiikan; moottori ei tiedä kenestäkään mitään (kp 28.10. 15:07-15:12 "lisää res whitelistille",
 //   "ja se auto updatee", "whitelist ei saa välttämättä antaa kaikkia scriptejä yhdelle henkilölle").
 // Hakee 15 s välein kayttajat.json:n samasta Pagesista: { ryhmat: [ { nimi, kayttajat: [id], skriptit: [{ polku, globaali }] } ] }.
@@ -8,9 +8,13 @@
 //   Globaali ilman versiota (esim. true) = versio tuntematon -> ei kosketa, paitsi jos tämä skripti itse käynnisti sen (silloin tunnetaan ajettu @version).
 // Pysäytys (moottori kutsuu): pysäyttää haun ja kutsuu pois() vain niille instansseille, jotka TÄMÄ käynnisti.
 // Tila: window.kayttajaskriptit = { versio, id, ajossa: {polku: versio}, vaatiiLatauksen: [polku], virhe, haettu, tiedosto, paivita() }.
+// OPT-IN (0.2.0, kp 30.10. 01:13 "betamese opt in kans · eli oletuksena off. :betamese laittaa pääl"; Res 01:14 "infektoitiin sillä mitään kysymättä"):
+//   ryhmä jolla "optin": "<nimi>" ajetaan vain kun localStorage kupla-optin-<nimi> = 'on' (oletus pois). Chat-komento :<nimi> vaihtaa tilan
+//   (Enter kaapataan ennen peliä kuten moottorin :hw, rivi ei lähde palvelimelle) ja vain jos oma id on sen ryhmässä; muille rivi menee chattiin.
+//   Pois kytkettäessä TÄMÄN käynnistämät skriptit pysäytetään pois():lla; muualta käynnistetyt (esim. kp:n lataaja) jäävät ennalleen.
 // Testikäyttö: window.kayttajaskriptitTiedosto = 'kayttajat-testi.json' ennen käynnistystä.
 const POHJA = 'https://nipanii.github.io/huone-efektit/';
-const VERSIO = '0.1.0';
+const VERSIO = '0.2.0';
 const S = { versio: VERSIO, id: 0, ajossa: {}, vaatiiLatauksen: [], virhe: null, haettu: null, tiedosto: window.kayttajaskriptitTiedosto || 'kayttajat.json', pysaytetty: false };
 const omat = {};   // polku -> { globaali, versio, g }  (vain TÄMÄN käynnistämät)
 try { if (window.kayttajaskriptit && typeof window.kayttajaskriptit.pysayta === 'function') window.kayttajaskriptit.pysayta(); } catch (e) {}
@@ -24,6 +28,9 @@ const hae = async (polku) => { const v = await fetch(POHJA + polku + '?t=' + Dat
   if (!v.ok) throw new Error('HTTP ' + v.status + ' ' + polku); return v.text(); };
 const virhe = (viesti) => { S.virhe = { viesti: String(viesti), aika: new Date().toTimeString().slice(0, 8) }; console.warn('[kayttajaskriptit] ' + viesti); };
 const poisKutsu = (g) => { try { g.pois(); return true; } catch (e) { virhe('pois() kaatui: ' + e); return true; } };
+const optinAvain = (n) => 'kupla-optin-' + n;
+const optinPaalla = (n) => { try { return localStorage.getItem(optinAvain(n)) === 'on'; } catch (e) { return false; } };
+let optinRyhmat = {};   // optin-nimi -> [id], viimeisimmästä kayttajat.json:sta
 const merkitseLatauksen = (p, on) => { const i = S.vaatiiLatauksen.indexOf(p); if (on && i < 0) S.vaatiiLatauksen.push(p); if (!on && i >= 0) S.vaatiiLatauksen.splice(i, 1); };
 
 const pysaytaOma = (p) => {
@@ -59,12 +66,29 @@ S.paivita = async () => {
     if (!S.id) return;
     let j; try { j = JSON.parse(await hae(S.tiedosto)); } catch (e) { virhe('haku ' + S.tiedosto + ': ' + e); return; }
     const mina = new Map();   // polku -> globaali; oman id:n ryhmien yhdiste
-    for (const r of (j.ryhmat || [])) if ((r.kayttajat || []).includes(S.id)) for (const s of (r.skriptit || [])) if (s && s.polku && !mina.has(s.polku)) mina.set(s.polku, s.globaali);
+    optinRyhmat = {};
+    for (const r of (j.ryhmat || [])) if (r.optin) (optinRyhmat[r.optin] = optinRyhmat[r.optin] || []).push(...(r.kayttajat || []));
+    S.optin = {}; for (const n of Object.keys(optinRyhmat)) if (optinRyhmat[n].includes(S.id)) S.optin[n] = optinPaalla(n);
+    for (const r of (j.ryhmat || [])) if ((r.kayttajat || []).includes(S.id) && (!r.optin || optinPaalla(r.optin))) for (const s of (r.skriptit || [])) if (s && s.polku && !mina.has(s.polku)) mina.set(s.polku, s.globaali);
     for (const p of Object.keys(omat)) if (!mina.has(p)) pysaytaOma(p);   // poistettu oikeus tai skripti
     for (const [p, g] of mina) { if (S.pysaytetty) break; try { await kasittele(p, g); } catch (e) { virhe(p + ': ' + e); } }
   } finally { kesken = false; }
 };
-S.pysayta = () => { S.pysaytetty = true; clearInterval(S._tiki); for (const p of Object.keys(omat)) pysaytaOma(p); if (window.kayttajaskriptit === S) delete window.kayttajaskriptit; };
+const KENTTA = 'input.nitro-chat-input-control';
+const ilmoita = (el, teksti) => { const vanha = el.placeholder; el.placeholder = teksti; setTimeout(() => { if (el.placeholder === teksti) el.placeholder = vanha; }, 4000); console.info('[kayttajaskriptit] ' + teksti); };
+const kuule = (ev) => {
+  if (ev.key !== 'Enter' && ev.key !== 'NumpadEnter') return;
+  const el = ev.target; if (!(el instanceof HTMLInputElement) || !el.matches(KENTTA)) return;
+  const m = (el.value || '').trim().match(/^:([a-z0-9_-]+)$/i); if (!m) return;
+  const n = m[1].toLowerCase(), id = omaId(); if (!optinRyhmat[n] || !optinRyhmat[n].includes(id)) return;
+  ev.preventDefault(); ev.stopImmediatePropagation();
+  const uusi = !optinPaalla(n); try { localStorage.setItem(optinAvain(n), uusi ? 'on' : 'off'); } catch (e) {}
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, ''); el.dispatchEvent(new Event('input', { bubbles: true }));
+  ilmoita(el, n + ': ' + (uusi ? 'päällä' : 'pois') + (uusi ? '' : ' (F5 jos jotain jäi näkyviin)'));
+  S.paivita();
+};
+addEventListener('keydown', kuule, true);
+S.pysayta = () => { S.pysaytetty = true; clearInterval(S._tiki); removeEventListener('keydown', kuule, true); for (const p of Object.keys(omat)) pysaytaOma(p); if (window.kayttajaskriptit === S) delete window.kayttajaskriptit; };
 S._tiki = setInterval(S.paivita, 15000);
 S.paivita();
 return S.pysayta;
