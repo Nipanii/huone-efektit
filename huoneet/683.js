@@ -316,6 +316,37 @@ const valittu = (ev) => { try {
 } catch (x) { lokiin({ virhe: String(x) }); } };
 if (vayla && vayla.addEventListener) vayla.addEventListener('REOE_SELECTED', valittu); else lokiin({ virhe: 'e.events puuttuu, klikkausta ei kuunnella' });
 
+// ---- BUSSIPYSÄKKI (sona 29.10. 16:22-16:26 "jos klikkaa bussipysäkkii niin tulee näkyvii bussiaikataulu" · "Keksi sä bussaikataulun sisältö" ·
+//   "Siinä vois olla arvotus" · "Tee siitä ikkuna jonka voi sulkea" · "Keltainen lappu jossa on mustan bussin kuva", osoitti f433145 Parada de autobus).
+//   Klikkaus pysäkkiin avaa keltaisen aikataululapun; vain ✕ sulkee. Ei lähetä mitään palvelimelle.
+const PYSAKKI = 433145;
+const BUSSI_SVG = '<svg viewBox="0 0 120 60" width="120" height="60"><rect x="6" y="8" width="104" height="38" rx="7" fill="#111"/>' +
+  '<rect x="14" y="14" width="16" height="13" fill="#f4d23c"/><rect x="34" y="14" width="16" height="13" fill="#f4d23c"/><rect x="54" y="14" width="16" height="13" fill="#f4d23c"/>' +
+  '<rect x="74" y="14" width="16" height="13" fill="#f4d23c"/><rect x="94" y="14" width="10" height="22" fill="#f4d23c"/><circle cx="28" cy="48" r="8" fill="#111" stroke="#f4d23c" stroke-width="3"/>' +
+  '<circle cx="88" cy="48" r="8" fill="#111" stroke="#f4d23c" stroke-width="3"/></svg>';
+const AIKATAULU = [['21.13', 'Hautausmaa'], ['22.13', 'Hautausmaa'], ['23.13', 'Hautausmaa'], ['00.13', 'Sairaala ✝']];
+let lappu = null;
+const suljeLappu = () => { if (lappu) { lappu.remove(); lappu = null; } };
+const avaaLappu = () => {
+  if (lappu) return;   // sona 16:26:48 "X-merkkinä sulkemisesta, muuten se voisi olla näkyvillä kokoajan"
+  const d = document.createElement('div'); d.className = 'h683-lappu';
+  d.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) rotate(-1.5deg);z-index:99998;width:300px;padding:16px 18px 14px;' +
+    'background:#f4d23c;color:#111;font:14px/1.4 Verdana,sans-serif;box-shadow:4px 6px 0 rgba(0,0,0,.45);border:2px solid #111';
+  d.innerHTML = '<div style="position:absolute;right:8px;top:4px;cursor:pointer;font:bold 18px sans-serif" title="Sulje">✕</div>' +
+    '<div style="text-align:center">' + BUSSI_SVG + '</div>' +
+    '<div style="text-align:center;font-weight:bold;font-size:16px;letter-spacing:1px;margin:4px 0 2px">LINJA 13</div>' +
+    '<div style="text-align:center;font-size:12px;margin-bottom:8px">Pysäkki → Hautausmaa → Sairaala</div>' +
+    '<table style="width:100%;border-collapse:collapse;font-family:monospace;font-size:14px">' +
+    AIKATAULU.map(([k, m]) => '<tr><td style="border-top:1px dashed #111;padding:2px 0">' + k + '</td><td style="border-top:1px dashed #111;text-align:right">' + m + '</td></tr>').join('') +
+    '</table><div style="font-size:11px;margin:4px 0 10px">Yöbussi 00.13 lähti viimeisen kerran 13.10. eikä saapunut perille.</div>' +
+    '<div style="border-top:2px solid #111;padding-top:8px;font-style:italic">Kuljettaja jätti autonsa kesken matkan. Hän otti mukaansa vain sen, mikä yhdistää virran moottoriin, ' +
+    'ja piilotti sen sinne, missä kukaan ei enää odota bussia.</div>';
+  d.firstChild.addEventListener('click', ev => { ev.stopPropagation(); suljeLappu(); });
+  document.body.appendChild(d); lappu = d; lokiin({ lappu: 'auki' });
+};
+const pysakkiValittu = (ev) => { try { if (ev && ev.category === 10 && ev.objectId === PYSAKKI) avaaLappu(); } catch (x) { lokiin({ virhe: 'pysäkki: ' + String(x) }); } };
+if (vayla && vayla.addEventListener) vayla.addEventListener('REOE_SELECTED', pysakkiValittu);
+
 // ---- akku ambulanssista. Oman hahmon ruutu luetaan samalla idiomilla kuin 681.js omaIndeksi() + naapurit(); ei muokata engineä.
 let ambulanssissa = null, varoitettu = false;   // null = ei vielä mitattu (ensimmäinen mittaus ei laukaise)
 const omaRuutu = () => {
@@ -536,7 +567,7 @@ return () => {
   try { pimennysPois(); } catch (x) {}
   pussi = false; paikat = new Array(PAIKKOJA).fill(null);
   clearInterval(ambulanssiVali); ambulanssissa = null;
-  clearInterval(laattaVali); laatalla = null; akkuVahti.disconnect();
+  clearInterval(laattaVali); laatalla = null; akkuVahti.disconnect(); suljeLappu(); if (vayla && vayla.removeEventListener) vayla.removeEventListener('REOE_SELECTED', pysakkiValittu);
   kiinni = false; ankkuri = null; avaaAnkkuriin = null; sij[2] = null; sij[3] = null;
   vedto = null; otsikko = null;   // raahauksen kaappaus loppuu kun otsikko poistuu (paneeli poistetaan yllä)
   for (const a of ajastimet) clearTimeout(a); ajastimet.clear();
