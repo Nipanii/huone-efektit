@@ -62,6 +62,21 @@
           "globaali": "__kuplaRatavar"
         }
       ]
+    },
+    {
+      "nimi": "halloween-rata",
+      "kayttajat": [
+        1,
+        282,
+        281,
+        245
+      ],
+      "skriptit": [
+        {
+          "polku": "kayttajat/halloween/wired-piilo.user.js",
+          "globaali": "wiredPiilo"
+        }
+      ]
     }
   ]
 }
