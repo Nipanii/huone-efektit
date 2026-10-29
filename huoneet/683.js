@@ -345,8 +345,165 @@ const ambulanssiVali = setInterval(() => { try {
   if (i >= 0) { lokiin({ akku: 'saatu', paikka: i }); ilmoita('Sait akun', 8000); }   /* sona 15:19:57: 8 s */ else lokiin({ akku: 'pussi täynnä' });   // täynnä: ei ilmoitusta (speksissä ei ole), yritys jatkuu seuraavassa sisääntulossa
 } catch (err) { lokiin({ virhe: 'ambulanssi: ' + String(err) }); } }, AMBULANSSI_VALI);
 
+// ---- PIMENNYS: huoneen irralliset lattiasaarekkeet piilossa kunnes oma hahmo astuu sinne. Malli huoneet/682.js (kaikki mekanismit sieltä).
+// sona 29.10. 15:28-15:33 "nää kaikki muut tilat jotka ei oo tässä keskellä on pimennetty, eli että sinne ei näe kunnes astuu wirediin ja menee sinne" ·
+//   "samanlainen pimennys joka on huone 3:sessa" (= 682) · "tuo suurin tila kokonaisuudessaan tulisi näkyä kokoajan".
+// Alueet johdetaan AJONAIKAA lattiakartasta, ei kovakoodata: lattiaruutu = room_map_data.tileMap[y][x].height >= 0 (sama ehto kuin
+//   RoomEngine.updateAreaHide, getAreaHideHoleRectangles), alue = 4-naapuriyhtenäinen ruutujoukko (aukko = ei ruutua). Mitattu robolla 683:ssa
+//   29.10.: 4 aluetta (446 / 66 / 96 / 96 ruutua). Suurin on aina näkyvissä; muut vain kun OMA hahmo seisoo siinä (silloin vain se yksi). Kahden suurimman
+//   tasapeli -> molemmat ovat "suurin". HUOM: LegacyWallGeometry.isRoomTile EI kelpaa (tosi joka ruudulle, mitattu 683:ssa; 684.js:94 käyttää sitä).
+//   - Furnit: alueen määrää furnin origoruutu (getLocation, kuten 682.js:112; mitattu 683:ssa: yhdenkään furnin jalanjälki ei ylitä aluerajaa).
+//     furniture_wired_opacity 0 + furniture_wired_click_through 1 (682.js:75), wired-laatikot (wf_) jätetään (682.js:36).
+//   - Lattia: RoomEngine.updateAreaHide -reiät (682.js:110), yksi suorakaide / alue (id REIKA+i); jos alueen rajalaatikossa on toisen alueen ruutuja,
+//     rivijuoksut (reikä osuu vain olemassa oleviin ruutuihin, joten tyhjät aukot rajalaatikossa eivät haittaa).
+//   - Muut pelaajat piilossa alueella: figure_is_muted IGNORED|HIDDEN (682.js:82-90). Oma hahmo ei koskaan piiloon (682.js:119-128) ja jos omaa
+//     indeksiä ei tunneta (ownRoomIndex -1 tulohetkellä) ketään ei mykistetä. Oma alue muistetaan kunnes hahmo on toisessa alueessa (teleportin hetki ei välähdytä).
+//   - :showrooms (moottori 0.7.0): hs.naytaPiilot päällä = kaikki alueet näkyvät (682.js:105-108).
+// Konsolissa: huone683.alueet [{i, n, x0, y0, x1, y1, suurin, nakyy, furneja, hahmoja}] · huone683.oma (oman alueen i) · huone683.pakota(true|false|null|i|[i..]) ·
+//   huone683.paivita() · huone683.loki.  EI lähetä mitään palvelimelle.
+let pimennysPois = () => {};
+{
+  const WIRED = /^wf_(trg|act|cnd|xtra|slc|var)_/;
+  const REIKA = 6830;   // 682:n 6820:n viereen; alue i käyttää id:tä REIKA+i (reiät -(id*10000+j+1))
+  const MYKKA = 6;      // IGNORED | HIDDEN
+  const dv = (o, k) => { const d = o && Object.getOwnPropertyDescriptor(o, k); return d && !d.get ? d.value : undefined; };
+  const istunto = () => { const sm = dv(e, '_roomSessionManager'); return sm && sm.getSession && sm.getSession(huone); };
+  // sama oma-indeksi kuin 682.js:54-60 (ownRoomIndex voi olla -1 hetken huoneeseen tullessa -> käyttäjä-id tai nimi)
+  const omaIndeksi = () => { const s = istunto(); const i = s && s.ownRoomIndex; if (i != null && i >= 0) return i;
+    const ud = s && s.userDataManager, sd = dv(e, '_sessionDataManager') || {}, id = Number(sd._userId || 0), nimi = String(sd._name || '').trim().toLowerCase();
+    if (!ud || !ud.getUserDataByIndex || (!id && !nimi)) return null;
+    for (const o of e.getRoomObjects(huone, 100) || []) { const u = o && ud.getUserDataByIndex(o.id);
+      if (u && ((id > 0 && Number(u.webID) === id) || (nimi && String(u.name || '').trim().toLowerCase() === nimi))) return o.id; }
+    return null; };
+  const omaHahmo = () => { const i = omaIndeksi(); return i == null ? null : e.getRoomObject(huone, i, 100); };
+  const naytaPiilot = () => { const h = window.huoneskriptit; return !!(h && h.naytaPiilot); };
+
+  // -- alueet lattiakartasta (välimuisti: lasketaan uudelleen vain kun ruutumaski muuttuu)
+  let kartta = null;
+  const laskeAlueet = () => {
+    const o = e.getRoomOwnObject && e.getRoomOwnObject(huone), rm = o && o.model && o.model.getValue('room_map_data'), tm = rm && rm.tileMap;
+    if (!tm || !tm.length) return null;
+    const H = tm.length; let W = 0; for (const r of tm) if (r && r.length > W) W = r.length;
+    const on = new Uint8Array(W * H); for (let y = 0; y < H; y++) { const r = tm[y]; if (r) for (let x = 0; x < r.length; x++) if (r[x] && r[x].height >= 0) on[y * W + x] = 1; }
+    if (kartta && kartta.W === W && kartta.H === H && kartta.on.every((v, i) => v === on[i])) return kartta;
+    const id = new Int32Array(W * H).fill(-1), raaka = [];
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {   // rivi-sarakejärjestys -> deterministinen tasapelin ratkaisu
+      if (!on[y * W + x] || id[y * W + x] >= 0) continue;
+      const k = raaka.length, pino = [y * W + x], c = { n: 0, x0: x, y0: y, x1: x, y1: y }; id[y * W + x] = k;
+      while (pino.length) { const p = pino.pop(), px = p % W, py = (p - px) / W; c.n++;
+        if (px < c.x0) c.x0 = px; if (px > c.x1) c.x1 = px; if (py > c.y1) c.y1 = py;   // y0 on aina ensimmäinen (rivijärjestys)
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = px + dx, ny = py + dy;
+          if (nx < 0 || ny < 0 || nx >= W || ny >= H || !on[ny * W + nx] || id[ny * W + nx] >= 0) continue; id[ny * W + nx] = k; pino.push(ny * W + nx); } }
+      raaka.push(c);
+    }
+    const jarj = raaka.map((c, k) => k).sort((a, b) => raaka[b].n - raaka[a].n || a - b);   // koko laskevasti, tasapeli: löytöjärjestys
+    const uusi = new Map(jarj.map((k, i) => [k, i])); for (let j = 0; j < id.length; j++) if (id[j] >= 0) id[j] = uusi.get(id[j]);
+    const alueet = jarj.map((k, i) => Object.assign({ i }, raaka[k]));
+    const max = alueet.length ? alueet[0].n : 0; for (const a of alueet) a.suurin = a.n === max;
+    for (const a of alueet) { a.puhdas = true;   // onko rajalaatikossa toisen alueen ruutuja
+      for (let y = a.y0; y <= a.y1 && a.puhdas; y++) for (let x = a.x0; x <= a.x1; x++) { const v = id[y * W + x]; if (v >= 0 && v !== a.i) { a.puhdas = false; break; } } }
+    return (kartta = { W, H, on, id, alueet });
+  };
+  const alueRuudussa = (x, y) => { const k = kartta; x = Math.round(x); y = Math.round(y);
+    return k && x >= 0 && y >= 0 && x < k.W && y < k.H ? k.id[y * k.W + x] : -1; };
+
+  const pim = window.huone683 = { alueet: [], oma: null, nakyvat: [], pakko: null, piilossa: 0, hahmojaPiilossa: 0, loki: [], pakota(v) { pim.pakko = v; paivita(); }, paivita: () => paivita() };
+  const lokiPim = (x) => { x.t = new Date().toTimeString().slice(0, 8); pim.loki.push(x); if (pim.loki.length > 50) pim.loki.shift(); };
+
+  // -- furnit (682.js:74-75): asetettu = vain NÄIDEN piilottamat furnit; näkyvälle alueelle ei kirjoiteta mitään (ei ylikirjoiteta muiden skriptien arvoja)
+  const asetettu = new Map();   // furni -> 0 (piilossa)
+  const aseta = (o, n) => { try {
+    if (n === 0) { if (asetettu.get(o) === 0) return; o.model.setValue('furniture_wired_opacity', 0); o.model.setValue('furniture_wired_click_through', 1); asetettu.set(o, 0); }
+    else if (asetettu.has(o)) { o.model.setValue('furniture_wired_opacity', 1); o.model.setValue('furniture_wired_click_through', 0); asetettu.delete(o); }
+  } catch (x) {} };
+  // -- hahmot (682.js:78-90)
+  const mykat = new Map();   // id -> { o, alkup }
+  const mykista = (o, on) => { const m = mykat.get(o.id);
+    if (on) {
+      if (m && m.o !== o) mykat.delete(o.id);
+      let alkup = 0; try { alkup = (mykat.get(o.id) || {}).alkup ?? (o.model.getValue('figure_is_muted') || 0); } catch (x) {}
+      if (!mykat.has(o.id)) mykat.set(o.id, { o, alkup });
+      let nyt = 0; try { nyt = o.model.getValue('figure_is_muted') || 0; } catch (x) {}
+      if ((nyt & MYKKA) !== MYKKA) try { e.updateRoomObjectUserAction(huone, o.id, 'figure_is_muted', alkup | MYKKA); } catch (x) {}
+    } else if (m) { mykat.delete(o.id); if (m.o === o) try { e.updateRoomObjectUserAction(huone, o.id, 'figure_is_muted', m.alkup); } catch (x) {} }
+  };
+  // -- lattiareiät: haluttu reikälista (alue -> suorakaiteet) verrataan käytössä olevaan, vain muutos kirjoitetaan
+  let reiat = [];   // käytössä olevat suorakaiteet "x,y,w,l" (indeksi = REIKA+indeksi)
+  const reikaLista = (k, piilossa) => { const L = [];
+    for (const a of k.alueet) { if (!piilossa[a.i]) continue;
+      if (a.puhdas) { L.push([a.x0, a.y0, a.x1 - a.x0 + 1, a.y1 - a.y0 + 1].join(',')); continue; }
+      for (let y = a.y0; y <= a.y1; y++) { let alku = -1;   // rivijuoksut: vain tämän alueen ruudut
+        for (let x = a.x0; x <= a.x1 + 1; x++) { const mine = x <= a.x1 && k.id[y * k.W + x] === a.i;
+          if (mine && alku < 0) alku = x; else if (!mine && alku >= 0) { L.push([alku, y, x - alku, 1].join(',')); alku = -1; } } } }
+    return L; };
+  const reiatAseta = (L) => { if (L.join(';') === reiat.join(';')) return;
+    for (let j = 0; j < reiat.length; j++) try { e.updateAreaHide(huone, REIKA + j, false, 0, 0, 0, 0, false); } catch (x) {}
+    let ok = true; const uusi = [];
+    for (let j = 0; j < L.length; j++) { const [x, y, w, l] = L[j].split(',').map(Number);
+      try { if (e.updateAreaHide(huone, REIKA + j, true, x, y, w, l, false) === false) ok = false; } catch (x2) { ok = false; } uusi.push(L[j]); }
+    reiat = ok ? uusi : [];   // epäonnistui (huoneobjekti ei vielä valmis) -> yritetään uudestaan seuraavalla kierroksella
+    if (!ok) for (let j = 0; j < uusi.length; j++) try { e.updateAreaHide(huone, REIKA + j, false, 0, 0, 0, 0, false); } catch (x) {} };
+
+  const nakyvaksi = (a) => {
+    if (naytaPiilot() || a.suurin) return true;   // :showrooms voittaa pakota(false):n (682.js:108)
+    const p = pim.pakko;
+    if (p === true) return true;
+    if (p === false) return false;   // vain suurin
+    if (typeof p === 'number') return p === a.i;
+    if (Array.isArray(p)) return p.includes(a.i);
+    return pim.oma === a.i;   // p == null: oma alue
+  };
+  const paivita = () => { try {
+    const k = laskeAlueet(); if (!k) return;
+    // oma alue: muistetaan viimeisin (teleportissa hahmon sijainti voi hetken olla aukossa)
+    const oma = omaIndeksi(), omo = oma != null ? e.getRoomObject(huone, oma, 100) : null;
+    if (omo && omo.getLocation) { const l = omo.getLocation(), c = l ? alueRuudussa(l.x, l.y) : -1;
+      if (c >= 0 && c !== pim.oma) { lokiPim({ oma: c, n: k.alueet[c].n }); pim.oma = c; } }
+    if (pim.oma != null && pim.oma >= k.alueet.length) pim.oma = null;   // kartta muuttui
+    const nakyy = k.alueet.map(nakyvaksi), piilossa = nakyy.map(v => !v);
+    reiatAseta(reikaLista(k, piilossa));
+    let pf = 0; const furneja = k.alueet.map(() => 0), hahmoja = k.alueet.map(() => 0), nahdyt = new Set();
+    for (const o of e.getRoomObjects(huone, 10) || []) {
+      if (!o || !o.model) continue; nahdyt.add(o);
+      if (WIRED.test(String(o.type || '').toLowerCase())) continue;
+      const l = o.getLocation(), c = l ? alueRuudussa(l.x, l.y) : -1; if (c < 0) continue;   // ei alueella -> ei kosketa
+      furneja[c]++; aseta(o, nakyy[c] ? 1 : 0); if (!nakyy[c]) pf++;
+    }
+    for (const o of [...asetettu.keys()]) if (!nahdyt.has(o)) asetettu.delete(o);   // furni poistettu huoneesta
+    pim.piilossa = pf;
+    let h = 0; const nahdytH = new Set();
+    for (const o of e.getRoomObjects(huone, 100) || []) {
+      if (!o || !o.model) continue; nahdytH.add(o.id);
+      // oma hahmo ei ole koskaan piilossa itseltään; palautetaan myös vanhan ajon jättämä mykistys (682.js:122-128)
+      if (o.id === oma) { mykista(o, false); let nyt = 0; try { nyt = o.model.getValue('figure_is_muted') || 0; } catch (x) {}
+        if (nyt & MYKKA) try { e.updateRoomObjectUserAction(huone, o.id, 'figure_is_muted', nyt & ~MYKKA); } catch (x) {}
+        continue; }
+      const l = o.getLocation(), c = l ? alueRuudussa(l.x, l.y) : -1; if (c >= 0) hahmoja[c]++;
+      const piiloon = oma != null && String(o.type) === 'user' && c >= 0 && !nakyy[c];   // omaa indeksiä ei tunneta -> ketään ei piiloteta
+      mykista(o, piiloon); if (piiloon) h++;
+    }
+    for (const id of [...mykat.keys()]) if (!nahdytH.has(id)) mykat.delete(id);
+    pim.hahmojaPiilossa = h; pim.nakyvat = nakyy;
+    pim.alueet = k.alueet.map((a, i) => ({ i, n: a.n, x0: a.x0, y0: a.y0, x1: a.x1, y1: a.y1, suurin: a.suurin, nakyy: nakyy[i], furneja: furneja[i], hahmoja: hahmoja[i] }));
+  } catch (x) { lokiPim({ virhe: String(x) }); } };
+
+  const pimPois = [];
+  { const h = window.huoneskriptit; if (h && typeof h.onNaytaPiilot === 'function') pimPois.push(h.onNaytaPiilot(() => paivita())); }   // heti kun :showrooms vaihtuu (682.js:502)
+  paivita();
+  const pimAjastin = setInterval(paivita, 250);
+  pimennysPois = () => {
+    clearInterval(pimAjastin);
+    for (const f of pimPois) try { f(); } catch (x) {}
+    for (let j = 0; j < Math.max(reiat.length, 1); j++) try { e.updateAreaHide(huone, REIKA + j, false, 0, 0, 0, 0, false); } catch (x) {} reiat = [];
+    for (const o of [...asetettu.keys()]) try { o.model.setValue('furniture_wired_opacity', 1); o.model.setValue('furniture_wired_click_through', 0); } catch (x) {} asetettu.clear();
+    for (const [id, m] of mykat) try { e.updateRoomObjectUserAction(huone, id, 'figure_is_muted', m.alkup); } catch (x) {} mykat.clear();
+    if (window.huone683 === pim) delete window.huone683;
+  };
+}
+
 return () => {
   // siivous: pussi ja paikat nollataan (sona 14:42:21 "ei" pysyvyydelle), paneeli ja ilmoitus pois, kuuntelija pois, API pois
+  try { pimennysPois(); } catch (x) {}
   pussi = false; paikat = new Array(PAIKKOJA).fill(null);
   clearInterval(ambulanssiVali); ambulanssissa = null;
   kiinni = false; ankkuri = null; avaaAnkkuriin = null; sij[2] = null; sij[3] = null;
