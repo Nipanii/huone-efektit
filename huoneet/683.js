@@ -63,7 +63,8 @@ const PYSAKKI_UUSI_RIVI_VANHA = ['12.░░', PYSAKKI_MAARANPAA];   // kp 18:49:
 const PYSAKKI_REVITTY = '';   // sona 19:11: ei tarinaa (oli 'Lähtöaika on revitty irti.')
 // sona 19:15 "vaihtoehto a oli hyvä": lukkopulma, ainoa ratkaisu 1230 = oven wired-koodi (brute force re-lab/tmp/lukko.js). Rivinvaihto = \n.
 // Vanha (kuski-tarina, poistettu sona 19:11): 'Kuski haki kahvin kaupasta juuri ennen lähtöä. Onneksi kauppaan kävelee minuutissa.'
-const PYSAKKI_KYNA = 'Joku on raapustanut lappuun lukon koodin vihjeet:\n2103: kaikki numerot oikein, mutta yksikään ei ole oikealla paikalla\n1450: kaksi numeroa oikein ja oikealla paikalla\n7289: yksi numero oikein ja oikealla paikalla\nMikään numero ei toistu.';   // lyijykynällä, käsialana
+// sona 19:18 "Ei saa olla noin ilmiselvä … poista se": otsikkorivi pois, pelkät vihjeet.
+const PYSAKKI_KYNA = '2103: kaikki numerot oikein, mutta yksikään ei ole oikealla paikalla\n1450: kaksi numeroa oikein ja oikealla paikalla\n7289: yksi numero oikein ja oikealla paikalla\nMikään numero ei toistu.';   // lyijykynällä, käsialana
 const PYSAKKI_SUUNTA = '';   // EHDOTUS (tyhjä = ei näytetä): esim. 'Kauppa on kadun päässä, nuolen takana.' — kauppa on piilossa kunnes sinne menee
 // Itsepalvelukassa (supermarket x27-33 y15-25). Furni-spec: id osuu suoraan; muuten luokka + x,y (jos furni nostetaan ja lasketaan, id vaihtuu mutta luokka ja paikka pysyvät).
 const KASSAT = [{ id: 444833, tyyppi: 'market_c19_selfcheckout', x: 30, y: 22 }, { id: 444834, tyyppi: 'market_c19_selfcheckout', x: 32, y: 22 }];
