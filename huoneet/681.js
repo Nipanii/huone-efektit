@@ -279,8 +279,15 @@ const esilataus = setTimeout(() => tila.rajayta(-60, -60, 0, ASETUS.furni, 3000)
 tila.merkkiFurni = 'LT_skull';
 let merkkiId = null;
 const merkkiPois = () => { if (merkkiId == null) return; try { const e = window.NitroDevTools.roomEngine; e.removeRoomObjectFloor(e.activeRoomId, merkkiId); } catch (x) {} merkkiId = null; };
+// kp 13:11 "toi pääkallo spawnaa vasta ku räjähdys on done": kallo piirretään räjähdyksen keston (tila.kesto || ASETUS.kesto) jälkeen.
+let merkkiAjastin = null;
 tila.merkki = (oid, x, y, z) => {
   if (!tila.merkkiFurni || oid == null) return false;
+  clearTimeout(merkkiAjastin);
+  merkkiAjastin = setTimeout(() => { merkkiAjastin = null; tila.merkkiHeti(x, y, z); }, tila.kesto || ASETUS.kesto);
+  return true;
+};
+tila.merkkiHeti = (x, y, z) => {
   const e = window.NitroDevTools && window.NitroDevTools.roomEngine; if (!e) return false;
   const r = e.activeRoomId, V = e.getRoomObjects(r, 100)[0]?.getLocation().constructor; if (!V) return false;
   merkkiPois();
@@ -441,7 +448,7 @@ return () => {
   clearInterval(arkkuAloitus); clearInterval(arkkuAjastin);
   try { if (arkkuYhteys && arkkuYhteys.handleMessages === arkkuOma) { if (arkkuAlkup === Object.getPrototypeOf(arkkuYhteys).handleMessages) delete arkkuYhteys.handleMessages; else arkkuYhteys.handleMessages = arkkuAlkup; } } catch (x) {}
   try { const o = arkkuEnnen != null && e0 && e0.getRoomObject(huone, ARKKU, 10); if (o) e0.updateRoomObjectFloor(huone, ARKKU, o.getLocation(), o.getDirection(), arkkuEnnen, null); } catch (x) {}
-  clearInterval(ajastin); clearTimeout(esilataus); lentavat.clear(); merkkiPois();
+  clearInterval(ajastin); clearTimeout(esilataus); clearTimeout(merkkiAjastin); lentavat.clear(); merkkiPois();
   for (const off of jakoPois) try { off(); } catch (x) {}
   for (const l of nakyvatLaput) { cancelAnimationFrame(l.ajo); l.d.remove(); } nakyvatLaput.clear();
   for (const oid of [...varatut.keys()]) purraVaraus(oid);
