@@ -137,7 +137,7 @@ const lokiin = (x) => { x.t = new Date().toTimeString().slice(0, 8); loki.push(x
 let pussi = false, paikat = new Array(PAIKKOJA).fill(null);
 const istuntoNyt = () => { try { const sm = Object.getOwnPropertyDescriptor(e, '_roomSessionManager'); return sm && sm.value && sm.value.getSession && sm.value.getSession(huone); } catch (x) { return null; } };
 let palautus = null;
-try { const s = window.__h683Pussi; if (s && Date.now() - s.t < 20000 && s.ist && s.ist === istuntoNyt()) { palautus = s; pussi = !!s.pussi; paikat = s.paikat.slice(0, PAIKKOJA); while (paikat.length < PAIKKOJA) paikat.push(null); } delete window.__h683Pussi; } catch (x) {}   // kp 20:40: päivitys ei tyhjennä pussia
+try { const s = window.__h683Pussi; if (s && Date.now() - s.t < 120000 && s.huone === huone) { palautus = s; pussi = !!s.pussi; paikat = s.paikat.slice(0, PAIKKOJA); while (paikat.length < PAIKKOJA) paikat.push(null); } } catch (x) {}   // kp 20:40: päivitys ei tyhjennä pussia
 const kuvaKelpaa = (u) => typeof u === 'string' && /^(https?:\/\/|data:image\/)/i.test(u);
 const siisti = (x) => (x && typeof x.nimi === 'string' && x.nimi) ? { nimi: x.nimi.slice(0, 60), kuva: kuvaKelpaa(x.kuva) ? x.kuva : '' } : null;
 
@@ -529,13 +529,16 @@ const avaaKassaNaytto = () => {
   const tilaRivi = d.querySelector('.h683-kassa-tila');
   for (const inp of d.querySelectorAll('input')) {
     for (const tyyppi of ['keydown', 'keyup', 'keypress', 'pointerdown', 'mousedown', 'click']) inp.addEventListener(tyyppi, ev => ev.stopPropagation());   // ei peliin
-    inp.addEventListener('keydown', ev => { if (ev.key !== 'Enter') return; const i = +inp.dataset.i, n = kelloNorm(inp.value);
-      if (KASSA_VASTAUKSET[i].map(kelloNorm).includes(n)) { kassaRatkaistu.add(i); inp.disabled = true; inp.style.borderColor = '#7dff9b'; lokiin({ kassa: 'oikein', i });
-        if (kassaRatkaistu.size === KASSA_VASTAUKSET.length) { const r = omaRuutu(), edessa = r && r.x >= 29 && r.x <= 32 && r.y >= 25 && r.y <= 26;   // W10-ehto 446185: laatat 444791 @29,25 + 444790 @31,25 (2x2)
-          if (!edessa) { tilaRivi.textContent = 'SEISO KASSAN EDESSÄ JA PAINA ENTER'; kassaRatkaistu.delete(i); inp.disabled = false; return; }
-          tilaRivi.textContent = KASSA_ONNI; if (!kassaPalkittu && tila._pulma && tila._pulma.kaapeli) { kassaPalkittu = true; tila._pulma.kaapeli(); } }   // johto pussiin (kaapeli() hoitaa ei-pussia / jo hallussa)
-        else tilaRivi.textContent = kassaRatkaistu.size + ' / ' + KASSA_VASTAUKSET.length; }
-      else { tilaRivi.textContent = 'VÄÄRIN'; inp.value = ''; lokiin({ kassa: 'väärin', i }); } }); }
+    inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') tarkistaKassa(); }); }
+  function tarkistaKassa() {   // kp 20:43: Enter tarkistaa KAIKKI täytetyt kentät, ei vain aktiivista
+    let vaarin = 0;
+    for (const inp of d.querySelectorAll('input')) { if (inp.disabled || !inp.value.trim()) continue; const i = +inp.dataset.i;
+      if (KASSA_VASTAUKSET[i].map(kelloNorm).includes(kelloNorm(inp.value))) { kassaRatkaistu.add(i); inp.disabled = true; lokiin({ kassa: 'oikein', i }); }
+      else { vaarin++; inp.value = ''; lokiin({ kassa: 'väärin', i }); } }
+    if (kassaRatkaistu.size === KASSA_VASTAUKSET.length) { const r = omaRuutu(), edessa = r && r.x >= 29 && r.x <= 32 && r.y >= 25 && r.y <= 26;   // W10-ehto 446185: laatat 444791 @29,25 + 444790 @31,25 (2x2)
+      if (!edessa) { tilaRivi.textContent = 'SEISO KASSAN EDESSÄ JA PAINA ENTER'; for (const inp of d.querySelectorAll('input')) inp.disabled = false; return; }
+      tilaRivi.textContent = KASSA_ONNI; if (!kassaPalkittu && tila._pulma && tila._pulma.kaapeli) { kassaPalkittu = true; tila._pulma.kaapeli(); } return; }   // johto pussiin
+    tilaRivi.textContent = (vaarin ? 'VÄÄRIN · ' : '') + kassaRatkaistu.size + ' / ' + KASSA_VASTAUKSET.length; }
   d.firstChild.addEventListener('pointerdown', ev => ev.stopPropagation());
   nielePelilta(d); document.body.appendChild(d); kassaNaytto = d; lokiin({ kassa: 'näyttö auki' }); };
 tila._kassa = { avaa: avaaKassaNaytto, sulje: suljeKassaNaytto };
@@ -949,13 +952,17 @@ let pimennysPois = () => {};
   };
 }
 
+const tallennaTila = () => { try { window.__h683Pussi = { huone, pussi, paikat: paikat.slice(), t: Date.now(), kassaAuki: !!kassaNaytto, kassaRatk: [...kassaRatkaistu], kassaPalkittu, kelloAuki: !!kelloLappu }; } catch (x) {} };
+const tallennusVali = setInterval(tallennaTila, 1000);   // sona 20:44 'ettei pussi katoa ollenkaan': jatkuva tallennus, ei vain siivouksessa
+const escSulje = (ev) => { if (ev.key !== 'Escape') return; if (kassaNaytto || kelloLappu || lappu) { suljeKassaNaytto(); suljeKelloLappu(); suljeLappu(); } };   // kp 20:43 'esc sulkee'
+document.addEventListener('keydown', escSulje, true);
 try { if (palautus && palautus.kassaAuki) avaaKassaNaytto(); if (palautus && palautus.kelloAuki) avaaKelloLappu(); } catch (x) {}   // kp 20:42: näytöt auki päivityksen yli
 
 return () => {
   // siivous: pussi ja paikat nollataan (sona 14:42:21 "ei" pysyvyydelle), paneeli ja ilmoitus pois, kuuntelija pois, API pois
   try { pimennysPois(); } catch (x) {}
   try { pulmaPois(); } catch (x) {}
-  try { window.__h683Pussi = { pussi, paikat: paikat.slice(), t: Date.now(), ist: istuntoNyt(), kassaAuki: !!kassaNaytto, kassaRatk: [...kassaRatkaistu], kassaPalkittu, kelloAuki: !!kelloLappu }; } catch (x) {}   // päivityksen yli (ks. alku)
+  clearInterval(tallennusVali); tallennaTila(); document.removeEventListener('keydown', escSulje, true);   // päivityksen yli (ks. alku)
   pussi = false; kuittiOdottaa = false; paikat = new Array(PAIKKOJA).fill(null);
   clearInterval(ambulanssiVali); ambulanssissa = null; clearInterval(kauppaVali); kaupanNuolella = null;
   clearInterval(chatVali); try { chatPalauta(); } catch (x) {} suljeKelloLappu(); suljeKassaNaytto();
