@@ -82,7 +82,7 @@ const KUITTI_SIIRTYI = 'Kuitti siirtyi pussiin.', KUITTI_SIIRTYI_MS = 6000;
 //   ei mitään: spoileri, kuten akku). kuva null = paikassa nimen alku. id robon furni-listasta re-lab/tmp/683-furni.txt (29.10. 17:06).
 //   Kaksi väärää kaapelia ja väärän kaapelin logiikka (KAAPELIT[], KAAPELI_VAIHTO) poistettu 18:56 -> varmuuskopio 683.js.bak-1856.
 const KAAPELI_HYLLYSTA = false;
-const KAAPELI = { nimi: 'Koaksiaalikaapeli', kuva: null, furni: { id: 444821, tyyppi: 'market_c19_drygoods', x: 27, y: 17 } };
+const KAAPELI = { nimi: 'Koaksiaalikaapeli', kuva: 'https://nipanii.github.io/huone-efektit/kuvat/683-kaapeli.png',   /* sona 20:53 'luo kuva johdolle' (Gemini, tausta poistettu) */ furni: { id: 444821, tyyppi: 'market_c19_drygoods', x: 27, y: 17 } };
 const KAAPELI_SAIT = 'Otit pussiin: {nimi}';   // {nimi} korvataan
 const KAAPELI_TAYNNA = 'Pussi on täynnä.';      // '' = ei viestiä (ei pitäisi tapahtua: jokaisella pulmaesineellä on oma paikka, PAIKKA_JARJESTYS)
 // Pussin paikkajärjestys (sona 18:55): esine menee omaan paikkaansa ottojärjestyksestä riippumatta; muu (konsoli) ensimmäiseen vapaaseen.
@@ -669,6 +669,7 @@ tila._kello = { vastaus: kelloVastaus, vieressa: kelloVieressa, avaaLappu: avaaK
 // kokeilee ja ei toimi. Sitten kun se astuu tähän … niin tulee viesti että akku tarvitsee erilaisen johdon tms. kirjota paremmin" (osoitti f438211, f438205).
 // Laukeaa vain laatalle astuttaessa ja vain jos pussissa on akku; ilman akkua ei mitään (spoileri, kuten ambulanssissa).
 const JOHTOLAATAT = [438211, 438205];
+const LAPI_TEKSTI = 'Onnittelut! Pääsit huoneen läpi.';
 const JOHTO_AKKU_KOODI = 'akku683on', JOHTO_TYHJA_KOODI = 'akku683ei';
 let laatalla = null;
 const laattaVali = setInterval(() => { try {
@@ -683,6 +684,8 @@ const laattaVali = setInterval(() => { try {
   // kp 20:28 'miks täs lukee et akku ei sovi sellaisenaan jos akkua ei ole vielä': wiredit (pino 16,9 + sonan 'tyhjä') muutettu says-laukaisimiksi,
   //   skripti sanoo oikean koodin: akku pussissa -> JOHTO_AKKU_KOODI ('Akku ei sovi…'), muuten JOHTO_TYHJA_KOODI (sonan 'akku tyhjä').
   const onAkku = !!(pussi && paikat.some(p => p && p.nimi === AKKU));
+  const onJohto = !!(pussi && paikat.some(p => p && p.nimi === KAAPELI.nimi));
+  if (onAkku && onJohto) { lokiin({ johto: 'läpi' }); ilmoita(LAPI_TEKSTI, 10000, null, VIHREA); return; }   // sona 20:54-55: akku + johto ja laatoille -> pääsi huoneen läpi
   if (tila._sanoSalainen) tila._sanoSalainen(onAkku ? JOHTO_AKKU_KOODI : JOHTO_TYHJA_KOODI);
   lokiin({ johto: onAkku ? 'akku' : 'ei akkua' }); return;   // viestin näyttää nyt wired 445889 kuiskauksena (sona 16:12 "chätissä kuiskauksena"), alla oleva kuplasuodatin valitsee
 } catch (err) { lokiin({ virhe: 'johtolaatta: ' + String(err) }); } }, AMBULANSSI_VALI);
