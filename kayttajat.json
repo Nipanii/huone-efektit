@@ -78,6 +78,18 @@
           "globaali": "wiredPiilo"
         }
       ]
+    },
+    {
+      "nimi": "sona-teleport",
+      "kayttajat": [
+        281
+      ],
+      "skriptit": [
+        {
+          "polku": "kayttajat/sona/teleport.user.js",
+          "globaali": "__kuplaSonaTeleport"
+        }
+      ]
     }
   ]
 }
