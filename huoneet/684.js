@@ -20,7 +20,7 @@ const MUISTI = 'h684.efektit';
 const e = window.NitroDevTools && window.NitroDevTools.roomEngine;
 const huone = (kupla && kupla.roomId && kupla.roomId()) || (e && e.activeRoomId);
 const tila = window.pimeys = { versio: 'huone-684 valosim kerros-body', huone, tummuus: 1,  verhoTasoitus: 12, estoKorkeus: 1, seinaKorkeus: 2.4, askel: 0.1,
-  sateet: 220, resoluutio: 3, ilmanValoa: 1.8, pehmeys: 34, eteen: 0.7, keilaVoima: 0.35, varjoValo: 0, vartaloVoima: 0, kupoli: 2.2,   // kupoli = valokuvun korkeus ruutuina (kp 23:45 'se ovaali muoto hahmon ympäril on vaa offputting': erillinen vartalosoikio pois, hahmo valaistaan samalla kuvulla)
+  sateet: 220, resoluutio: 3, ilmanValoa: 0, pehmeys: 34, eteen: 0.7, keilaVoima: 0.35, varjoValo: 0, vartaloVoima: 0, kupoli: 2.2,   // kupoli = valokuvun korkeus ruutuina (kp 23:45 'se ovaali muoto hahmon ympäril on vaa offputting': erillinen vartalosoikio pois, hahmo valaistaan samalla kuvulla)
     // pehmeys = reunan sumennus css-pikseleinä (kp 20:37:40 'aika harsh noi valo reunat', 21:52 'pitäs olla pehmeempi spread')
   // eteen = valopiirin liukuman keskipiste siirtyy näin monta ruutua katseen suuntaan; keilaVoima = keilan voima (kp 21:53 'paljon subtlempi')
   // varjoValo = kalusteen varjoon jäävä osuus valosta (kp 21:55 'partly lit'; kp 23:47 'varjot pitää mennä iha mustaks' -> 0)
@@ -298,7 +298,7 @@ const valonlahteet = () => { const out = [], oma = omaIndeksi();
   const n = e.getRoomObjectCount(huone, 100);
   for (let i = 0; i < n; i++) { const o = e.getRoomObjectByIndex(huone, i, 100); if (!o || o.type === 'pet') continue;
     const ese = kadessa(o), v = tila.valot[ese], L = o.getLocation(), oman = o.id === oma;
-    if (!v && !oman) continue;
+    if (!v && (!oman || !(tila.ilmanValoa > 0))) continue;   // kp 19:41 'pois et on valoo hahmon ymärillä jos ei oo mitään valonlähdettä' -> ilmanValoa 0
     out.push({ x: L.x, y: L.y, z: L.z, v: v || { ymparys: tila.ilmanValoa }, suunta: o.getDirection().x, oma: oman, ese, id: o.id }); }
   const m = e.getRoomObjectCount(huone, 10);
   for (let i = 0; i < m; i++) { const o = e.getRoomObjectByIndex(huone, i, 10);
