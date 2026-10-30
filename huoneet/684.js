@@ -255,7 +255,8 @@ const kuuleKomento = ev => {
   //   ryhmäläisille" (muut saavat lyhdyn Öljylamppu-esineestä 438617): muilta rivi menee chattiin normaalisti, kuten :efektit.
   let valoSana = LYHTY_KOMENTO.test(rivi) ? 'zl684' : KYNTTILA_KOMENTO.test(rivi) ? 'zc684' : null;
   if (valoSana) { let omaV = null; try { omaV = Number(window.NitroDevTools.roomEngine._sessionDataManager.userId); } catch (x) {}
-    if (![1, 282, 281, 245].includes(omaV)) valoSana = null; }
+    // kp 21:25 "ei saa näkyy komennot": muilta rivi niellään eikä mene chattiin
+    if (![1, 282, 281, 245].includes(omaV)) { ev.preventDefault(); ev.stopImmediatePropagation(); tyhjenna(el); return; } }
   if (valoSana) {
     ev.preventDefault(); ev.stopImmediatePropagation(); tyhjenna(el);
     const nyt = Date.now(); if (nyt - (komentoLukko[valoSana] || 0) < KOMENTO_LUKKO_MS) return;
@@ -267,8 +268,8 @@ const kuuleKomento = ev => {
   const m = KOMENTO.exec(rivi); if (!m) return;
   // kp 22:28 'ei saa huijaa et glitchaa efektin pois': komento vain rataryhmälle (1 Res, 282 kp, 281 sona, 245 robo), muilta rivi menee chattiin normaalisti
   let oma = null; try { oma = Number(window.NitroDevTools.roomEngine._sessionDataManager.userId); } catch (x) {}
-  if (![1, 282, 281, 245].includes(oma)) return;
   ev.preventDefault(); ev.stopImmediatePropagation();
+  if (![1, 282, 281, 245].includes(oma)) { tyhjenna(el); return; }   // kp 21:25: muilta niellään, ei chattiin
   const s = (m[1] || '').toLowerCase(), uusi = s ? !(s === 'pois' || s === 'off') : !paalla;
   tila.paalla(uusi); tyhjenna(el); ilmoita(uusi ? 'Huoneen efektit päällä' : 'Huoneen efektit pois (rakennustila)');
 };
