@@ -2,7 +2,8 @@
 // kp 30.10. 15:58-16:10: zombit yhteisiä kaikille huoneessa olijoille, jahtaavat ketä tahansa pelaajaa (hitainta; ei botteja eikä
 //   Herra-Robottia 245). Ei kiinteitä spawneja: zombi syntyy kävelykelpoiselle lattiaruudulle mahdollisimman kauas kaikista pelaajista
 //   (BFS-reittietäisyys, ei linnuntie), deterministisesti siemenestä + tikistä, ei ovelle eikä alle ASETUS.oviEtaisyys ruudun päähän
-//   ovesta. Kiinni saanut zombi syntyy seuraavalla tikillä samalla säännöllä uudelleen.
+//   ovesta. Kiinni saanut zombi jää paikalleen syömään/seisomaan uhrin viereen koko kuolemamakuun (ASETUS.kuolemaMakuu, 1500 ms)
+//   ajaksi (ei liiku eikä nappaa muita) ja syntyy vasta makuun päätyttyä uudelleen kauas (kp 30.10. 19:54).
 // kp 30.10. 16:58-17:02, 17:30-17:31 & 17:36-17:41:
 //   1) Zombikohtainen näköetäisyys + vaihtuva hystereesi: jokaiselle zombille arvotaan syntyessä (ja uudelleensyntyessä) oma
 //      huomaamisetäisyys väliltä ASETUS.huomaaVali (5..9 ruutua) ja oma luovutusväli väliltä ASETUS.luovutusVali (3..5 ruutua);
@@ -13,12 +14,12 @@
 //      seisoo 2..5 s paikallaan (ASETUS.vaellusTauko, asento 'std'), ja jatkaa uuteen satunnaiseen suuntaan (deterministinen PRNG).
 //   4) Kiinnijäännin kertyvä kontaktilaskuri (per zombi + pelaaja): samassa ruudussa +1/s (+tikki ms), viereisessä ruudussa +0.5/s,
 //      ja ilman kontaktia laskuri hiipuu hitaasti (-0.25/s) eikä nollaudu heti. Kiinnijäänti kun laskuri >= arvottu raja (3..6 s). Usean zombin laskurit kasvavat erikseen.
-//   5) Kiinni jääneestä pelaajasta syntyy SAMAAN ruutuun "muuttunut" zombi: pelaajan oma figuuri zombifioituna (Left 4 Kuplan
-//      zZombify-muunnoksella), sekä pysyvä pelaajakohtainen verilammikko (SAILO.lammikot: viimeisin per pelaaja, näkyy kaikille,
-//      korvautuu saman pelaajan uudella kuolemalla ja katoaa vain kun pelaaja poistuu huoneesta). Kiinni jäänyt pelaaja EI näe omaa
-//      muuttunutta versiotaan, eikä muuttunut jahtaa tai ota kontaktia lähdepelaajaansa. Muuttunut elää vähintään ASETUS.muuttunutMin
-//      (120000 ms, säilyy epookin yli) ja despawnaa sen jälkeen heti kun sen ruutu on kokonaan pimeässä. Yksi muuttunut per pelaaja,
-//      korkeintaan ASETUS.muuttuneitaMax (4) kerrallaan.
+//   5) Kiinni jääneestä pelaajasta syntyy SAMAAN ruutuun "muuttunut" zombi vasta kuolemamakuun (ASETUS.kuolemaMakuu, 1500 ms) päätyttyä
+//      (kun uhri on teleportattu pois): pelaajan oma figuuri zombifioituna (Left 4 Kuplan zZombify-muunnoksella), sekä pysyvä pelaajakohtainen
+//      verilammikko (SAILO.lammikot: viimeisin per pelaaja, näkyy kaikille, korvautuu saman pelaajan uudella kuolemalla ja katoaa vain kun pelaaja
+//      poistuu huoneesta). Kiinni jäänyt pelaaja EI näe omaa muuttunutta versiotaan, eikä muuttunut jahtaa tai ota kontaktia lähdepelaajaansa.
+//      Muuttunut elää vähintään ASETUS.muuttunutMin (120000 ms, säilyy epookin yli) ja despawnaa sen jälkeen heti kun sen ruutu on kokonaan pimeässä.
+//      Yksi muuttunut per pelaaja, korkeintaan ASETUS.muuttuneitaMax (4) kerrallaan.
 //   6) Nopeuden vaihtelu: jokaiselle zombille arvotaan syntyessä (ja uudelleensyntyessä) oma perusnopeus väliltä ASETUS.askelVali
 //      (800..1400 ms/ruutu), ja saman zombin askelväli vaihtelee dynaamisesti joka askeleella (±20 % aaltoilu + satunnaiset lyhyet
 //      kiihdytykset/hidastukset). Simulaatio pyörii lyhyellä perustikillä (ASETUS.tikki = 250 ms) ja piirto interpoloidaan zombin omasta askelajasta.
@@ -457,8 +458,9 @@ const varmistaZombi = (z, s0, k, tMs, tikki) => {
   if (!z.perusAskelMs || z.viimeAskelMs == null || z.seuraavaAskelMs == null) alustaNopeus(z, s0, synty, tMs, tikki);
 };
 
-// ---- Kuolemamakuu (kp 19:25): kiinnijäädessä JOKAINEN client näyttää uhrin hahmon paikallisesti makaavana ('lay')
-//   ASETUS.kuolemaMakuu (1500 ms) ajan ennen zk684-teleporttia. Makuun aikana uhri ei voi jäädä uudelleen kiinni.
+// ---- Kuolemamakuu (kp 19:25 & 19:54): kiinnijäädessä JOKAINEN client näyttää uhrin hahmon paikallisesti makaavana ('lay')
+//   ASETUS.kuolemaMakuu (1500 ms) ajan ennen zk684-teleporttia. Makuun aikana uhri ei voi jäädä uudelleen kiinni, nappaava zombi
+//   pysyy paikallaan syömässä/seisomassa uhrin vieressä, ja uhrin muuttunut zombiversio syntyy uhrin ruutuun vasta makuun päätyttyä.
 const makuuAjastimet = new Set();
 const asetaHahmonAsento = (ri, asento) => {
   if (ri == null || ri < 0 || !e || typeof e.updateRoomObjectUserPosture !== 'function') return false;
@@ -470,7 +472,7 @@ const onMakaava = (pid, tMs) => {
   if (tMs != null && tMs >= mk.loppuMs) return false;
   return true;
 };
-const paivitaMakaavat = (P, tMs) => {
+const paivitaMakaavat = (P, tMs, k, tikki, s0) => {
   if (!(SAILO.makaavat instanceof Map) || !SAILO.makaavat.size) return;
   for (const [pid, mk] of [...SAILO.makaavat.entries()]) {
     const p = Array.isArray(P) ? P.find(x => x && x.id === pid) : null;
@@ -478,37 +480,58 @@ const paivitaMakaavat = (P, tMs) => {
     const telesi = p && isFinite(p.x) && isFinite(p.y) && Math.hypot(p.x - mk.x, p.y - mk.y) > 3;
     const aikaTaynna = (tMs != null && tMs >= mk.loppuMs);
     if (!p || telesi || aikaTaynna) {
-      if (mk.ajastin) { clearTimeout(mk.ajastin); makuuAjastimet.delete(mk.ajastin); }
-      asetaHahmonAsento(ri, 'std');
-      SAILO.makaavat.delete(pid);
-    } else {
+      if (mk.ajastin) { clearTimeout(mk.ajastin); makuuAjastimet.delete(mk.ajastin); mk.ajastin = null; }
+      if (!mk.asentoPalautettu) { asetaHahmonAsento(ri, 'std'); mk.asentoPalautettu = true; }
+    } else if (!mk.asentoPalautettu) {
       try {
         const ho = e.getRoomObject && e.getRoomObject(huone, ri, 100);
         const nyk = ho && ho.model && ho.model.getValue && ho.model.getValue('figure_posture');
         if (nyk && nyk !== 'lay') asetaHahmonAsento(ri, 'lay');
       } catch (x) {}
     }
+    if (aikaTaynna && k != null) {
+      if (!mk.muuttunutLuotu) {
+        mk.muuttunutLuotu = true;
+        luoMuuttunut(mk, mk.suunta, k, tMs, tikki || Math.max(50, Number(ASETUS.tikki) || 250), s0 || perusSiemen(), P);
+      }
+      SAILO.makaavat.delete(pid);
+    }
   }
 };
-const aloitaMakuu = (kp, k, tMs) => {
+const aloitaMakuu = (kp, suunta, k, tMs, tikki, s0, P) => {
   if (!kp || !kp.id) return;
   const makuuMs = Math.max(0, Number(ASETUS.kuolemaMakuu ?? 1500));
   const vanha = SAILO.makaavat.get(kp.id);
   if (vanha && vanha.ajastin) { clearTimeout(vanha.ajastin); makuuAjastimet.delete(vanha.ajastin); }
+  const zn = ++SAILO.seuraavaMuuttunutN;
+  const siem = s0 || perusSiemen();
+  const lm = luoLammikko(kp.x, kp.y, zn, kp, k, tMs, siem);
+  if (!Array.isArray(SAILO.lammikot)) SAILO.lammikot = [];
+  SAILO.lammikot = SAILO.lammikot.filter(l => l && (l.lahdeId ?? l.id) !== kp.id);
+  SAILO.lammikot.push(lm);
+  // kp 20:06 "kai kuollessa targeted pelaaja resetoituu, vaik ois huutanu": uhrin äänet pois, ettei vanha huuto vedä zombeja hänen peräänsä
+  if (Array.isArray(SAILO.aanet)) SAILO.aanet = SAILO.aanet.filter(a => a && a.id !== kp.id);
+  paivitaLammikot(P);
+  const mk = {
+    id: kp.id, i: kp.i, nimi: kp.nimi || null, figuuri: kp.figuuri || figuuri,
+    x: kp.x, y: kp.y, suunta: suunta ?? 4, zn, lammikko: lm,
+    alkuK: k, alkuMs: tMs, loppuMs: tMs + makuuMs,
+    muuttunutLuotu: false, asentoPalautettu: false, ajastin: null,
+  };
   if (makuuMs <= 0) {
     SAILO.makaavat.delete(kp.id);
+    mk.muuttunutLuotu = true;
+    luoMuuttunut(mk, mk.suunta, k, tMs, tikki || Math.max(50, Number(ASETUS.tikki) || 250), siem, P);
     return;
   }
   asetaHahmonAsento(kp.i, 'lay');
-  // kp 20:06 "kai kuollessa targeted pelaaja resetoituu, vaik ois huutanu": uhrin äänet pois, ettei vanha huuto vedä zombeja hänen peräänsä
-  if (Array.isArray(SAILO.aanet)) SAILO.aanet = SAILO.aanet.filter(a => a && a.id !== kp.id);
-  const mk = { id: kp.id, i: kp.i, x: kp.x, y: kp.y, alkuK: k, alkuMs: tMs, loppuMs: tMs + makuuMs, ajastin: null };
   mk.ajastin = setTimeout(() => {
     makuuAjastimet.delete(mk.ajastin);
-    if (SAILO.makaavat.get(kp.id) === mk) {
-      const P = pelaajat(), p = P.find(x => x && x.id === kp.id);
+    mk.ajastin = null;
+    if (SAILO.makaavat.get(kp.id) === mk && !mk.asentoPalautettu) {
+      mk.asentoPalautettu = true;
+      const P2 = pelaajat(), p = P2.find(x => x && x.id === kp.id);
       asetaHahmonAsento((p && p.i != null) ? p.i : mk.i, 'std');
-      SAILO.makaavat.delete(kp.id);
     }
   }, makuuMs);
   if (mk.ajastin && typeof mk.ajastin.unref === 'function') mk.ajastin.unref();
@@ -849,30 +872,35 @@ const luoLammikko = (x, y, zn, kp, k, tMs, s0) => {
   return { id: kp.id, lahdeId: kp.id, lahdeNimi: kp.nimi || null, n: zn, x, y, vari, pisarat, syntyK: k, syntyMs: tMs };
 };
 const luoMuuttunut = (kp, suunta, k, tMs, tikki, s0, P) => {
-  if (SAILO.muuttuneet.some(m => m.lahdeId === kp.id && m.synty === k)) return null;
+  const lahdeId = kp && (kp.id ?? kp.lahdeId);
+  if (!lahdeId) return null;
+  if (SAILO.muuttuneet.some(m => m.lahdeId === lahdeId && m.synty === k)) return null;
   // kp 30.10. 18:58 & 19:18: yksi muuttunut per pelaaja ja yksi lammikko per pelaaja; uusi kuolema korvaa saman pelaajan vanhan
-  const zn = ++SAILO.seuraavaMuuttunutN;
-  const lm = luoLammikko(kp.x, kp.y, zn, kp, k, tMs, s0);
-  if (!Array.isArray(SAILO.lammikot)) SAILO.lammikot = [];
-  SAILO.lammikot = SAILO.lammikot.filter(l => l && (l.lahdeId ?? l.id) !== kp.id);
-  SAILO.lammikot.push(lm);
+  const zn = kp.zn || (++SAILO.seuraavaMuuttunutN);
+  let lm = kp.lammikko || null;
+  if (!lm) {
+    lm = luoLammikko(kp.x, kp.y, zn, kp, k, tMs, s0);
+    if (!Array.isArray(SAILO.lammikot)) SAILO.lammikot = [];
+    SAILO.lammikot = SAILO.lammikot.filter(l => l && (l.lahdeId ?? l.id) !== lahdeId);
+    SAILO.lammikot.push(lm);
+  }
 
-  SAILO.muuttuneet = SAILO.muuttuneet.filter(m => m.lahdeId !== kp.id);
+  SAILO.muuttuneet = SAILO.muuttuneet.filter(m => m.lahdeId !== lahdeId);
   const maxM = Math.max(1, Math.floor(Number(ASETUS.muuttuneitaMax ?? 4)));
   while (SAILO.muuttuneet.length >= maxM) SAILO.muuttuneet.shift();
-  const siemen = (s0 * 4093 + k * 1301 + (kp.id || 0) * 89 + zn) >>> 0;
+  const siemen = (s0 * 4093 + k * 1301 + (lahdeId || 0) * 89 + zn) >>> 0;
   const huomaa = arvoHuomaa(s0, k, zn), luovutus = arvoLuovutus(s0, k, zn), kuulo = arvoKuulo(s0, k, zn);
-  const alkuTaukoMs = Math.max(1000, Number(ASETUS.kuolemaMakuu ?? 1500));
+  const alkuTaukoMs = 1000;
   const m = {
     n: zn, muuttunut: true, tyyppi: 'muuttunut',
-    lahdeId: kp.id, lahdeNimi: kp.nimi || null, nimi: 'Muuttunut ' + (kp.nimi || ('#' + kp.id)),
+    lahdeId, lahdeNimi: kp.nimi || null, nimi: 'Muuttunut ' + (kp.nimi || ('#' + lahdeId)),
     figuuri: zombifioiAsu(kp.figuuri || figuuri, siemen),
-    x: kp.x, y: kp.y, px: kp.x, py: kp.y, kuoli: -1, synty: k, syntyMs: tMs, suunta: suunta ?? 4,
+    x: kp.x, y: kp.y, px: kp.x, py: kp.y, kuoli: -1, synty: k, syntyMs: tMs, suunta: (suunta ?? kp.suunta) ?? 4,
     huomaa, luovutus, meneta: huomaa + luovutus, kuulo,
     reaktio: 0, reaktioMs: 0, reaktioAsti: 0,
     kohdeId: null, kohde: null,
     vAsk: 0, vTauko: Math.ceil(alkuTaukoMs / 1000), vTaukoMs: alkuTaukoMs, vTaukoAsti: tMs + alkuTaukoMs, vDx: 0, vDy: 0,
-    kontaktit: {}, kontaktiId: null, kontakti: 0, kontaktiRaja: 0, kontaktiMs: 0, kontaktiRajaMs: 0, syoId: null,
+    kontaktit: {}, kontaktiId: null, kontakti: 0, kontaktiRaja: 0, kontaktiMs: 0, kontaktiRajaMs: 0, syoId: null, syoAstiMs: 0,
     lammikko: lm,
   };
   alustaNopeus(m, s0, k, tMs, tikki);
@@ -916,7 +944,7 @@ const synkkaaZombi = (z, eSynk, P, k, tMs, tikki, s0, varattu) => {
   varattu.add(r.y * W + r.x);
   const huomaa = arvoHuomaa(s0, eSynk, z.n), luovutus = arvoLuovutus(s0, eSynk, z.n), kuulo = arvoKuulo(s0, eSynk, z.n);
   const taukoMs = (z.n % 3) * 1000;
-  z.x = z.px = r.x; z.y = z.py = r.y; z.kuoli = -1; z.syo = false; z.syoId = null;
+  z.x = z.px = r.x; z.y = z.py = r.y; z.kuoli = -1; z.syo = false; z.syoId = null; z.syoAstiMs = 0;
   z.synty = eSynk; z.syntyMs = tMs; z.suunta = 4; z.odottaaSynkkaa = null;
   z.huomaa = huomaa; z.luovutus = luovutus; z.meneta = huomaa + hystereesiVali(z); z.kuulo = kuulo;
   z.reaktio = 0; z.reaktioMs = 0; z.reaktioAsti = 0;
@@ -930,9 +958,10 @@ const synkkaaPimeatZombit = (Z, P, k) => {
   if (!ruudukko || !Array.isArray(Z)) return;
   const tikki = Math.max(50, Number(ASETUS.tikki) || 250), tMs = (k ?? 0) * tikki;
   const { W } = ruudukko, s0 = perusSiemen(), varattu = new Set();
-  for (const z of Z.concat(SAILO.muuttuneet || [])) if (z && z.kuoli < 0) varattu.add(z.y * W + z.x);
+  for (const z of Z.concat(SAILO.muuttuneet || [])) if (z && (z.kuoli < 0 || (z.syo && tMs < (z.syoAstiMs || 0)))) varattu.add(z.y * W + z.x);
   for (const z of Z) {
     if (!z || z.muuttunut || z.odottaaSynkkaa == null) continue;
+    if (z.kuoli >= 0 || (z.syo && tMs < (z.syoAstiMs || 0))) continue;
     if (onValaistu(z.x, z.y, P)) continue;
     synkkaaZombi(z, z.odottaaSynkkaa, P, k, tMs, tikki, s0, varattu);
   }
@@ -949,7 +978,7 @@ const sopeutaMaara = (Z, P, k) => {
   }
   if (Z.length < tavoite) {
     const varattu = new Set();
-    for (const z of Z.concat(SAILO.muuttuneet || [])) if (z && z.kuoli < 0) varattu.add(z.y * W + z.x);
+    for (const z of Z.concat(SAILO.muuttuneet || [])) if (z && (z.kuoli < 0 || (z.syo && tMs < (z.syoAstiMs || 0)))) varattu.add(z.y * W + z.x);
     const kaytossa = new Set(Z.map(z => z.n));
     let seurN = 0;
     while (Z.length < tavoite) {
@@ -961,7 +990,7 @@ const sopeutaMaara = (Z, P, k) => {
   }
 
   // Kun määrä pienenee: ylimääräiset (suurin n ensin) merkitään poistumaan, mutta poistetaan vasta kun
-  //   zombi on pimeässä (!onValaistu) JA ei jahtaa ketään (kohdeId == null).
+  //   zombi on pimeässä (!onValaistu) JA ei jahtaa ketään (kohdeId == null) eikä ole syömässä.
   const jarj = [...Z].sort((a, b) => b.n - a.n);
   const ylim = Z.length - tavoite;
   for (let i = 0; i < jarj.length; i++) jarj[i].poistumassa = i < ylim;
@@ -972,7 +1001,7 @@ const sopeutaMaara = (Z, P, k) => {
     if (z.kohdeId != null && (!Array.isArray(P) || !P.some(p => p && p.id === z.kohdeId && onKohde(p)))) {
       z.kohdeId = null; z.kohde = null;
     }
-    if (z.kohdeId != null) continue;
+    if (z.kohdeId != null || z.kuoli >= 0 || (z.syo && tMs < (z.syoAstiMs || 0))) continue;
     if (onValaistu(z.x, z.y, P)) continue;
     const idx = Z.indexOf(z);
     if (idx >= 0) Z.splice(idx, 1);
@@ -1015,11 +1044,12 @@ const paivitaKontaktit = (z, P, k, tMs, tikki, s0, kaatuneet) => {
     if (kerroin > 0) {
       if (!t || !(t.ms > 0)) {
         const rajaMs = arvoKontaktiRajaMs(s0, k, z.n, p.id);
-        t = z.kontaktit[p.id] = { ms: 0, rajaMs, laskuri: 0, raja: Math.round((rajaMs / 1000) * 100) / 100, et: etRuutu };
+        t = z.kontaktit[p.id] = { ms: 0, rajaMs, laskuri: 0, raja: Math.round((rajaMs / 1000) * 100) / 100, et: etRuutu, kasvaa: true };
       }
       t.ms = Math.min(t.rajaMs, t.ms + tikki * kerroin);
       t.laskuri = Math.round((t.ms / 1000) * 100) / 100;
       t.et = etRuutu;
+      t.kasvaa = true;
       if (t.ms >= t.rajaMs) {
         if (!saalis || etRuutu < saalis.et || (etRuutu === saalis.et && p.id === z.kohdeId)) {
           saalis = { p, t, et: etRuutu };
@@ -1029,6 +1059,7 @@ const paivitaKontaktit = (z, P, k, tMs, tikki, s0, kaatuneet) => {
       t.ms = Math.max(0, t.ms + tikki * kerroin);
       t.laskuri = Math.round((t.ms / 1000) * 100) / 100;
       t.et = etRuutu;
+      t.kasvaa = false;
       if (t.ms <= 0) { delete z.kontaktit[p.id]; t = null; }
     }
     if (t && t.ms > 0) {
@@ -1042,11 +1073,11 @@ const paivitaKontaktit = (z, P, k, tMs, tikki, s0, kaatuneet) => {
 const askel = (k, Z, P) => {
   kirjaa(k, P);
   const tikki = Math.max(50, Number(ASETUS.tikki) || 250), tMs = k * tikki;
+  const a = ansaRuutu(), { W, H } = ruudukko, varattu = new Set(), s0 = perusSiemen(), kentat = new Map();
   paivitaLammikot(P);
-  paivitaMakaavat(P, tMs);
+  paivitaMakaavat(P, tMs, k, tikki, s0);
   synkkaaPimeatZombit(Z, P, k);
   sopeutaMaara(Z, P, k);
-  const a = ansaRuutu(), { W, H } = ruudukko, varattu = new Set(), s0 = perusSiemen(), kentat = new Map();
   let ekaKohde = null;
 
   // Muuttuneiden despawn: kun vähintään ASETUS.muuttunutMin (120000 ms) on kulunut JA ruutu on kokonaan pimeässä.
@@ -1062,15 +1093,27 @@ const askel = (k, Z, P) => {
   if (poistui) paivitaLammikot(P);
 
   const kaikki = Z.concat(SAILO.muuttuneet);
-  for (const z of kaikki) if (z.kuoli < 0) varattu.add(z.y * W + z.x);
+  for (const z of kaikki) if (z.kuoli < 0 || (z.syo && tMs < (z.syoAstiMs || 0))) varattu.add(z.y * W + z.x);
   const uudetMuuttuneet = [], kaatuneet = new Set();
 
   for (const z of kaikki) {
     varmistaZombi(z, s0, k, tMs, tikki);
-    if (z.muuttunut && z.syo) { z.syo = false; z.syoId = null; }
+    if (z.muuttunut && z.synty === k) {
+      varattu.add(z.y * W + z.x);
+      continue;
+    }
+    // kp 19:54: kiinnijäännin jälkeen nappaava zombi jää paikalleen uhrin viereen koko kuolemamakuun (ASETUS.kuolemaMakuu)
+    //   ajaksi (ei liiku eikä nappaa muita) ja syntyy vasta makuun päätyttyä uudelleen kauas.
+    if (z.syo && tMs < (z.syoAstiMs || 0)) {
+      z.px = z.x; z.py = z.y;
+      z.viimeAskelMs = tMs; z.seuraavaAskelMs = tMs + tikki; z.piirtoAskelMs = tikki;
+      varattu.add(z.y * W + z.x);
+      continue;
+    }
+    if (z.muuttunut && z.syo) { z.syo = false; z.syoId = null; z.syoAstiMs = 0; z.seuraavaAskelMs = tMs; }
     if (!z.muuttunut && z.kuoli >= 0) {
       const r = kaukainen(P, arpa(s0 * 31 + k * 101 + z.n), varattu);
-      z.x = z.px = r.x; z.y = z.py = r.y; z.kuoli = -1; z.syo = false; z.syoId = null; z.synty = k; z.syntyMs = tMs; z.odottaaSynkkaa = null;
+      z.x = z.px = r.x; z.y = z.py = r.y; z.kuoli = -1; z.syo = false; z.syoId = null; z.syoAstiMs = 0; z.synty = k; z.syntyMs = tMs; z.odottaaSynkkaa = null;
       z.huomaa = arvoHuomaa(s0, k, z.n); z.luovutus = arvoLuovutus(s0, k, z.n); z.meneta = z.huomaa + hystereesiVali(z); z.kuulo = arvoKuulo(s0, k, z.n);
       z.reaktio = 0; z.reaktioMs = 0; z.reaktioAsti = 0;
       z.kohdeId = null; z.kohde = null; z.vAsk = 0; z.vTauko = 0; z.vTaukoMs = 0; z.vTaukoAsti = 0; z.vDx = 0; z.vDy = 0;
@@ -1146,17 +1189,22 @@ const askel = (k, Z, P) => {
     const { saalis, aktP, aktT } = paivitaKontaktit(z, P, k, tMs, tikki, s0, kaatuneet);
     if (saalis) {
       const kp = saalis.p;
+      const makuuMs = Math.max(0, Number(ASETUS.kuolemaMakuu ?? 1500));
+      const loppuMs = tMs + makuuMs;
       if (kp.x !== z.x || kp.y !== z.y) z.suunta = suunnaksi(Math.sign(kp.x - z.x), Math.sign(kp.y - z.y));
-      z.syo = true; z.syoId = kp.id; z.viimeSyoId = kp.id; z.viimeSyoK = k; z.viimeSyoMs = tMs;
+      z.px = z.x; z.py = z.y;
+      z.viimeAskelMs = tMs; z.seuraavaAskelMs = Math.max(tMs + tikki, loppuMs); z.piirtoAskelMs = tikki;
+      z.syo = true; z.syoId = kp.id; z.syoAstiMs = loppuMs; z.viimeSyoId = kp.id; z.viimeSyoK = k; z.viimeSyoMs = tMs;
       kaatuneet.add(kp.id);
-      for (const zz of kaikki) if (zz.kontaktit) delete zz.kontaktit[kp.id];
-      z.kontaktiId = null; z.kontakti = 0; z.kontaktiRaja = 0; z.kontaktiMs = 0; z.kontaktiRajaMs = 0;
-      if (z.muuttunut) {
-        z.kohdeId = null; z.kohde = null;
-      } else {
-        z.kuoli = k; z.kontaktit = {};
+      for (const zz of kaikki) {
+        if (zz.kontaktit) delete zz.kontaktit[kp.id];
+        if (zz.kohdeId === kp.id) { zz.kohdeId = null; zz.kohde = null; zz.reaktio = 0; zz.reaktioMs = 0; zz.reaktioAsti = 0; }
       }
-      uudetMuuttuneet.push({ kp, suunta: z.suunta });
+      z.kohdeId = null; z.kohde = null; z.reaktio = 0; z.reaktioMs = 0; z.reaktioAsti = 0;
+      z.vAsk = 0; z.vTauko = 0; z.vTaukoMs = 0; z.vTaukoAsti = 0; z.vDx = 0; z.vDy = 0; z.aaniKohde = null;
+      z.kontaktit = {}; z.kontaktiId = null; z.kontakti = 0; z.kontaktiRaja = 0; z.kontaktiMs = 0; z.kontaktiRajaMs = 0;
+      if (!z.muuttunut) z.kuoli = k;
+      uudetMuuttuneet.push({ kp: { id: kp.id, i: kp.i, nimi: kp.nimi, figuuri: kp.figuuri, x: kp.x, y: kp.y }, suunta: z.suunta });
     } else if (aktP && aktT) {
       z.kontaktiId = aktP.id;
       z.kontaktiMs = Math.round(aktT.ms);
@@ -1172,8 +1220,7 @@ const askel = (k, Z, P) => {
   }
 
   for (const u of uudetMuuttuneet) {
-    aloitaMakuu(u.kp, k, tMs);
-    luoMuuttunut(u.kp, u.suunta, k, tMs, tikki, s0, P);
+    aloitaMakuu(u.kp, u.suunta, k, tMs, tikki, s0, P);
   }
 
   // Tarkista myös askelen lopussa pimeässä despawnaavat muuttuneet (jos muuttunut juuri astui valosta pimeään) ja ylimääräiset zombit.
@@ -1233,10 +1280,26 @@ if (lammikkoKanvas) {
   if (lammikkoKanvas.style) lammikkoKanvas.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;pointer-events:none;z-index:1';
 }
 let lammikkoAla = '';
+const kontaktissaOlevat = (P) => {
+  const kaikki = (SAILO.zombit || []).concat(SAILO.muuttuneet || []);
+  const idt = new Set();
+  for (const z of kaikki) {
+    if (!z || z.kuoli >= 0 || z.syo || !z.kontaktit) continue;
+    for (const [idStr, t] of Object.entries(z.kontaktit)) {
+      if (t && t.ms > 0 && t.kasvaa && (t.et == null || t.et <= 1)) idt.add(Number(idStr));
+    }
+  }
+  if (!idt.size) return [];
+  const lista = Array.isArray(P) ? P : pelaajat();
+  const tMs = SAILO.K >= 0 ? SAILO.K * Math.max(50, Number(ASETUS.tikki) || 250) : null;
+  return lista.filter(p => p && idt.has(p.id) && !onMakaava(p.id, tMs));
+};
+tila.kontaktissa = () => kontaktissaOlevat().map(p => p.id);
 const piirraLammikot = () => {
   if (!lammikkoKanvas || !lctx || typeof document === 'undefined' || !document.body) return;
   const lammikot = Array.isArray(SAILO.lammikot) ? SAILO.lammikot : (tila.lammikot || []);
-  if (!lammikot.length) {
+  const kontaktissa = kontaktissaOlevat();
+  if (!lammikot.length && !kontaktissa.length) {
     if (lammikkoKanvas.width > 0 && lammikkoKanvas.height > 0) lctx.clearRect(0, 0, lammikkoKanvas.width, lammikkoKanvas.height);
     return;
   }
@@ -1264,36 +1327,65 @@ const piirraLammikot = () => {
     return { x: p.x * scale + rw / 2 + ox, y: p.y * scale + rh / 2 + oy };
   };
   const { z: Z } = ruudukko;
-  lctx.save();
-  for (const lm of lammikot) {
-    if (!lm || !isFinite(lm.x) || !isFinite(lm.y)) continue;
-    const zz = Math.max(0, Z[Math.round(lm.y) * ruudukko.W + Math.round(lm.x)] || 0);
-    const o = ruudulle(lm.x, lm.y, zz), ex = ruudulle(lm.x + 1, lm.y, zz);
-    if (!o || !ex) continue;
-    const sc = Math.max(10, Math.abs(ex.x - o.x));
-    lctx.fillStyle = lm.vari || '#b01212';
-    for (const p of lm.pisarat || []) {
-      const pt = ruudulle(lm.x + p.dx, lm.y + p.dy, zz);
-      if (!pt) continue;
-      const rx = Math.max(2, p.r * sc * 0.95), ry = Math.max(1, p.r * sc * 0.46);
-      lctx.globalAlpha = p.a || 0.75;
-      lctx.beginPath();
-      lctx.ellipse(pt.x, pt.y, rx, ry, 0, 0, Math.PI * 2);
-      lctx.fill();
+  if (lammikot.length) {
+    lctx.save();
+    for (const lm of lammikot) {
+      if (!lm || !isFinite(lm.x) || !isFinite(lm.y)) continue;
+      const zz = Math.max(0, Z[Math.round(lm.y) * ruudukko.W + Math.round(lm.x)] || 0);
+      const o = ruudulle(lm.x, lm.y, zz), ex = ruudulle(lm.x + 1, lm.y, zz);
+      if (!o || !ex) continue;
+      const sc = Math.max(10, Math.abs(ex.x - o.x));
+      lctx.fillStyle = lm.vari || '#b01212';
+      for (const p of lm.pisarat || []) {
+        const pt = ruudulle(lm.x + p.dx, lm.y + p.dy, zz);
+        if (!pt) continue;
+        const rx = Math.max(2, p.r * sc * 0.95), ry = Math.max(1, p.r * sc * 0.46);
+        lctx.globalAlpha = p.a || 0.75;
+        lctx.beginPath();
+        lctx.ellipse(pt.x, pt.y, rx, ry, 0, 0, Math.PI * 2);
+        lctx.fill();
+      }
+    }
+    lctx.restore();
+    // kp 20:02 "veri rendaa pelaajan hahmon päälle": hahmot (pelaajat + zombit) peittävät lattialla olevan lammikon ->
+    //   pyyhitään lammikkokerroksesta jokaisen hahmon TARKKA ruutulaatikko (getRoomObjectBoundingRectangle, CSS-px), ei arvioitua kaistaa.
+    if (typeof e.getRoomObjectBoundingRectangle === 'function' && r.width > 0) {
+      const fx = W / r.width, fy = H / r.height;
+      for (const o of e.getRoomObjects(huone, 100) || []) {
+        if (!o || String(o.type) !== 'user') continue;
+        try {
+          const b = e.getRoomObjectBoundingRectangle(huone, o.id, 100, 1); if (!b || !(b.width > 0)) continue;
+          lctx.clearRect((b.x - r.left) * fx, (b.y - r.top) * fy, b.width * fx, b.height * fy);
+        } catch (x) {}
+      }
     }
   }
-  lctx.restore();
-  // kp 20:02 "veri rendaa pelaajan hahmon päälle": hahmot (pelaajat + zombit) peittävät lattialla olevan lammikon ->
-  //   pyyhitään lammikkokerroksesta jokaisen hahmon TARKKA ruutulaatikko (getRoomObjectBoundingRectangle, CSS-px), ei arvioitua kaistaa.
-  if (lammikot.length && typeof e.getRoomObjectBoundingRectangle === 'function' && r.width > 0) {
+  // kp 20:04 "jos on kontaktissa zombin kaa nii hahmo välähtää punasena":
+  //   kun pelaajan kontaktilaskuri (z.kontaktit[p.id]) kasvaa (samassa tai viereisessä ruudussa), väläytetään hahmon laatikkoa punaisena (~4 Hz) kaikilla clienteillä.
+  if (kontaktissa.length && r.width > 0) {
     const fx = W / r.width, fy = H / r.height;
-    for (const o of e.getRoomObjects(huone, 100) || []) {
-      if (!o || String(o.type) !== 'user') continue;
-      try {
-        const b = e.getRoomObjectBoundingRectangle(huone, o.id, 100, 1); if (!b || !(b.width > 0)) continue;
-        lctx.clearRect((b.x - r.left) * fx, (b.y - r.top) * fy, b.width * fx, b.height * fy);
-      } catch (x) {}
+    const syke = 0.5 + 0.5 * Math.sin(Date.now() * 0.008 * Math.PI);   // ~4 Hz syke
+    lctx.save();
+    lctx.fillStyle = '#ff1a1a';
+    lctx.globalAlpha = 0.12 + 0.43 * syke;
+    for (const p of kontaktissa) {
+      let piirrettyLaatikko = false;
+      if (typeof e.getRoomObjectBoundingRectangle === 'function' && p.i != null && typeof lctx.fillRect === 'function') {
+        try {
+          const b = e.getRoomObjectBoundingRectangle(huone, p.i, 100, 1);
+          if (b && b.width > 0 && b.height > 0) {
+            lctx.fillRect((b.x - r.left) * fx, (b.y - r.top) * fy, b.width * fx, b.height * fy);
+            piirrettyLaatikko = true;
+          }
+        } catch (x) {}
+      }
+      if (!piirrettyLaatikko && isFinite(p.x) && isFinite(p.y) && typeof lctx.fillRect === 'function') {
+        const zz = Math.max(0, Z[Math.round(p.y) * ruudukko.W + Math.round(p.x)] || 0);
+        const pt = ruudulle(p.x, p.y, zz);
+        if (pt) lctx.fillRect(pt.x - 16 * scale, pt.y - 56 * scale, 32 * scale, 64 * scale);
+      }
     }
+    lctx.restore();
   }
 };
 
@@ -1337,11 +1429,11 @@ const piirra = () => {
 };
 tila.kuva = () => tila.zombit.concat(tila.muuttuneet || []).map(z => ({
   n: z.n, muuttunut: !!z.muuttunut, nimi: z.nimi || ('Zombi ' + z.n), lahdeId: z.lahdeId ?? null, lahdeNimi: z.lahdeNimi ?? null,
-  x: z.x, y: z.y, kuoli: z.kuoli, kohde: z.kohdeId ?? null,
+  x: z.x, y: z.y, kuoli: z.kuoli, syo: !!z.syo, syoId: z.syoId ?? null, kohde: z.kohdeId ?? null,
   odottaaSynkkaa: z.odottaaSynkkaa ?? null, poistumassa: !!z.poistumassa,
   huomaa: z.huomaa, luovutus: z.luovutus, meneta: z.meneta, kuulo: z.kuulo,
   perusAskelMs: z.perusAskelMs, askelMs: z.askelMs, reaktioMs: z.reaktioMs || 0,
-  tila: z.kuoli >= 0 ? 'kuoli' : z.kohdeId != null ? ((z.reaktioMs || 0) > 0 ? 'reagoi' : 'jahtaa') : (z.vTaukoMs || 0) > 0 ? 'seisoo' : 'vaeltaa',
+  tila: z.syo ? 'syo' : z.kuoli >= 0 ? 'kuoli' : z.kohdeId != null ? ((z.reaktioMs || 0) > 0 ? 'reagoi' : 'jahtaa') : (z.vTaukoMs || 0) > 0 ? 'seisoo' : 'vaeltaa',
   kontakti: z.kontaktiMs ? (z.kontakti + 's/' + z.kontaktiRaja + 's') : null,
   id: piirretyt.get(z.n) ?? null,
 }));
@@ -1443,12 +1535,35 @@ const sanoSalainen = () => {
 };
 tila._sanoSalainen = sanoSalainen;
 
-// ---- oma kiinnijäänti (kp 19:25: paikallinen 'lay' ASETUS.kuolemaMakuu ms ajan ennen zk684-salasanan lähetystä)
+// ---- oma kiinnijäänti (kp 19:25: paikallinen 'lay' ASETUS.kuolemaMakuu ms ajan ennen zk684-salasanan lähetystä; kp 20:04: iso keskitetty KUOLIT-viesti)
 const ilmoita = teksti => {
   const d = document.createElement('div'); d.textContent = teksti;
   d.style.cssText = 'position:fixed;left:50%;top:14%;transform:translateX(-50%);z-index:99999;pointer-events:none;padding:8px 16px;'
     + 'background:rgba(90,0,0,.8);color:#fff;font:bold 15px sans-serif;border-radius:6px;transition:opacity .4s';
   document.body.appendChild(d); setTimeout(() => { d.style.opacity = '0'; }, 1600); setTimeout(() => d.remove(), 2100);
+};
+const naytaKuolit = () => {
+  if (typeof document === 'undefined' || !document.body || !document.createElement) return;
+  try {
+    if (document.querySelectorAll) {
+      for (const v of document.querySelectorAll('[data-zombit-kuolit]')) if (v && v.remove) v.remove();
+    }
+    const d = document.createElement('div');
+    if (d.setAttribute) d.setAttribute('data-zombit-kuolit', '1');
+    d.textContent = 'KUOLIT';
+    if (d.style) {
+      d.style.cssText = 'position:fixed;left:50%;top:42%;transform:translate(-50%,-50%);z-index:100000;pointer-events:none;'
+        + 'color:#ff1a1a;font:900 72px/1.1 Impact,"Arial Black",sans-serif;letter-spacing:6px;text-transform:uppercase;'
+        + 'text-shadow:0 0 18px rgba(180,0,0,.95),0 4px 12px #000,0 0 4px #000;opacity:1;transition:opacity .6s ease-out';
+    }
+    document.body.appendChild(d);
+    const a1 = setTimeout(() => { kuplaAjastimet.delete(a1); if (d.style) d.style.opacity = '0'; }, 1500);
+    const a2 = setTimeout(() => { kuplaAjastimet.delete(a2); if (d.remove) d.remove(); }, 2100);
+    for (const a of [a1, a2]) {
+      if (a && typeof a.unref === 'function') a.unref();
+      kuplaAjastimet.add(a);
+    }
+  } catch (x) {}
 };
 const omaRuutu = () => {
   const i = omaIndeksi(); if (i == null || i < 0) return null;
@@ -1474,7 +1589,7 @@ const kuole = (syy) => {
     if (nyt - safeIlmoitettu > 5000) { safeIlmoitettu = nyt; ilmoita(syy + ' (:safe päällä, ei kuolemaa)'); lokiin({ kuolema: syy, safe: true }); }
     return;
   }
-  kuolemaKaynnissa = nyt; tila.kuolemat++; ilmoita(syy);
+  kuolemaKaynnissa = nyt; tila.kuolemat++; naytaKuolit();
   // kp 20:06 "kun makaa pysty kävellä samalla": oman hahmon kävelykomennot estetään makuun ajan (sendWalkUpdate-kääre, puretaan siivouksessa)
   kavelyEstoAsti = nyt + makuuMs + 300; asennaKavelyEsto();
   const o = omaRuutu();
@@ -1548,7 +1663,6 @@ const tiki = () => {
         if (z.vTaukoAsti > 0) z.vTaukoAsti += ohitettuMs;
         if (z.reaktioAsti > 0) z.reaktioAsti += ohitettuMs;
       }
-      for (const mk of SAILO.makaavat.values()) if (mk) mk.loppuMs += ohitettuMs;
       SAILO.K = k - 1;
     }
     if (SAILO.E !== e1) {
@@ -1598,6 +1712,11 @@ return () => {
   rafKaynnissa = false; clearInterval(ajastin); clearInterval(uusiKartta); removeEventListener('keydown', kuule, true);
   if (vayla && typeof vayla.removeEventListener === 'function') vayla.removeEventListener('RSCE_CHAT_EVENT', kuuleChat);
   if (lammikkoKanvas && lammikkoKanvas.remove) lammikkoKanvas.remove();
+  try {
+    if (typeof document !== 'undefined' && document.querySelectorAll) {
+      for (const v of document.querySelectorAll('[data-zombit-kuolit]')) if (v && v.remove) v.remove();
+    }
+  } catch (x) {}
   kuplaVahti.disconnect();
   puraKavelyEsto();
   if (odottavaKuolema) { const k = odottavaKuolema; odottavaKuolema = null; clearTimeout(k.aj); try { k.laheta(); } catch (x) {} }   // ei jätetä kuolemaa lähtemättä
