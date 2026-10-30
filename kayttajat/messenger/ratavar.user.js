@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         kupla: :ratavar (ratojen tekijöille)
 // @namespace    kupla
-// @version      0.1.1
+// @version      0.1.2
 // @description  :ratavar <N> [nimi] kirjoittaa huoneen ratamuuttujan (ratoja_tehty) arvon itselle tai toiselle pelaajalle. Vaatii huoneen wired-muokkausoikeuden.
 // @match        https://kupla.cc/*
 // @grant        none
@@ -15,8 +15,10 @@
 // Muuttuja valitaan kohteen omista 'room:*'-muuttujista: yksi = se, useampi = TUNNETUT-taulukon huonekohtainen, muuten virhe ja lista.
 (() => {
   if (window.__kuplaRatavar) return;
-  const VERSIO = '0.1.1';
-  const TUNNETUT = { 681: 'room:442708', 682: 'room:442825', 683: 'room:446543', 684: 'room:453807' };   // 683/684 lisätty 30.10. 21:1x (viiteboksien id:t, mittaamatta)
+  const VERSIO = '0.1.2';
+  // 0.1.2 (kp 30.10. 22:09 "korjaa mun :ratavar komento jo asap"): 684:n viite on 453818 (nitro/data/684-tila.md:78), ei 453807.
+  //   656 (aula) = alkuperäinen muuttuja room:439263 (luettu robon tarkastuksella 22:10).
+  const TUNNETUT = { 656: 'room:439263', 681: 'room:442708', 682: 'room:442825', 683: 'room:446543', 684: 'room:453818' };
   const dv = (o, k) => { const d = o && Object.getOwnPropertyDescriptor(o, k); return d && !d.get ? d.value : undefined; };
 
   function ilmoita(teksti, virhe) {
@@ -69,7 +71,8 @@
     const k = indeksi(h, m[2] && m[2].trim()); if (!k || k.i == null || k.i < 0) throw new Error('"' + m[2] + '" ei ole tässä huoneessa');
     const ennen = await lue(c, k.i); if (!ennen) throw new Error('ei lukuoikeutta tai vastausta (wired-lukumaski)');
     const omat = ennen.filter(x => x && /^room:/.test(x.id));
-    let id = omat.length === 1 ? omat[0].id : TUNNETUT[h.r];
+    const tunnettu = TUNNETUT[h.r];
+    let id = tunnettu && omat.some(x => x.id === tunnettu) ? tunnettu : (omat.length === 1 ? omat[0].id : null);
     if (!id) throw new Error(omat.length ? 'useita ratamuuttujia: ' + omat.map(x => x.id).join(', ') : 'tässä huoneessa ei ole ratamuuttujaa (room:*)');
     const vanha = (ennen.find(x => x && x.id === id) || {}).value;
     c.sendRawPacket(7016, [1, k.i, id, arvo, 0], 'ratavar');
