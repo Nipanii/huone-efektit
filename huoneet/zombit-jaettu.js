@@ -489,7 +489,9 @@ const paivitaMakaavat = (P, tMs, k, tikki, s0) => {
         if (nyk && nyk !== 'lay') asetaHahmonAsento(ri, 'lay');
       } catch (x) {}
     }
-    if (aikaTaynna && k != null) {
+    // kp 20:26 "näkyy hahmo samaa aikaa siin zombin kaa": teleportti näkyy muille vasta verkon yli makuun jälkeen ->
+    //   muuttunut syntyy kiinteällä lisäviiveellä (ASETUS.muuttunutViive), sama simulaatioaika kaikilla clienteillä.
+    if (tMs != null && tMs >= mk.loppuMs + Math.max(0, Number(ASETUS.muuttunutViive ?? 2500)) && k != null) {
       if (!mk.muuttunutLuotu) {
         mk.muuttunutLuotu = true;
         luoMuuttunut(mk, mk.suunta, k, tMs, tikki || Math.max(50, Number(ASETUS.tikki) || 250), s0 || perusSiemen(), P);

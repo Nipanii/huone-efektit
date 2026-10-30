@@ -27,7 +27,7 @@ const tila = window.pimeys = { versio: 'huone-684 valosim kerros-body', huone, t
   // 23:47: Res 'valo alue isommaks' -> ymparys-arvot n. x1.4; tummuus 0.99 -> 1
   // ymparys = piirin säde ruutuina, keila = keilan pituus ruutuina, kulma = keilan puolikulma asteina, liekki = lämmin sävy + lepatus
   // kp 30.10. 16:52 'tee se :lyhty komento jo. ja :kynttilä' · 'lyhdyllä isompi valo range': 1058 = Lyhty (ymparys 3.5, keila 9.5)
-  valot: { 1058: { nimi: 'Lyhty', ymparys: 3.5, keila: 9.5, kulma: 30, liekki: 1 }, 1027: { nimi: 'Kynttilä', ymparys: 2.9, keila: 3.3,   /* kp 20:17 'iiihan vähän lisä rangee' (oli 2.4/2.8) */ kulma: 60, liekki: 1 },
+  valot: { 1058: { nimi: 'Lyhty', ymparys: 4.6, keila: 11,   /* kp 20:27 'pikkusen vahvemmaks lyhtyy' (oli 3.5/9.5) */ kulma: 30, liekki: 1 }, 1027: { nimi: 'Kynttilä', ymparys: 2.9, keila: 3.3,   /* kp 20:17 'iiihan vähän lisä rangee' (oli 2.4/2.8) */ kulma: 60, liekki: 1 },
     1113: { nimi: 'LED-kynttilä', ymparys: 2.4, keila: 2.8, kulma: 60 }, 1031: { nimi: 'Soihtu', ymparys: 4.2, keila: 5.5, kulma: 60, liekki: 1 } },
     // kp 20:42:15: kynttilälläkin pitää näkyä enemmän katseen suuntaan kuin selän taakse -> jokaisella käsivalolla leveä keila
   lamppu: { ymparys: 4.2, liekki: 1 }, lamppuKuvio: /lamp|light|vela|candle|torch|lantern|grunge_barrel/i,   // kp 20:12 Grunge-tynnyri "tuon pitäs valaista"
@@ -167,7 +167,7 @@ koukku();
 // kp 20:22 "handitem komennot pitää olla disabled täs huonees · ettei voi huijata tai pistää pois kynttilää/lyhtyä":
 //   (1) :handitem/:hand/:item -komennot (komennot-palvelin.json cmd_hand_item) niellään ennen lähetystä (chat/huuto/kuiskaus),
 //   (2) clientin oma handitemControlBlocked-lippu päälle (DarkUI HanditemActionPolicy: piilottaa drop_carry_item + pass_hand_item).
-const KASI_KOMENTO = /^s*:s*(handitem|hand|item)b/i;
+const KASI_KOMENTO = /^\s*:\s*(handitem|hand|item)\b/i;
 let kasiSessio = null, kasiAlkup = null, kasiLippuAlkup = null;
 const kasiEsto = () => {
   const s = istunto(); if (!s || kasiSessio === s) return;
