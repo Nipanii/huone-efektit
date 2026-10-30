@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         kupla: :ratavar (ratojen tekijöille)
 // @namespace    kupla
-// @version      0.1.0
+// @version      0.1.1
 // @description  :ratavar <N> [nimi] kirjoittaa huoneen ratamuuttujan (ratoja_tehty) arvon itselle tai toiselle pelaajalle. Vaatii huoneen wired-muokkausoikeuden.
 // @match        https://kupla.cc/*
 // @grant        none
@@ -15,8 +15,8 @@
 // Muuttuja valitaan kohteen omista 'room:*'-muuttujista: yksi = se, useampi = TUNNETUT-taulukon huonekohtainen, muuten virhe ja lista.
 (() => {
   if (window.__kuplaRatavar) return;
-  const VERSIO = '0.1.0';
-  const TUNNETUT = { 681: 'room:442708', 682: 'room:442825' };
+  const VERSIO = '0.1.1';
+  const TUNNETUT = { 681: 'room:442708', 682: 'room:442825', 683: 'room:446543', 684: 'room:453807' };   // 683/684 lisätty 30.10. 21:1x (viiteboksien id:t, mittaamatta)
   const dv = (o, k) => { const d = o && Object.getOwnPropertyDescriptor(o, k); return d && !d.get ? d.value : undefined; };
 
   function ilmoita(teksti, virhe) {
