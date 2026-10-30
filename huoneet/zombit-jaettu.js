@@ -324,7 +324,10 @@ const valmistele = () => {
 };
 const piirretyt = new Map();   // n -> objekti-id
 const piirra = () => {
-  const p = Math.min(1, (Date.now() % ASETUS.tikki) / ASETUS.tikki), { z: Z } = ruudukko;
+  // kp 30.10. 16:49 "zombit warppailee noin sekunnin välein": p laskettiin kellosta (now % tikki), mutta askel (tiki) ajetaan
+  //   100 ms ajastimessa. Tikin rajalla p ehti nollautua ennen kuin px/x päivittyivät -> zombi hyppäsi ruudun taaksepäin
+  //   jopa 100 ms ajaksi joka tikki. Nyt p lasketaan viimeksi lasketusta tikistä: jos askel on myöhässä, zombi pysyy määränpäässä.
+  const p = Math.max(0, Math.min(1, (Date.now() - SAILO.K * ASETUS.tikki) / ASETUS.tikki)), { z: Z } = ruudukko;
   for (const z of tila.zombit) {
     let g = piirretyt.get(z.n);
     const x = z.px + (z.x - z.px) * p, y = z.py + (z.y - z.py) * p, zz = Math.max(0, Z[Math.round(y) * ruudukko.W + Math.round(x)] || 0), sd = z.suunta * 45;
