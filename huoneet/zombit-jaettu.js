@@ -882,6 +882,7 @@ const luoLammikko = (x, y, zn, kp, k, tMs, s0) => {
 const luoMuuttunut = (kp, suunta, k, tMs, tikki, s0, P) => {
   const lahdeId = kp && (kp.id ?? kp.lahdeId);
   if (!lahdeId) return null;
+  if (ruudukko && ruudukko.ok && Number.isFinite(kp.x) && !ruudukko.ok[Math.round(kp.y) * ruudukko.W + Math.round(kp.x)]) return null;   // kp 21:04: ei muuttunutta kielletylle alueelle
   if (SAILO.muuttuneet.some(m => m.lahdeId === lahdeId && m.synty === k)) return null;
   // kp 30.10. 18:58 & 19:18: yksi muuttunut per pelaaja ja yksi lammikko per pelaaja; uusi kuolema korvaa saman pelaajan vanhan
   const zn = kp.zn || (++SAILO.seuraavaMuuttunutN);
@@ -1107,7 +1108,9 @@ const askel = (k, Z, P) => {
   let poistui = false;
   for (let i = SAILO.muuttuneet.length - 1; i >= 0; i--) {
     const m = SAILO.muuttuneet[i];
-    if (!m || (tMs - (m.syntyMs ?? 0) >= minElinaika && !onValaistu(m.x, m.y, P))) {
+    // kp 21:04 "kielletystä huoneesta käveli portin läpi ulos": muuttunut kävelyruudun ulkopuolella (eiZombeja-alue, vanha tila) poistetaan heti
+    const ulkona = m && ruudukko && ruudukko.ok && Number.isFinite(m.x) && !ruudukko.ok[Math.round(m.y) * ruudukko.W + Math.round(m.x)];
+    if (!m || ulkona || (tMs - (m.syntyMs ?? 0) >= minElinaika && !onValaistu(m.x, m.y, P))) {
       SAILO.muuttuneet.splice(i, 1);
       poistui = true;
     }
