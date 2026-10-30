@@ -20,6 +20,9 @@
 //   6) Nopeuden vaihtelu: jokaiselle zombille arvotaan syntyessä (ja uudelleensyntyessä) oma perusnopeus väliltä ASETUS.askelVali
 //      (800..1400 ms/ruutu), ja saman zombin askelväli vaihtelee dynaamisesti joka askeleella (±20 % aaltoilu + satunnaiset lyhyet
 //      kiihdytykset/hidastukset). Simulaatio pyörii lyhyellä perustikillä (ASETUS.tikki = 250 ms) ja piirto interpoloidaan zombin omasta askelajasta.
+//   7) Ääniveto ja tutkiminen: julkiset viestit ja huudot kuuluvat kuuloetäisyydellä (ASETUS.kuuloVali 12..20 ruutua, huuto x1.5).
+//      Yksittäinen ääni painottaa vaellusta ääntä kohti; kun äänen paino >= ASETUS.tutkiRaja (1.8, ~2 viestiä tai huuto), vaeltava
+//      zombi katkaisee vaellustauon ja tutkii suoraan BFS-reittiä äänen lähtöruutuun ilman taukoja kunnes on <= 2 ruudun päässä.
 // Konsolissa: zombit.loki · zombit.zombit · zombit.muuttuneet · zombit.kohde · zombit.ovi · zombit.safe(true|false) · zombit.asetus · zombit.kuva()
 const ASETUS = {
   maara: 3,            // tavallisten zombien määrä
@@ -46,8 +49,10 @@ const ASETUS = {
   muuttuneitaMax: 4,   // enintään näin monta muuttunutta zombia samaan aikaan huoneessa (vanhin poistuu ensin)
   ilmanValoa: 1.8,     // ruutua: pelaajan perusvalosäde ilman käsiesinettä (jos window.pimeys.ilmanValoa ei ole saatavilla)
   lammikkoVarit: ['#b01212', '#6fcf3a', '#7a1c8a', '#2e8b57', '#8b1a1a'], // kiinnijääntiruudun värilammikon paletti (Left 4 Kuplan veri/lima + sävyt)
-  kuuloVali: [10, 16], // ruutua (reittietäisyys): zombikohtainen kuuloetäisyys huoneen julkisille chat-viesteille (huuto x1.5)
-  aaniKesto: 20000,    // ms; kuinka kauan chat-ääni vetää vaeltelevia zombeja vinosti puoleensa (hiipuu ajan myötä)
+  kuuloVali: [12, 20], // ruutua (reittietäisyys): zombikohtainen kuuloetäisyys huoneen julkisille chat-viesteille (huuto x1.5)
+  aaniKesto: 30000,    // ms; kuinka kauan chat-ääni vetää vaeltelevia zombeja vinosti puoleensa (hiipuu ajan myötä)
+  tutkiRaja: 1.8,      // äänen voimakkuusraja: tämän ylittävä ääni katkaisee vaellustauon heti ja laittaa zombin tutkimaan äänen lähtöruutua
+  tutkiEtaisyys: 2,    // ruutua (BFS-reitti): zombi tutkii kunnes on <= N ruudun päässä äänen lähtöruudusta
   ovi: { x: null, y: null }, // täytetään huoneesta mitattuna; jos null, luetaan clientin huonemallista (vain spawn-etäisyyteen)
   oviEtaisyys: 10,     // ruutua (reittietäisyys): ei ovelle eikä alle N ruudun päähän ovesta
   kaukana: 10,         // ruutua (reittietäisyys): vähimmäisetäisyys pelaajista syntyessä (jos mahdollista)
@@ -350,7 +355,7 @@ const aikaValiltaMs = (pari, oletusMinS, oletusMaxS, rnd) => {
 };
 const arvoHuomaa = (s0, k, zn) => lukuValilta(ASETUS.huomaaVali, 5, 9, arpa(s0 * 3571 + k * 2903 + zn * 131));
 const arvoLuovutus = (s0, k, zn) => lukuValilta(ASETUS.luovutusVali, 3, 5, arpa(s0 * 4421 + k * 1973 + zn * 229));
-const arvoKuulo = (s0, k, zn) => lukuValilta(ASETUS.kuuloVali, 10, 16, arpa(s0 * 5801 + k * 2381 + zn * 179));
+const arvoKuulo = (s0, k, zn) => lukuValilta(ASETUS.kuuloVali, 12, 20, arpa(s0 * 5801 + k * 2381 + zn * 179));
 const arvoReaktioMs = (s0, k, zn) => aikaValiltaMs(ASETUS.reaktioVali, 0, 3, arpa(s0 * 2749 + k * 4099 + zn * 193));
 const arvoTaukoMs = (rnd) => aikaValiltaMs(ASETUS.vaellusTauko, 2, 5, rnd);
 const arvoPerusAskel = (s0, k, zn) => lukuValilta(ASETUS.askelVali, 800, 1400, arpa(s0 * 6311 + k * 3307 + zn * 251));
@@ -444,8 +449,8 @@ const arvoKontaktiRajaMs = (s0, k, zn, pid) => {
 
 // Huoneviestien ääniveto (vaeltaessa): aktiiviset äänet kuuloetäisyydellä painottavat vaellussuuntaa vinosti ääntä kohti.
 const etsiAani = (z, dz, k, tMs) => {
-  const kestoMs = Math.max(1000, aikaMs(ASETUS.aaniKesto ?? 20000, 20));
-  const kuulo = Math.max(1, Number(z.kuulo ?? 12));
+  const kestoMs = Math.max(1000, aikaMs(ASETUS.aaniKesto ?? 30000, 30));
+  const kuulo = Math.max(1, Number(z.kuulo ?? 16));
   const ryhmat = new Map();
   for (let i = SAILO.aanet.length - 1; i >= 0; i--) {
     const a = SAILO.aanet[i];
@@ -473,29 +478,39 @@ const etsiAani = (z, dz, k, tMs) => {
 
 // Vaellus ilman kohdetta: liikkuu muutaman ruudun pätkiä (vaellusAskeleet 2..4, asento 'mv'),
 //   seisoo hetken paikallaan (vaellusTauko 2..5 s, asento 'std'), ja jatkaa uuteen suuntaan (mahdollinen ääniveto painottaa vinosti ääntä kohti).
+//   Kun äänen paino >= ASETUS.tutkiRaja (1.8), zombi tutkii ääntä ja kävelee BFS-reittiä suoraan äänen lähtöruutuun ilman vaellustaukoja.
 const vaella = (k, tMs, tikki, z, dz, varattu, s0, a, kentat) => {
   const rnd = arpa(s0 * 1009 + k * 9176 + z.n * 37 + (z.askelNro || 0) * 19);
   const aani = dz ? etsiAani(z, dz, k, tMs) : null;
   z.aaniKohde = aani ? { x: aani.x, y: aani.y, paino: Math.round(aani.paino * 100) / 100 } : null;
+
+  const tutkiRaja = Number(ASETUS.tutkiRaja ?? 1.8);
+  const tutkiEtaisyys = Number(ASETUS.tutkiEtaisyys ?? 2);
+  const onTutkinta = !!(aani && aani.paino >= tutkiRaja);
+
   if ((z.vTaukoAsti || 0) > tMs) {
-    // Vahva uusi ääni (huuto tai useita viestejä) lyhentää pitkää seisoskelua
-    if (aani && aani.paino >= 1.3 && z.vTaukoAsti - tMs > 1250 && z._aaniLyh !== aani.alkuMs) {
-      z._aaniLyh = aani.alkuMs;
-      z.vTaukoAsti = tMs + Math.max(tikki, Math.round((z.vTaukoAsti - tMs) * 0.45 / tikki) * tikki);
-    }
-    if (z.vTaukoAsti > tMs) {
-      z.vTaukoMs = z.vTaukoAsti - tMs;
-      z.vTauko = Math.ceil(z.vTaukoMs / 1000);
-      z.seuraavaAskelMs = tMs + tikki;
-      z.piirtoAskelMs = tikki;
-      return;   // seisoo paikallaan -> px === x, py === y -> asento 'std'
+    if (onTutkinta) {
+      // tutkiRaja ylittävä ääni katkaisee käynnissä olevan vaellustauon heti
+      z.vTaukoAsti = 0;
+      z.vTaukoMs = 0;
+      z.vTauko = 0;
+    } else {
+      // Mikä tahansa ääni (paino >= 1) lyhentää käynnissä olevaa vaellustaukoa
+      if (aani && aani.paino >= 1.0 && z.vTaukoAsti - tMs > 1250 && z._aaniLyh !== aani.alkuMs) {
+        z._aaniLyh = aani.alkuMs;
+        z.vTaukoAsti = tMs + Math.max(tikki, Math.round((z.vTaukoAsti - tMs) * 0.45 / tikki) * tikki);
+      }
+      if (z.vTaukoAsti > tMs) {
+        z.vTaukoMs = z.vTaukoAsti - tMs;
+        z.vTauko = Math.ceil(z.vTaukoMs / 1000);
+        z.seuraavaAskelMs = tMs + tikki;
+        z.piirtoAskelMs = tikki;
+        return;   // seisoo paikallaan -> px === x, py === y -> asento 'std'
+      }
     }
   }
   z.vTaukoMs = 0; z.vTauko = 0; z.vTaukoAsti = 0;
-  if (!(z.vAsk > 0)) {
-    z.vAsk = lukuValilta(ASETUS.vaellusAskeleet, 2, 4, rnd);
-    z.vDx = 0; z.vDy = 0;
-  }
+
   const { W, H, ok } = ruudukko, ehdokkaat = [];
   for (const [dx, dy] of NAAP) {
     const x = z.x + dx, y = z.y + dy, j = y * W + x;
@@ -511,6 +526,39 @@ const vaella = (k, tMs, tikki, z, dz, varattu, s0, a, kentat) => {
     z.seuraavaAskelMs = tMs + tikki; z.piirtoAskelMs = tikki;
     return;
   }
+
+  // "Tutkiminen": kun ryhmän paino >= ASETUS.tutkiRaja (oletus 1.8), vaeltava zombi kävelee REITTIÄ PITKIN
+  // (sama BFS-kenttä kentta(aani.x, aani.y)) kohti äänen LÄHTÖRUUTUA (ei pelaajaa) vaellusnopeudella,
+  // ilman vaellustaukoja, kunnes on <= 2 ruudun päässä siitä tai ääni hiipuu alle rajan.
+  if (onTutkinta) {
+    const avain = 'a:' + aani.x + ',' + aani.y;
+    let da = kentat && kentat.get(avain);
+    if (!da) { da = kentta(aani.x, aani.y); if (kentat) kentat.set(avain, da); }
+    const nytD = da[z.y * W + z.x];
+
+    if (nytD > tutkiEtaisyys) {
+      let paras = null;
+      for (const e of ehdokkaat) {
+        const d = da[e.y * W + e.x];
+        if (d >= 0 && (nytD < 0 || d < nytD) && (!paras || d < paras.d)) paras = { ...e, d };
+      }
+      if (paras) {
+        z.vDx = paras.dx; z.vDy = paras.dy;
+        z.x = paras.x; z.y = paras.y; z.suunta = suunnaksi(paras.dx, paras.dy);
+        z.vAsk = 0; // tutkiessa ei vaellusaskelpätkiä eikä taukoja
+        z.vTaukoAsti = 0; z.vTaukoMs = 0; z.vTauko = 0;
+        asetaAskelAika(z, s0, k, tMs, tikki);
+        return;
+      }
+    }
+    // Jos etäisyys on jo <= tutkiEtaisyys (2) tai reittiä ei löydy, jatketaan normaalilla vaelluksella
+  }
+
+  if (!(z.vAsk > 0)) {
+    z.vAsk = lukuValilta(ASETUS.vaellusAskeleet, 2, 4, rnd);
+    z.vDx = 0; z.vDy = 0;
+  }
+
   let valittu = (z.vDx || z.vDy) ? ehdokkaat.find(e => e.dx === z.vDx && e.dy === z.vDy) : null;
   if (!valittu) {
     const vastasuunta = (z.suunta + 4) & 7;
@@ -528,13 +576,13 @@ const vaella = (k, tMs, tikki, z, dz, varattu, s0, a, kentat) => {
         let w = 1;
         if (d >= 0 && nytD >= 0) {
           if (d < nytD) {
-            // Vinosti ääntä kohti (sivuviistoon lähestyvä askel) painottuu vahvimmin, jotta liike on hienovaraista kaartamista eikä suoraa jahtia
+            // Vinosti ääntä kohti (sivuviistoon lähestyvä askel) painottuu vahvimmin, jotta liike on kaartamista eikä suoraa jahtia
             const vino = (e.dx !== suoraDx || e.dy !== suoraDy);
-            w = (1 + veto * 2.1) * (vino ? 1.3 : 0.95);
+            w = (1 + veto * 5) * (vino ? 1.3 : 0.95);
           } else if (d === nytD) {
             w = 1 + veto * 0.65;
           } else {
-            w = Math.max(0.15, 1 - veto * 0.35);
+            w = Math.max(0.05, 1 - veto * 0.6);
           }
         }
         summa += w;
