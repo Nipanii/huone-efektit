@@ -62,8 +62,8 @@ const ASETUS = {
   vaihtoEro: 3,        // ruutua (kp 19:15): kohde vaihtuu jos toinen pelaaja on vähintään näin paljon lähempänä kuin nykyinen kohde
   vaihtoTn: 0.5,       // todennäköisyys (50 %) vaihtaa selvästi lähempänä olevaan kohteeseen
   vaihtoVali: 3000,    // ms; kohteenvaihdon arvonnan minimiväli ettei arvo joka tikki
-  aaniVaihtoTn: [0.35, 0.6], // [puhe, huuto] (kp 19:15): todennäköisyys vaihtaa kohteeksi äänen päästänyt pelaaja lähellä (BFS <= huomaa)
-  aaniVaihtoMax: 0.8,  // ryhmän kertyneen äänipainon mukainen maksimitodennäköisyys
+  aaniVaihtoTn: [0.6, 1.0], // [puhe, huuto] (kp 19:15; nostettu 23:25 "eivät seuraa ääntä tarpeeksi", oli [0.35, 0.6]): todennäköisyys vaihtaa kohteeksi äänen päästänyt pelaaja lähellä (BFS <= huomaa)
+  aaniVaihtoMax: 1.0,  // ryhmän kertyneen äänipainon mukainen maksimitodennäköisyys (kp 23:25: oli 0.8, rajasi huudon)
   kuolemaOvi: { x: 29, y: 5 },   // zk684-teleportin kohde attic15_tele 425376 @29,5 (684-tila.md 16:29); muiden kuoleman tunnistus
   ovi: { x: null, y: null }, // täytetään huoneesta mitattuna; jos null, luetaan clientin huonemallista (vain spawn-etäisyyteen)
   eiSpawnia: [[20, 34, 28, 37]],   // alanurkan tasku (Mesa Escopeta 22,37), kp 30.10. 18:59
@@ -611,18 +611,8 @@ const valitseKohde = (z, dz, P, k, tMs, s0) => {
 
   // 1. Jos zombi jo jahtaa kohdetta ja nykyinen kohde on yhä kelvollinen:
   if (nykyinenP) {
-    if (vieressa && vieressa.id !== z.kohdeId && vieressa.et < nykyinenEt) {
-      z._vaihdettuKohteeseen = true; z._valitonVaihto = true;
-      return vieressa;
-    }
-    // kp 22:19 "purkka korjaus. jos on puolet lähempänä kuin jahdattava esim niin pitäs riittää": pelaaja, jonka BFS-etäisyys on
-    //   enintään ASETUS.vaihtoSuhde (0.5) x nykyisen kohteen etäisyys (ja <= huomaa), vie kohteen aina, ilman arvontaa (normaali reaktioviive).
-    const vaihtoSuhde = Number(ASETUS.vaihtoSuhde ?? 0.5);
-    if (vaihtoSuhde > 0) {
-      const puolet = ehdokkaat.filter(e => e.id !== z.kohdeId && e.et <= huomaa && e.et <= nykyinenEt * vaihtoSuhde)
-        .sort((p, q) => p.et - q.et || p.m - q.m || p.id - q.id)[0];
-      if (puolet) { z._vaihdettuKohteeseen = true; return puolet; }
-    }
+    // kp 23:25 "proximity voittaa aina · eivät seuraa ääntä tarpeeksi · pitää vaikuttaa targettaukseen enemmän": ääni (A) arvioidaan
+    //   ENSIN, lähisäännöt (vieressä, puolet lähempänä) vasta sen jälkeen.
     // A) Äänivaihto (kp 19:15): kun jahtaava zombi kuulee uuden äänen pelaajalta B != kohdeId ja B on lähellä (et <= huomaa; huuto x1.5)
     if (Array.isArray(SAILO.aanet) && SAILO.aanet.length) {
       const kestoMs = Math.max(1000, aikaMs(ASETUS.aaniKesto ?? 30000, 30));
@@ -652,6 +642,18 @@ const valitseKohde = (z, dz, P, k, tMs, s0) => {
       }
     }
 
+    if (vieressa && vieressa.id !== z.kohdeId && vieressa.et < nykyinenEt) {
+      z._vaihdettuKohteeseen = true; z._valitonVaihto = true;
+      return vieressa;
+    }
+    // kp 22:19 "purkka korjaus. jos on puolet lähempänä kuin jahdattava esim niin pitäs riittää": pelaaja, jonka BFS-etäisyys on
+    //   enintään ASETUS.vaihtoSuhde (0.5) x nykyisen kohteen etäisyys (ja <= huomaa), vie kohteen aina, ilman arvontaa (normaali reaktioviive).
+    const vaihtoSuhde = Number(ASETUS.vaihtoSuhde ?? 0.5);
+    if (vaihtoSuhde > 0) {
+      const puolet = ehdokkaat.filter(e => e.id !== z.kohdeId && e.et <= huomaa && e.et <= nykyinenEt * vaihtoSuhde)
+        .sort((p, q) => p.et - q.et || p.m - q.m || p.id - q.id)[0];
+      if (puolet) { z._vaihdettuKohteeseen = true; return puolet; }
+    }
     // B) Selvästi lähempänä oleva pelaaja B (B <= A - vaihtoEro)
     const vaihtoEro = Math.max(1, Number(ASETUS.vaihtoEro ?? 3));
     const laheisemmat = ehdokkaat.filter(e => e.id !== z.kohdeId && e.et <= huomaa && e.et <= nykyinenEt - vaihtoEro);
