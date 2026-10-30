@@ -30,7 +30,8 @@ const tila = window.pimeys = { versio: 'huone-684 valosim kerros-body', huone, t
   valot: { 1058: { nimi: 'Lyhty', ymparys: 3.5, keila: 9.5, kulma: 30, liekki: 1 }, 1027: { nimi: 'Kynttilä', ymparys: 2.4, keila: 2.8, kulma: 60, liekki: 1 },
     1113: { nimi: 'LED-kynttilä', ymparys: 2.4, keila: 2.8, kulma: 60 }, 1031: { nimi: 'Soihtu', ymparys: 4.2, keila: 5.5, kulma: 60, liekki: 1 } },
     // kp 20:42:15: kynttilälläkin pitää näkyä enemmän katseen suuntaan kuin selän taakse -> jokaisella käsivalolla leveä keila
-  lamppu: { ymparys: 4.2, liekki: 1 }, lamppuKuvio: /lamp|light|vela|candle|torch|lantern/i, ohitaLamput: ['army_c15_light'],   // kp 21:54: kattolamppu teki oudon läikän -> 'laita se pois päältä'
+  lamppu: { ymparys: 4.2, liekki: 1 }, lamppuKuvio: /lamp|light|vela|candle|torch|lantern|grunge_barrel/i,   // kp 20:12 Grunge-tynnyri "tuon pitäs valaista"
+    ohitaLamput: ['army_c15_light'],   // kp 21:54: kattolamppu teki oudon läikän -> 'laita se pois päältä'
  
   sanat: { lyhty: 'zl684', kynttila: 'zc684' }, dimmeri: { vari: '#2a1050', voima: 0.35 }, loki: [], mitta: 0 };
 tila.loki.push = function () { const t = new Date().toTimeString().slice(0, 8); for (const o of arguments) if (o && typeof o === 'object' && !o.t) o.t = t;
