@@ -46,6 +46,8 @@ const omaIndeksi = () => {
     if (u && ((id > 0 && Number(u.webID) === id) || (nimi && String(u.name || '').trim().toLowerCase() === nimi))) return o.id; }
   return null;
 };
+const omaHahmo = () => { const i = omaIndeksi(); return i == null ? null : (e && e.getRoomObject ? e.getRoomObject(huone, i, 100) : null); };
+const omaSijainti = () => { const o = omaHahmo(), l = o && o.getLocation && o.getLocation(); return l ? { x: l.x, y: l.y, z: l.z } : null; };
 const yhteys = () => {
   const nahty = new Set(); let c = null;
   const etsi = (o, d) => { if (!o || c || d > 4 || typeof o !== 'object' || nahty.has(o)) return; nahty.add(o);
@@ -99,7 +101,8 @@ tila.paalla(paalla);
 // Wired-script-hybridi (682.js:153-206, 442 ja zombit-jaettu.js:345-393): :lyhty -> "zl684" (1058), :kynttilä/:kynttila -> "zc684" (1027).
 // Palvelin kaiuttaa wf_trg_says_something (piilota=1) -sanat lähettäjälle kuiskauksena (2704) -> niellään handleMessagesissa (suu ei liiku)
 // ja piilotetaan mahdollinen puhekupla MutationObserverilla. Huoneen wired antaa käsiesineen; skripti ei anna sitä itse.
-const SALAISET = new Set(['zl684', 'zc684']);
+// Kuoleman zk684 ohitetaan myös puhekuplissa ja kuiskausnielussa, ja kuolemasta keskitetään uudelleen ovelle.
+const SALAISET = new Set(['zl684', 'zc684', 'zk684']);
 let aktiivinen = true, koukkuYhteys = null, koukkuOma = null, koukkuAlkup = null;
 const koukku = () => {
   const c = yhteys(); if (!c || typeof c.handleMessages !== 'function') return null;
@@ -111,9 +114,15 @@ const koukku = () => {
         let i;
         viestit = viestit.filter(v => {
           const p = v && v.parser;
-          if (p && typeof p.message === 'string' && SALAISET.has(p.message.trim().toLowerCase())) {
-            if (i === undefined) i = omaIndeksi();
-            if (i == null || p.roomIndex === i) return false;
+          if (p && typeof p.message === 'string') {
+            const m = p.message.trim().toLowerCase();
+            if (SALAISET.has(m)) {
+              if (i === undefined) i = omaIndeksi();
+              if (i == null || p.roomIndex === i) {
+                if (m === 'zk684') setTimeout(keskitaSpawnille, 100);
+                return false;
+              }
+            }
           }
           return true;
         });
@@ -132,7 +141,7 @@ const puraKoukku = () => {
     }
   } catch (x) {}
 };
-const KUPLA_RE = /:\s*(zl684|zc684)\s*↩?\s*$/i;
+const KUPLA_RE = /:\s*(zl684|zc684|zk684)\s*↩?\s*$/i;
 const kuplaPiiloon = el => {
   try { if (KUPLA_RE.test(el.textContent || '') && el.style.display !== 'none') el.style.display = 'none'; } catch (x) {}
 };
@@ -338,7 +347,80 @@ const piirra = () => {
 raf = requestAnimationFrame(piirra);
 tila.loki.push({ alku: huone, efektit: paalla ? 'päällä' : 'pois' });
 
+// ---- Huonenäkymän keskitys spawnille / ovelle
+// kp 30.10. 18:29: "huone scriptin pitää centeraa pelinäkymä tähän spawnille kun tulee huoneeseen. nyt se on jossai persees"
+// Malli kaukoputki-kierto.js:44-53 ja 684.js:225.
+const SPAWN_RUUTU = { x: 29, y: 5 };
+const keskitysAjastimet = new Set();
+let edellinenOmaRuutu = null;
+
+const nayttoPiste = (cv, V, x, y, z) => {
+  const p = cv.geometry && cv.geometry.getScreenPoint(new V(x, y, z || 0)), s = cv._scale || 1;
+  if (!p) return null;
+  return [(p.x + Math.trunc(cv._width / 2)) * s + cv._screenOffsetX, (p.y + Math.trunc(cv._height / 2)) * s + cv._screenOffsetY];
+};
+
+const keskitaKohteeseen = (x, y, z) => {
+  try {
+    // Nitron renderöintikanvas (geometry + _screenOffsetX/Y), ei DOM-canvas (kanvas() yllä palauttaa DOM-elementin)
+    const cv = e.getRoomInstanceRenderingCanvas && e.getRoomInstanceRenderingCanvas(huone, 1); if (!cv || !cv.geometry) return false;
+    const ax = cv.geometry.directionAxis, V = (ax && ax.constructor) || (cv.geometry.direction && cv.geometry.direction.constructor) || Object;
+    const piste = nayttoPiste(cv, V, x, y, z || 0); if (!piste) return false;
+    cv._screenOffsetX += Math.round(cv._width / 2 - piste[0]);
+    cv._screenOffsetY += Math.round(cv._height / 2 - piste[1]);
+    return true;
+  } catch (x) {
+    tila.loki.push({ keskitysVirhe: String(x) });
+    return false;
+  }
+};
+
+const keskitaSpawnille = () => {
+  const pos = omaSijainti() || SPAWN_RUUTU;
+  return keskitaKohteeseen(pos.x, pos.y, pos.z || 0);
+};
+
+// Huoneeseen tullessa Nitro asettaa oman offsetinsa viiveellä -> odotetaan että hahmo ja canvas ovat valmiina,
+// ja varmistetaan keskitys toistamalla kokeiluja 200 ms välein max ~5 s kunnes offset on vakiintunut.
+let keskitysYritykset = 0;
+const aloitaKeskitys = () => {
+  const a = setInterval(() => {
+    keskitysYritykset++;
+    const pos = omaSijainti();
+    if (pos && keskitaSpawnille()) {
+      edellinenOmaRuutu = { x: pos.x, y: pos.y };
+      if (keskitysYritykset >= 5) {   // ~1 s kulunut, Nitro on varmasti asettanut oman aloitusoffsetinsa
+        clearInterval(a);
+        keskitysAjastimet.delete(a);
+      }
+    } else if (keskitysYritykset >= 25) {   // 5 s aikaraja täyttynyt
+      clearInterval(a);
+      keskitysAjastimet.delete(a);
+    }
+  }, 200);
+  keskitysAjastimet.add(a);
+};
+aloitaKeskitys();
+
+// Kuoleman / kauas siirtymisen vahti: jos oma hahmo hyppää yhdellä askeleella >= 6 ruutua (esim. ovelle kuollessa),
+// keskitetään näkymä uudelleen ovelle.
+const siirtymaVahti = setInterval(() => {
+  try {
+    const pos = omaSijainti();
+    if (!pos) return;
+    if (edellinenOmaRuutu) {
+      const dx = pos.x - edellinenOmaRuutu.x, dy = pos.y - edellinenOmaRuutu.y;
+      if (Math.hypot(dx, dy) >= 6) {
+        keskitaKohteeseen(pos.x, pos.y, pos.z || 0);
+      }
+    }
+    edellinenOmaRuutu = { x: pos.x, y: pos.y };
+  } catch (x) {}
+}, 250);
+keskitysAjastimet.add(siirtymaVahti);
+
 return () => { aktiivinen = false; cancelAnimationFrame(raf); removeEventListener('keydown', kuuleKomento, true);
   kuplaVahti.disconnect(); for (const a of kuplaAjastimet) clearTimeout(a); kuplaAjastimet.clear();
+  for (const a of keskitysAjastimet) { clearInterval(a); clearTimeout(a); } keskitysAjastimet.clear();
   puraKoukku(); if (typeof queueMicrotask === 'function') queueMicrotask(puraKoukku);
   kerros.remove(); if (window.pimeys === tila) delete window.pimeys; };
