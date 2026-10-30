@@ -67,7 +67,7 @@ const ASETUS = {
   kuolemaOvi: { x: 29, y: 5 },   // zk684-teleportin kohde attic15_tele 425376 @29,5 (684-tila.md 16:29); muiden kuoleman tunnistus
   ovi: { x: null, y: null }, // täytetään huoneesta mitattuna; jos null, luetaan clientin huonemallista (vain spawn-etäisyyteen)
   eiSpawnia: [[20, 34, 28, 37]],   // alanurkan tasku (Mesa Escopeta 22,37), kp 30.10. 18:59
-  eiZombeja: null,     // kp 19:00 "tuol on aidattu alue · siin on portti · sen taakse ei saa mennä zombeja", oletus = eiSpawnia
+  eiZombeja: [[20, 33, 29, 37]],   // kp 19:00 "sen taakse ei saa mennä zombeja"; 21:04 osoitti Gothic-portin 446612 @24,33 -> portin rivi y=33 ja x=29 mukaan (kartta mitattu robolla 21:12)
   oviEtaisyys: 10,     // ruutua (reittietäisyys): ei ovelle eikä alle N ruudun päähän ovesta
   kaukana: 10,         // ruutua (reittietäisyys): vähimmäisetäisyys pelaajista syntyessä (jos mahdollista)
   hajonta: 3,          // ruutua: syntyruutu valitaan kauimpien ruutujen kärjestä (maxEtaisyys - hajonta .. maxEtaisyys)
