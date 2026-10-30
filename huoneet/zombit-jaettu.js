@@ -86,7 +86,7 @@ const ASETUS = {
     url: 'wss://49-12-45-218.sslip.io/r/z684',   // VARAKANAVA: käytössä vain jos window.kuplaScripts puuttuu
     heiMs: 2000,         // EI-johtajan hei-väli (johtaja ei lähetä heitä: sen snapshot on sydämenlyönti)
     kelloMs: 50,         // synkka-ajastimen tikki (lähetysvälit tarkistetaan kuluneesta ajasta)
-    snapMs: 350,         // johtajan snapshot-väli (kp 21:02 "0,33s välein"); palvelimen raja 3 lähetystä / 1000 ms / käyttäjä
+    snapMs: 400,         // johtajan snapshot-väli (kp 21:02 "0,33s välein"); palvelimen raja 3 lähetystä / 1000 ms / käyttäjä
     hidasMs: 500,        // kanavan 1004-virheen jälkeen snapshot-väli tämä...
     hidasKestoMs: 5000,  // ...näin kauaksi
     valmisMs: 3000,      // tulokas ei vaadi johtajuutta ennen kuin on kuunnellut näin kauan (ei flappia)
@@ -1952,7 +1952,7 @@ const SYNK = (() => {
   const ksVirhe = (e) => {
     // koodi 1004 = kieltäytyi (rate). Ei uudelleenyritysten silmukkaa: lasketaan ja hidastetaan snapshot-väli hidasMs:ään hidasKestoMs ajaksi.
     tilasto.kanavaVirheet++; tilasto.viimeKanavaKoodi = e && e.code != null ? e.code : null;
-    if (e && e.code === 1004) hidasAsti = Date.now() + Math.max(0, num(S().hidasKestoMs, 5000));
+    if (e && (e.code === 1004 || e.code === 429)) hidasAsti = Date.now() + Math.max(0, num(S().hidasKestoMs, 5000));
   };
   const ksOta = () => {
     const ks = ksSaatavilla(); if (!ks) return false;
