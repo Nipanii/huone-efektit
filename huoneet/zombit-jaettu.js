@@ -396,7 +396,9 @@ const aikaValiltaMs = (pari, oletusMinS, oletusMaxS, rnd) => {
 const arvoHuomaa = (s0, k, zn) => lukuValilta(ASETUS.huomaaVali, 5, 9, arpa(s0 * 3571 + k * 2903 + zn * 131));
 const arvoLuovutus = (s0, k, zn) => lukuValilta(ASETUS.luovutusVali, 3, 5, arpa(s0 * 4421 + k * 1973 + zn * 229));
 const arvoKuulo = (s0, k, zn) => lukuValilta(ASETUS.kuuloVali, 12, 20, arpa(s0 * 5801 + k * 2381 + zn * 179));
-const arvoReaktioMs = (s0, k, zn) => aikaValiltaMs(ASETUS.reaktioVali, 0, 3, arpa(s0 * 2749 + k * 4099 + zn * 193));
+// kp 20:32-20:43 desync (agentti tmp/agent-684-desync.md kohta 1): tapahtumanoppien siemen 4 s lohkosta (floor(k/16)), ei tarkasta tikistä ->
+//   koneet jotka huomaavat saman tapahtuman ±1 tikin eri aikaan saavat saman tuloksen.
+const arvoReaktioMs = (s0, k, zn) => aikaValiltaMs(ASETUS.reaktioVali, 0, 3, arpa(s0 * 2749 + Math.floor(k / 16) * 4099 + zn * 193));
 const arvoTaukoMs = (rnd) => aikaValiltaMs(ASETUS.vaellusTauko, 2, 5, rnd);
 const arvoPerusAskel = (s0, k, zn) => lukuValilta(ASETUS.askelVali, 800, 1400, arpa(s0 * 6311 + k * 3307 + zn * 251));
 const hystereesiVali = (z) => {
@@ -479,7 +481,10 @@ const paivitaMakaavat = (P, tMs, k, tikki, s0) => {
     const ri = (p && p.i != null) ? p.i : mk.i;
     const telesi = p && isFinite(p.x) && isFinite(p.y) && Math.hypot(p.x - mk.x, p.y - mk.y) > 3;
     const aikaTaynna = (tMs != null && tMs >= mk.loppuMs);
-    if (!p || telesi || aikaTaynna) {
+    // kp 20:43 "hahmo näkyy pystyssä kun kuolee ennen ku telee": teleportti tulee verkon yli makuun JÄLKEEN ->
+    //   asento pysyy 'lay' teleporttiin asti (telesi), enintään ASETUS.muuttunutViive (2500 ms) makuun jälkeen.
+    const asentoAika = (tMs != null && tMs >= mk.loppuMs + Math.max(0, Number(ASETUS.muuttunutViive ?? 2500)));
+    if (!p || telesi || asentoAika) {
       if (mk.ajastin) { clearTimeout(mk.ajastin); makuuAjastimet.delete(mk.ajastin); mk.ajastin = null; }
       if (!mk.asentoPalautettu) { asetaHahmonAsento(ri, 'std'); mk.asentoPalautettu = true; }
     } else if (!mk.asentoPalautettu) {
@@ -535,7 +540,7 @@ const aloitaMakuu = (kp, suunta, k, tMs, tikki, s0, P) => {
       const P2 = pelaajat(), p = P2.find(x => x && x.id === kp.id);
       asetaHahmonAsento((p && p.i != null) ? p.i : mk.i, 'std');
     }
-  }, makuuMs);
+  }, makuuMs + Math.max(0, Number(ASETUS.muuttunutViive ?? 2500)));   // kp 20:43: pystyyn vasta teleportin jälkeen (paivitaMakaavat palauttaa aiemmin jos teleporttasi)
   if (mk.ajastin && typeof mk.ajastin.unref === 'function') mk.ajastin.unref();
   makuuAjastimet.add(mk.ajastin);
   SAILO.makaavat.set(kp.id, mk);
@@ -638,7 +643,7 @@ const valitseKohde = (z, dz, P, k, tMs, s0) => {
 const arvoKontaktiRajaMs = (s0, k, zn, pid) => {
   const kiintea = ASETUS.kontakti !== 3 && ASETUS.kontaktiMin === 3 && ASETUS.kontaktiMax === 6;
   const pari = kiintea ? [ASETUS.kontakti, ASETUS.kontakti] : [ASETUS.kontaktiMin ?? ASETUS.kontakti ?? 3, ASETUS.kontaktiMax ?? ASETUS.kontakti ?? 6];
-  return Math.max(250, aikaValiltaMs(pari, 3, 6, arpa(s0 * 4999 + k * 6151 + zn * 97 + (pid || 0))));
+  return Math.max(250, aikaValiltaMs(pari, 3, 6, arpa(s0 * 4999 + Math.floor(k / 16) * 6151 + zn * 97 + (pid || 0))));
 };
 
 // Huoneviestien ääniveto (vaeltaessa): aktiiviset äänet kuuloetäisyydellä painottavat vaellussuuntaa vinosti ääntä kohti.
@@ -1127,7 +1132,7 @@ const askel = (k, Z, P) => {
     }
     if (z.muuttunut && z.syo) { z.syo = false; z.syoId = null; z.syoAstiMs = 0; z.seuraavaAskelMs = tMs; }
     if (!z.muuttunut && z.kuoli >= 0) {
-      const r = kaukainen(P, arpa(s0 * 31 + k * 101 + z.n), varattu);
+      const r = kaukainen(P, arpa(s0 * 31 + Math.floor(k / 16) * 101 + z.n), varattu);
       z.x = z.px = r.x; z.y = z.py = r.y; z.kuoli = -1; z.syo = false; z.syoId = null; z.syoAstiMs = 0; z.synty = k; z.syntyMs = tMs; z.odottaaSynkkaa = null;
       z.huomaa = arvoHuomaa(s0, k, z.n); z.luovutus = arvoLuovutus(s0, k, z.n); z.meneta = z.huomaa + hystereesiVali(z); z.kuulo = arvoKuulo(s0, k, z.n);
       z.reaktio = 0; z.reaktioMs = 0; z.reaktioAsti = 0;
