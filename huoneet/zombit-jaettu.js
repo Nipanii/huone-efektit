@@ -1588,6 +1588,9 @@ const kuole = (syy) => {
   kuolemaKaynnissa = nyt; tila.kuolemat++; naytaKuolit();
   // kp 20:06 "kun makaa pysty kävellä samalla": oman hahmon kävelykomennot estetään makuun ajan (sendWalkUpdate-kääre, puretaan siivouksessa)
   kavelyEstoAsti = nyt + makuuMs + 300; asennaKavelyEsto();
+  // kp 20:28 "hahmo edellee liukuu hetken ku kuolee · jos kuolee liikkees": esto pysäyttää vain UUDET kävelyt, palvelimen kesken
+  //   oleva reitti jatkui -> kävelykomento omaan nykyruutuun (alkuperäisellä sendWalkUpdatella) pysäyttää hahmon heti.
+  try { const r0 = omaRuutu(); if (r0 && kavelyH && typeof kavelyAlkup === 'function') kavelyAlkup.call(kavelyH, r0.x, r0.y); } catch (x) {}
   const o = omaRuutu();
   if (o && o.i != null && makuuMs > 0) asetaHahmonAsento(o.i, 'lay');
   const laheta = () => {
