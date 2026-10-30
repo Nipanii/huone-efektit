@@ -1881,7 +1881,7 @@ const SYNK = (() => {
     for (const s of Array.isArray(snap.m) ? snap.m : []) {
       if (!sx(s) || !isFinite(s.l) || !isFinite(s.n)) continue;
       let m = mV.get(s.l); mV.delete(s.l);
-      if (!m || m.n !== s.n) {
+      if (!m || m.n !== s.n || (typeof s.f === 'string' && s.f && m.figuuri !== s.f)) {   // EHDOTUS: sama n mutta eri asu (paikallinen muuttunut syntyi eri K:lla -> eri siemen) -> johtajan versio voittaa
         const pp = P.find(p => p.id === s.l), k = num(s.sn, 0);
         m = rakennaMuuttunut({ id: s.l, nimi: pp ? pp.nimi : null, figuuri: pp ? pp.figuuri : null, x: s.x, y: s.y }, s.l, num(s.su, 4), k, k * tikki, tikki, s0, lmPer.get(s.l) || null, s.n);
         if (typeof s.f === 'string' && s.f) m.figuuri = s.f;
