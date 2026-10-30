@@ -1815,6 +1815,17 @@ const SYNK = (() => {
       z.meneta = z.huomaa + hystereesiVali(z); delete z._asu;
       alustaNopeus(z, s0, sn, tB, tikki);
     }
+    // kp 21:17 "nyt zombit tökkii vähä": snapshot nollasi askelen ajoituksen joka 350 ms (tikkikvantisointi ±250 ms).
+    //   Sama ruutu ja ajoitus < 300 ms erossa, tai paikallinen täsmälleen askeleen edellä -> paikallinen liike jatkuu, vain tila päivitetään.
+    const sSeur = s.se != null ? tB + s.se : tB;
+    const sama = z.x === s.x && z.y === s.y && Math.abs(sSeur - (z.seuraavaAskelMs || 0)) < 300;
+    const edella = (z.x !== s.x || z.y !== s.y) && z.px === s.x && z.py === s.y && Math.abs(z.x - s.x) <= 1 && Math.abs(z.y - s.y) <= 1;
+    if (sama || edella) {
+      z.kohdeId = s.ko ?? null; z.kuoli = num(s.ku, -1);
+      if (s.sa != null) { z.syo = true; z.syoId = s.sy ?? null; z.syoAstiMs = tB + s.sa; } else { z.syo = false; z.syoId = null; z.syoAstiMs = 0; }
+      z.odottaaSynkkaa = null; tilasto.pehmeat = (tilasto.pehmeat || 0) + 1;
+      return;
+    }
     z.askelNro = num(s.an, 0); z.puuskaAsk = num(s.pu, 0); z.puuskaKerroin = num(s.pk, 0);
     z.x = s.x; z.y = s.y; z.px = num(s.px, s.x); z.py = num(s.py, s.y); z.suunta = num(s.su, z.suunta ?? 4);
     if (s.sm != null) z.syntyMs = tB + s.sm;
