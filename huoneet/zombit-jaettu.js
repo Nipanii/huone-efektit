@@ -48,13 +48,19 @@ const ASETUS = {
   muuttunutMin: 120000, // ms; kiinni jääneestä pelaajasta syntyneen muuttuneen zombin vähimmäiselinaika (2 min) ennen pimeässä despawnausta
   muuttuneitaMax: 4,   // enintään näin monta muuttunutta zombia samaan aikaan huoneessa (vanhin poistuu ensin)
   ilmanValoa: 1.8,     // ruutua: pelaajan perusvalosäde ilman käsiesinettä (jos window.pimeys.ilmanValoa ei ole saatavilla)
-  lammikkoVarit: ['#b01212', '#6fcf3a', '#7a1c8a', '#2e8b57', '#8b1a1a'], // kiinnijääntiruudun värilammikon paletti (Left 4 Kuplan veri/lima + sävyt)
+  lammikkoVarit: ['#8b0000', '#a30d0d', '#b01212', '#7a0a0a'], // vain punaisen sävyjä (kp 19:09)
   kuuloVali: [12, 20], // ruutua (reittietäisyys): zombikohtainen kuuloetäisyys huoneen julkisille chat-viesteille (huuto x1.5)
   aaniKesto: 30000,    // ms; kuinka kauan chat-ääni vetää vaeltelevia zombeja vinosti puoleensa (hiipuu ajan myötä)
   tutkiRaja: 1.8,      // äänen voimakkuusraja: tämän ylittävä ääni katkaisee vaellustauon heti ja laittaa zombin tutkimaan äänen lähtöruutua
   tutkiEtaisyys: 2,    // ruutua (BFS-reitti): zombi tutkii kunnes on <= N ruudun päässä äänen lähtöruudusta
+  vaihtoEro: 3,        // ruutua (kp 19:15): kohde vaihtuu jos toinen pelaaja on vähintään näin paljon lähempänä kuin nykyinen kohde
+  vaihtoTn: 0.5,       // todennäköisyys (50 %) vaihtaa selvästi lähempänä olevaan kohteeseen
+  vaihtoVali: 3000,    // ms; kohteenvaihdon arvonnan minimiväli ettei arvo joka tikki
+  aaniVaihtoTn: [0.35, 0.6], // [puhe, huuto] (kp 19:15): todennäköisyys vaihtaa kohteeksi äänen päästänyt pelaaja lähellä (BFS <= huomaa)
+  aaniVaihtoMax: 0.8,  // ryhmän kertyneen äänipainon mukainen maksimitodennäköisyys
   ovi: { x: null, y: null }, // täytetään huoneesta mitattuna; jos null, luetaan clientin huonemallista (vain spawn-etäisyyteen)
   eiSpawnia: [[20, 34, 28, 37]],   // alanurkan tasku (Mesa Escopeta 22,37), kp 30.10. 18:59
+  eiZombeja: null,     // kp 19:00 "tuol on aidattu alue · siin on portti · sen taakse ei saa mennä zombeja", oletus = eiSpawnia
   oviEtaisyys: 10,     // ruutua (reittietäisyys): ei ovelle eikä alle N ruudun päähän ovesta
   kaukana: 10,         // ruutua (reittietäisyys): vähimmäisetäisyys pelaajista syntyessä (jos mahdollista)
   hajonta: 3,          // ruutua: syntyruutu valitaan kauimpien ruutujen kärjestä (maxEtaisyys - hajonta .. maxEtaisyys)
@@ -67,6 +73,16 @@ const ASETUS = {
   kuolemaLukko: 5000,  // ms; lukko ettei sama kiinnijäänti lähetä sanaa monta kertaa
   siemen: 684,         // deterministisen satunnaislukugeneraattorin siemen
   figuuri: 'hd-11509-1461.hr-3714-45.ch-3530-1330.lg-11495-1408.sh-3720-82',   // varalla; oikea luetaan huoneen Zombie-botilta
+  zombiAsut: [
+    'hd-180-1.ch-210-66.lg-270-82.sh-290-80.hr-100-31',
+    'hd-600-1.ch-630-62.lg-695-62.sh-725-62.hr-515-33',
+    'hd-180-2.ch-215-64.lg-275-64.sh-300-64.hr-115-38',
+    'hd-600-2.ch-635-73.lg-700-73.sh-730-73.hr-520-40',
+    'hd-190-3.ch-220-89.lg-280-89.sh-305-89.hr-125-42',
+    'hd-605-3.ch-640-92.lg-705-92.sh-735-92.hr-525-45',
+    'hd-195-4.ch-225-70.lg-285-70.sh-310-70.hr-130-35',
+    'hd-610-4.ch-645-80.lg-710-80.sh-740-80.hr-530-37'
+  ],
 };
 Object.defineProperty(ASETUS, 'menetä', { get: () => ASETUS.meneta, set: v => { ASETUS.meneta = v; } });
 
@@ -163,7 +179,7 @@ const rakenna = () => {   // zombien kävelyruudut: perustason lattia (|korkeus|
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const i = y * W + x; if (!wg.isRoomTile(x, y) || (hm._isRoomTile && !hm._isRoomTile[i])) continue;
     const lattia = wg.getHeight(x, y), pino = hm.getTileHeight(x, y); z[i] = pino;
-    if (Math.abs(lattia) < 0.5 && pino - lattia <= ASETUS.lattiaYli) ok[i] = 1;
+    if (Math.abs(lattia) < 0.5 && pino - lattia <= ASETUS.lattiaYli && !eiZombeja(x, y)) ok[i] = 1;
   }
   const ovi = lueOvi(W, H); tila.ovi = ovi;
   const yht = new Uint8Array(W * H), jono = [];
@@ -293,11 +309,23 @@ const onValaistu = (zx, zy, P) => {
 // Tila säilyy skriptin uudelleenlatauksen yli (push käynnistää skriptin uudelleen ~15 s välein).
 const SAILO = (window.__zombitJaettu && window.__zombitJaettu.huone === huone)
   ? window.__zombitJaettu
-  : (window.__zombitJaettu = { huone, E: -1, K: -1, zombit: [], muuttuneet: [], lammikot: [], aanet: [], seuraavaMuuttunutN: 1000, historia: new Map() });
+  : (window.__zombitJaettu = { huone, E: -1, K: -1, zombit: [], muuttuneet: [], lammikot: [], aanet: [], piirretytIdt: new Set(), seuraavaMuuttunutN: 1000, historia: new Map() });
 if (!Array.isArray(SAILO.muuttuneet)) SAILO.muuttuneet = [];
 if (!Array.isArray(SAILO.lammikot)) SAILO.lammikot = [];
 if (!Array.isArray(SAILO.aanet)) SAILO.aanet = [];
+if (!(SAILO.piirretytIdt instanceof Set)) SAILO.piirretytIdt = new Set();
 if (!(SAILO.seuraavaMuuttunutN >= 1000)) SAILO.seuraavaMuuttunutN = 1000;
+
+// Siivotaan heti käynnistyksessä KAIKKI vanhat huoneobjektit (SAILO.piirretytIdt ja -950000..-959999) ennen ensimmäistä piirtoa
+try {
+  for (const g of SAILO.piirretytIdt) try { e.removeRoomObjectUser(huone, g); } catch (x) {}
+  SAILO.piirretytIdt.clear();
+  for (const o of (e.getRoomObjects(huone, 100) || [])) {
+    if (o && o.id <= -950000 && o.id >= -959999) {
+      try { e.removeRoomObjectUser(huone, o.id); } catch (x) {}
+    }
+  }
+} catch (x) {}
 const historia = SAILO.historia;   // id -> [{k,x,y}]
 const kirjaa = (k, P) => {
   const n = Math.max(1, Math.round(ASETUS.ikkuna / ASETUS.tikki));
@@ -421,13 +449,17 @@ const varmistaZombi = (z, s0, k, tMs, tikki) => {
 
 // Zombikohtainen kohdevalinta: huomaa pelaajan kun BFS-reittietäisyys <= z.huomaa (5..9),
 //   luopuu kun etäisyys > z.meneta (z.huomaa + z.luovutus, 3..5; hystereesi). Muuttunut EI jahtaa omaa lähdepelaajaansa (z.lahdeId).
-const valitseKohde = (z, dz, P) => {
+// kp 19:15: kohteen vaihto jos toinen pelaaja on SELVÄSTI lähempänä (B <= A - vaihtoEro) tai äänen perusteella.
+const valitseKohde = (z, dz, P, k, tMs, s0) => {
   if (z.huomaa == null) z.huomaa = arvoHuomaa(perusSiemen(), z.synty ?? SAILO.E, z.n);
   if (z.luovutus == null) z.luovutus = arvoLuovutus(perusSiemen(), z.synty ?? SAILO.E, z.n);
   const huomaa = Math.max(0, Number(z.huomaa));
   const meneta = Math.max(huomaa, huomaa + hystereesiVali(z));
   z.meneta = meneta;
-  let paras = null;
+
+  const ehdokkaat = [];
+  let nykyinenEt = -1, nykyinenP = null;
+
   for (const p of P) {
     if (!onKohde(p)) continue;
     if (z.muuttunut && p.id === z.lahdeId) continue;   // muuttunut ei jahtaa omaa lähdepelaajaansa
@@ -438,7 +470,73 @@ const valitseKohde = (z, dz, P) => {
     // Teleportannut (yli 3 ruutua tikissä = kuoli ja siirtyi ovelle, tai tuli huoneeseen) ei ole kohde ikkunan aikana.
     const l = liike(p.id); if (l.hyppy > 3) continue;
     const m = l.s;
-    if (!paras || m < paras.m) paras = { ...p, m, et };   // P on id-järjestyksessä -> tasapelissä pienin id
+    const obj = { ...p, m, et };
+    ehdokkaat.push(obj);
+    if (p.id === z.kohdeId) { nykyinenEt = et; nykyinenP = obj; }
+  }
+
+  if (!ehdokkaat.length) return null;
+
+  // 1. Jos zombi jo jahtaa kohdetta ja nykyinen kohde on yhä kelvollinen:
+  if (nykyinenP) {
+    // A) Äänivaihto (kp 19:15): kun jahtaava zombi kuulee uuden äänen pelaajalta B != kohdeId ja B on lähellä (et <= huomaa; huuto x1.5)
+    if (Array.isArray(SAILO.aanet) && SAILO.aanet.length) {
+      const kestoMs = Math.max(1000, aikaMs(ASETUS.aaniKesto ?? 30000, 30));
+      for (let i = SAILO.aanet.length - 1; i >= 0; i--) {
+        const a = SAILO.aanet[i];
+        if (!a || (tMs != null && tMs - a.alkuMs >= kestoMs) || (k != null && a.k > k)) continue;
+        if (a.id === z.kohdeId) continue;
+        if (z.muuttunut && a.id === z.lahdeId) continue;
+        const b = ehdokkaat.find(e => e.id === a.id);
+        if (!b) continue;
+        const aaniRaja = Math.round(huomaa * (a.huuto ? 1.5 : 1));
+        if (b.et > aaniRaja) continue;
+
+        // Arvonta kerran per uusi ääniviesti (äänen k / alkuMs + zombin n)
+        const aaniAvain = a.id + ':' + (a.alkuMs || a.k);
+        if (!z._aaniVaihtoArvottu) z._aaniVaihtoArvottu = new Set();
+        if (!z._aaniVaihtoArvottu.has(aaniAvain)) {
+          z._aaniVaihtoArvottu.add(aaniAvain);
+          const perusTn = Array.isArray(ASETUS.aaniVaihtoTn) ? (a.huuto ? ASETUS.aaniVaihtoTn[1] : ASETUS.aaniVaihtoTn[0]) : 0.4;
+          const tn = Math.min(Number(ASETUS.aaniVaihtoMax ?? 0.8), (Number(perusTn) || 0.4) * (a.voima || 1));
+          const rndAani = arpa(s0 * 3821 + (a.alkuMs || a.k || 0) * 1109 + z.n * 73);
+          if (rndAani() < tn) {
+            z._vaihdettuKohteeseen = true;
+            return b;
+          }
+        }
+      }
+    }
+
+    // B) Selvästi lähempänä oleva pelaaja B (B <= A - vaihtoEro)
+    const vaihtoEro = Math.max(1, Number(ASETUS.vaihtoEro ?? 3));
+    const laheisemmat = ehdokkaat.filter(e => e.id !== z.kohdeId && e.et <= huomaa && e.et <= nykyinenEt - vaihtoEro);
+    if (laheisemmat.length) {
+      laheisemmat.sort((p, q) => p.et - q.et || p.m - q.m || p.id - q.id);
+      const parasB = laheisemmat[0];
+      const vaihtoVali = Math.max(500, Number(ASETUS.vaihtoVali ?? 3000));
+      const pariAvain = z.kohdeId + '->' + parasB.id;
+      if (z._viimeVaihtoAvain !== pariAvain || (tMs != null && tMs - (z._viimeVaihtoMs || 0) >= vaihtoVali)) {
+        z._viimeVaihtoAvain = pariAvain;
+        z._viimeVaihtoMs = tMs || 0;
+        const vaihtoTn = Number(ASETUS.vaihtoTn ?? 0.5);
+        const kAika = k ?? Math.floor((tMs || 0) / 250);
+        const rndVaihto = arpa(s0 * 4787 + Math.floor(kAika / Math.max(1, Math.round(vaihtoVali / 250))) * 1237 + z.n * 67 + parasB.id * 31);
+        if (rndVaihto() < vaihtoTn) {
+          z._vaihdettuKohteeseen = true;
+          return parasB;
+        }
+      }
+    }
+
+    // Jos ei vaihdettu, pidetään nykyinen kohde
+    return nykyinenP;
+  }
+
+  // 2. Ei nykyistä kohdetta -> valitaan hitain (pienin liike ikkunassa, tasapelissä pienin id)
+  let paras = null;
+  for (const e of ehdokkaat) {
+    if (!paras || e.m < paras.m) paras = e;
   }
   return paras;
 };
@@ -612,6 +710,10 @@ const vaella = (k, tMs, tikki, z, dz, varattu, s0, a, kentat) => {
 //   ei ovelle eikä alle ASETUS.oviEtaisyys ruudun päähän ovesta, deterministisesti siemenestä + tikistä.
 // kp 30.10. 18:59 "tuol on alue mihin ei sais spawnata zombeja" (osoitti Mesa Escopeta 446609 @ 22,37): ASETUS.eiSpawnia = [x0, y0, x1, y1] -suorakaiteet.
 const eiSpawnia = (x, y) => (Array.isArray(ASETUS.eiSpawnia) ? ASETUS.eiSpawnia : []).some(r => Array.isArray(r) && x >= r[0] && y >= r[1] && x <= r[2] && y <= r[3]);
+const eiZombeja = (x, y) => {
+  const lista = Array.isArray(ASETUS.eiZombeja) ? ASETUS.eiZombeja : (Array.isArray(ASETUS.eiSpawnia) ? ASETUS.eiSpawnia : []);
+  return lista.some(r => Array.isArray(r) && x >= r[0] && y >= r[1] && x <= r[2] && y <= r[3]);
+};
 const kaukainen = (P, rnd, varattu) => {
   const { W, H, ok, ruudut, ovi, dOvi } = ruudukko, a = ansaRuutu(), minOvi = Math.max(1, Number(ASETUS.oviEtaisyys) || 0);
   let ehdokkaat = ruudut.filter(i => {
@@ -812,9 +914,10 @@ const askel = (k, Z, P) => {
       varattu.delete(z.y * W + z.x);
       const dz = kentta(z.x, z.y);
       const oliKohde = z.kohdeId != null;
-      const kohde = valitseKohde(z, dz, P);
+      z._vaihdettuKohteeseen = false;
+      const kohde = valitseKohde(z, dz, P, k, tMs, s0);
       if (kohde) {
-        if (!oliKohde) {
+        if (!oliKohde || z._vaihdettuKohteeseen) {
           const rMs = arvoReaktioMs(s0, k, z.n);
           z.reaktioAsti = tMs + rMs;
         }
@@ -915,12 +1018,13 @@ const suunnaksi = (dx, dy) => ({ '0,-1': 0, '1,-1': 1, '1,0': 2, '1,1': 3, '0,1'
 
 // ---- piirto (paikalliset hahmot negatiivisilla id:illä + värilammikot kanvaksella lattian päällä, vain tässä clientissä)
 let V = null, figuuri = ASETUS.figuuri, seuraavaId = -950001, asut = [];
-// kp 30.10. 18:58 "tarvittais enemmän eri näkösiä zombeja": pohja-asu kiertää huoneen kaikista Zombie-boteista (id-järjestys, sama kaikilla)
-//   ja jokainen saa Left 4 Kuplan zombifioinnin omalla siemenellä (iho, pää, tummennus) -> eri näköisiä myös saman pohjan päällä.
-//   Pohjat: Zombie-botit + huoneen pelaajien asut (kuten Left 4 Kuplassa: katsojan/pelaajan asu zombifioituna) + vara-asu.
-const valitseAsu = z => { let pel = []; try { pel = pelaajat().map(p => p.figuuri).filter(Boolean); } catch (x) {}
-  const lista = [...asut, ...pel, figuuri].filter((f, i, a) => f && a.indexOf(f) === i), n = Math.abs(Number(z.n) || 0) + Math.abs(Number(SAILO.E) || 0);
-  return zombifioiAsu(lista[n % lista.length], (n * 7919 + 104729) >>> 0) || lista[n % lista.length]; };
+// kp 30.10. 18:58 & 19:09: tavalliset zombit EIVÄT käytä huoneen pelaajien asuja (kp 19:09: 'näen myös ite kp zombin').
+//   Pohjat: Zombie-botit + ASETUS.zombiAsut (~8 geneeristä asua) + vara-asu figuuri, ja jokainen zombifioidaan siemenellä.
+const valitseAsu = z => {
+  const geneeriset = Array.isArray(ASETUS.zombiAsut) ? ASETUS.zombiAsut : [];
+  const lista = [...asut, ...geneeriset, figuuri].filter((f, i, a) => f && a.indexOf(f) === i), n = Math.abs(Number(z.n) || 0) + Math.abs(Number(SAILO.E) || 0);
+  return zombifioiAsu(lista[n % lista.length], (n * 7919 + 104729) >>> 0) || lista[n % lista.length];
+};
 const valmistele = () => {
   const s = istunto(), ud = s && s.userDataManager; let loydetty = false; const uudetAsut = [];
   for (const o of [...(e.getRoomObjects(huone, 100) || [])].sort((a, b) => a.id - b.id)) {
@@ -1015,7 +1119,12 @@ const piirra = () => {
     let g = piirretyt.get(z.n);
     const x = z.px + (z.x - z.px) * p, y = z.py + (z.y - z.py) * p, zz = Math.max(0, Z[Math.round(y) * ruudukko.W + Math.round(x)] || 0), sd = z.suunta * 45;
     const asu = (z.muuttunut && z.figuuri) ? z.figuuri : (z._asu || (z._asu = valitseAsu(z)));
-    if (g == null) { g = seuraavaId--; if (!e.addRoomObjectUser(huone, g, new V(x, y, zz), new V(sd), sd, 1, asu)) continue; piirretyt.set(z.n, g); }
+    if (g == null) {
+      g = seuraavaId--;
+      if (!e.addRoomObjectUser(huone, g, new V(x, y, zz), new V(sd), sd, 1, asu)) continue;
+      piirretyt.set(z.n, g);
+      SAILO.piirretytIdt.add(g);
+    }
     try {
       e.updateRoomObjectUserLocation(huone, g, new V(x, y, zz), null, false, 0, new V(sd), sd, true, false, 16);
       const liikkuu = (z.x !== z.px || z.y !== z.py) && p < 1, asento = z.kuoli >= 0 && !z.syo ? 'lay' : liikkuu ? 'mv' : 'std';
@@ -1027,6 +1136,7 @@ const piirra = () => {
       try { e.removeRoomObjectUser(huone, g); } catch (x) {}
       piirretyt.delete(n);
       piirrettyAsento.delete(n);
+      SAILO.piirretytIdt.delete(g);
     }
   }
   piirraLammikot();
@@ -1185,7 +1295,13 @@ const tiki = () => {
   const P = pelaajat();
   const maxKirittava = Math.max(30, Math.round(30000 / tikki));
   if (SAILO.E === e1 && SAILO.zombit.length === ASETUS.maara && k - SAILO.K < maxKirittava) {
-    if (tila.zombit !== SAILO.zombit) { tila.zombit = SAILO.zombit; paivitaLammikot(); lokiin({ jatkettu: SAILO.K }); }
+    if (tila.zombit !== SAILO.zombit) {
+      tila.zombit = SAILO.zombit;
+      paivitaLammikot();
+      // kp 19:11: Päivityksen yhteydessä ei saa laukaista vanhaa kiinnijääntiä/zk684:ää (omaViimeSyoK alustetaan nykyiseen SAILO.K-arvoon)
+      omaViimeSyoK = SAILO.K;
+      lokiin({ jatkettu: SAILO.K });
+    }
   } else {
     SAILO.E = e1; SAILO.muuttuneet = []; SAILO.aanet = []; tila.zombit = SAILO.zombit = synny(e1, P, k); paivitaLammikot(); historia.clear(); SAILO.K = k - 1;
     lokiin({ epookki: e1, syntyi: tila.zombit.map(z => z.x + ',' + z.y).join(' '), ovi: ruudukko.ovi });
@@ -1227,6 +1343,14 @@ return () => {
       else koukkuYhteys.handleMessages = koukkuAlkup;
     }
   } catch (x) {}
-  for (const g of piirretyt.values()) try { e.removeRoomObjectUser(huone, g); } catch (x) {}
-  piirretyt.clear(); if (window.zombit === tila) delete window.zombit;
+  for (const g of piirretyt.values()) {
+    try { e.removeRoomObjectUser(huone, g); } catch (x) {}
+    SAILO.piirretytIdt.delete(g);
+  }
+  piirretyt.clear();
+  try {
+    for (const g of SAILO.piirretytIdt) try { e.removeRoomObjectUser(huone, g); } catch (x) {}
+    SAILO.piirretytIdt.clear();
+  } catch (x) {}
+  if (window.zombit === tila) delete window.zombit;
 };
