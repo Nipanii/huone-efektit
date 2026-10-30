@@ -1295,10 +1295,26 @@ const kontaktissaOlevat = (P) => {
   return lista.filter(p => p && idt.has(p.id) && !onMakaava(p.id, tMs));
 };
 tila.kontaktissa = () => kontaktissaOlevat().map(p => p.id);
+// kp 20:19 "punanen välkky on vaan punanen neliö hahmon päällä · kato shooter logic": shooterin keino (shooter.user.js savyta):
+//   hahmon OMIEN spritejen väri (sprite.color) punaiseksi, varjo (alpha<255) ja additiiviset ohitetaan, palautus 0xffffff.
+const savytetyt = new Map();   // hahmon roomIndex -> true
+const savyta = (id, vari) => {
+  try {
+    const o = e.getRoomObject(huone, id, 100), sp = (o && o.visualization && o.visualization.sprites) || [];
+    for (const s of sp) { if (s.alpha !== 255 || s.blendMode === 'add') continue;
+      if (s.color !== vari) { s.color = vari; if (s.increaseUpdateCounter) s.increaseUpdateCounter(); } }
+  } catch (x) {}
+};
+const paivitaValahdys = (kontaktissa) => {
+  const nyt = Date.now(), nyky = new Set();
+  for (const p of kontaktissa) if (p && p.i != null) { nyky.add(p.i); savytetyt.set(p.i, true); savyta(p.i, Math.floor(nyt / 120) % 2 ? 0xff9090 : 0xff2a2a); }
+  for (const id of [...savytetyt.keys()]) if (!nyky.has(id)) { savyta(id, 0xffffff); savytetyt.delete(id); }
+};
 const piirraLammikot = () => {
   if (!lammikkoKanvas || !lctx || typeof document === 'undefined' || !document.body) return;
   const lammikot = Array.isArray(SAILO.lammikot) ? SAILO.lammikot : (tila.lammikot || []);
   const kontaktissa = kontaktissaOlevat();
+  paivitaValahdys(kontaktissa);
   if (!lammikot.length && !kontaktissa.length) {
     if (lammikkoKanvas.width > 0 && lammikkoKanvas.height > 0) lctx.clearRect(0, 0, lammikkoKanvas.width, lammikkoKanvas.height);
     return;
@@ -1360,33 +1376,7 @@ const piirraLammikot = () => {
       }
     }
   }
-  // kp 20:04 "jos on kontaktissa zombin kaa nii hahmo välähtää punasena":
-  //   kun pelaajan kontaktilaskuri (z.kontaktit[p.id]) kasvaa (samassa tai viereisessä ruudussa), väläytetään hahmon laatikkoa punaisena (~4 Hz) kaikilla clienteillä.
-  if (kontaktissa.length && r.width > 0) {
-    const fx = W / r.width, fy = H / r.height;
-    const syke = 0.5 + 0.5 * Math.sin(Date.now() * 0.008 * Math.PI);   // ~4 Hz syke
-    lctx.save();
-    lctx.fillStyle = '#ff1a1a';
-    lctx.globalAlpha = 0.12 + 0.43 * syke;
-    for (const p of kontaktissa) {
-      let piirrettyLaatikko = false;
-      if (typeof e.getRoomObjectBoundingRectangle === 'function' && p.i != null && typeof lctx.fillRect === 'function') {
-        try {
-          const b = e.getRoomObjectBoundingRectangle(huone, p.i, 100, 1);
-          if (b && b.width > 0 && b.height > 0) {
-            lctx.fillRect((b.x - r.left) * fx, (b.y - r.top) * fy, b.width * fx, b.height * fy);
-            piirrettyLaatikko = true;
-          }
-        } catch (x) {}
-      }
-      if (!piirrettyLaatikko && isFinite(p.x) && isFinite(p.y) && typeof lctx.fillRect === 'function') {
-        const zz = Math.max(0, Z[Math.round(p.y) * ruudukko.W + Math.round(p.x)] || 0);
-        const pt = ruudulle(p.x, p.y, zz);
-        if (pt) lctx.fillRect(pt.x - 16 * scale, pt.y - 56 * scale, 32 * scale, 64 * scale);
-      }
-    }
-    lctx.restore();
-  }
+  // kp 20:04 välähdys: paivitaValahdys() (spritejen sävy, ei piirretä tälle kanvakselle)
 };
 
 const piirretyt = new Map(), piirrettyAsento = new Map();   // n -> objekti-id, n -> viimeksi piirretty asento
@@ -1719,6 +1709,7 @@ return () => {
   } catch (x) {}
   kuplaVahti.disconnect();
   puraKavelyEsto();
+  for (const id of savytetyt.keys()) savyta(id, 0xffffff); savytetyt.clear();
   if (odottavaKuolema) { const k = odottavaKuolema; odottavaKuolema = null; clearTimeout(k.aj); try { k.laheta(); } catch (x) {} }   // ei jätetä kuolemaa lähtemättä
   for (const a of kuplaAjastimet) clearTimeout(a); kuplaAjastimet.clear();
   for (const a of makuuAjastimet) clearTimeout(a); makuuAjastimet.clear();
