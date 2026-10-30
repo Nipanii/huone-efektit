@@ -1634,7 +1634,7 @@ const asennaKavelyEsto = () => {
   } catch (x) {}
 };
 const puraKavelyEsto = () => { try { if (kavelyH && kavelyH.sendWalkUpdate === kavelyOma) kavelyH.sendWalkUpdate = kavelyAlkup; } catch (x) {} kavelyH = kavelyOma = kavelyAlkup = null; };
-const kuole = (syy) => {
+const kuole = (syy, kaappari) => {
   const nyt = Date.now(), makuuMs = Math.max(0, Number(ASETUS.kuolemaMakuu ?? 1500));
   const lukko = Math.max(1000, Number(ASETUS.kuolemaLukko) || 5000);
   if (nyt - kuolemaKaynnissa < Math.max(lukko, makuuMs)) return;
@@ -1643,6 +1643,8 @@ const kuole = (syy) => {
     return;
   }
   kuolemaKaynnissa = nyt; tila.kuolemat++; naytaKuolit();
+  // kp 21:21 "kuolema ei näkyny se :lay sun ruudul": muut näkivät kuoleman vasta teleportista (makuun JÄLKEEN) -> kerrotaan kuolema kanavalla heti (ensisijainen lähetys)
+  try { SYNK.lahetaKuolema(kaappari); } catch (x) {}
   // kp 20:06 "kun makaa pysty kävellä samalla": oman hahmon kävelykomennot estetään makuun ajan (sendWalkUpdate-kääre, puretaan siivouksessa)
   kavelyEstoAsti = nyt + makuuMs + 300; asennaKavelyEsto();
   // kp 20:28 "hahmo edellee liukuu hetken ku kuolee · jos kuolee liikkees": esto pysäyttää vain UUDET kävelyt, palvelimen kesken
@@ -1680,7 +1682,7 @@ const tarkistaOma = () => {
     if (z.muuttunut && z.lahdeId === id) continue;
     if (z.viimeSyoId === id && z.viimeSyoK > omaViimeSyoK && SAILO.K - z.viimeSyoK <= ikkunaK) {
       omaViimeSyoK = z.viimeSyoK ?? SAILO.K;
-      return kuole('Zombi sai sinut kiinni!');
+      return kuole('Zombi sai sinut kiinni!', z);
     }
   }
 };
@@ -1698,6 +1700,7 @@ if (!(SY.snapAika >= 0)) SY.snapAika = 0;
 if (!(SY.snapJohtaja >= 0)) SY.snapJohtaja = 0;
 if (SY.maara === undefined) SY.maara = null;
 SY.odottava = null;
+if (!Array.isArray(SY.kuolemat)) SY.kuolemat = [];   // vastaanotetut {t:'kuoli'}-viestit; käsitellään tiki():ssä
 const SYNK = (() => {
   const S = () => ASETUS.synkka || {};
   const AIHE = 'z684.synk';   // kuplaScripts-aihe: [A-Za-z0-9_.:-]
@@ -1708,7 +1711,10 @@ const SYNK = (() => {
   const tilasto = {
     lahetettySnap: 0, lahetettyHei: 0, vastaanotettuSnap: 0, omaksuttuSnap: 0, ohitettu: 0, virhe: null, viimeKoko: 0, viimeKEro: null,
     kanavaVirheet: 0, viimeKanavaKoodi: null, hylattyRaja: 0, hylattyKoko: 0, kaikuMs: 0, typistetty: 0, kuunteluUudelleen: 0,
+    lahetettyKuolema: 0, vastaanotettuKuolema: 0, omaksuttuKuolema: 0, kuolemaToistoa: 0, kuolemaOhitettu: 0, kuolemaHylatty: 0, kuolemaEiKanavaa: 0, kuolemaVanha: 0,
   };
+  const kuoliJono = [];   // lähettämättä jääneet kuolemaviestit {msg, seuraava}: yksi uusinta 400 ms päästä (snapshotit väistyvät sillä välin)
+  let kuoliViimeTs = 0, kuoliViimeData = null, kuoliPalvelinRetry = false;
   const num = (v, d) => (typeof v === 'number' && isFinite(v)) ? v : d;
   const ksSaatavilla = () => { const ks = window.kuplaScripts; return (ks && typeof ks.subscribe === 'function' && typeof ks.send === 'function' && typeof ks.on === 'function') ? ks : null; };
   const auki = () => kanava === 'kuplaScripts' ? !!ksYht : !!(ws && ws.readyState === 1);
@@ -1902,6 +1908,54 @@ const SYNK = (() => {
     } catch (x) { tilasto.virhe = String(x && x.stack || x).slice(0, 300); lokiin({ synkkaVirhe: tilasto.virhe }); }
   };
 
+  // ---- kuolema (kp 21:21): uhrin kone kertoo kuolemansa kanavalla; muut näyttävät saman makuun + lammikon + syöjän pysähtymisen kuin uhrin kone
+  const lahetaKuolema = (kaappari) => {
+    const id = omaId(); if (!(id > 0)) return false;
+    const mk = SAILO.makaavat instanceof Map ? SAILO.makaavat.get(id) : null;   // aloitaMakuu ehti tallettaa kiinnijäännin ruudun ja suunnan
+    const o = mk || omaRuutu();
+    if (!o || !isFinite(o.x) || !isFinite(o.y)) return false;
+    const msg = { t: 'kuoli', id, x: o.x, y: o.y, su: num(mk ? mk.suunta : (kaappari && kaappari.suunta), 4), K: SAILO.K, zn: kaappari && isFinite(kaappari.n) ? kaappari.n : null };
+    if (laheta(msg)) { tilasto.lahetettyKuolema++; kuoliViimeTs = Date.now(); kuoliViimeData = msg; kuoliPalvelinRetry = false; return true; }
+    if (!auki()) { tilasto.kuolemaEiKanavaa++; return false; }
+    kuoliJono.push({ msg, seuraava: Date.now() + 400 });   // paikallinen 3/s-raja kieltäytyi -> yksi uusinta 400 ms päästä
+    return false;
+  };
+  const kasitteleKuolemat = (P, K) => {
+    if (!SY.kuolemat.length || !ruudukko) return;
+    const jono = SY.kuolemat.splice(0), nyt = Date.now(), tikki = Math.max(50, Number(ASETUS.tikki) || 250), tMs = K * tikki, s0 = perusSiemen(), omaI = omaIndeksi();
+    for (const m of jono) {
+      try {
+        if (nyt - m.saapui > 3000) { tilasto.kuolemaVanha++; continue; }
+        const p = (P || []).find(q => q && q.id === m.id);
+        if (!p || m.id === omaId() || p.i === omaI) { tilasto.kuolemaOhitettu++; continue; }
+        if (SAILO.makaavat.has(p.id)) { tilasto.kuolemaToistoa++; continue; }   // idempotentti: makuu jo käynnissä (tuplaviesti tai paikallinen polku)
+        if ((SAILO.muuttuneet || []).some(q => q && q.lahdeId === p.id && tMs - (q.syntyMs ?? 0) < 3000)) { tilasto.kuolemaToistoa++; continue; }   // teleportti ehti jo luoda muuttuneen
+        const suunta = num(m.su, 4), makuuMs = Math.max(0, Number(ASETUS.kuolemaMakuu ?? 1500)), loppuMs = tMs + makuuMs;
+        const kp = { id: p.id, i: p.i, nimi: p.nimi, figuuri: p.figuuri, x: m.x, y: m.y };
+        const kaikki = (SAILO.zombit || []).concat(SAILO.muuttuneet || []);
+        // 1) syöjä pysyy paikallaan koko makuun (kuten uhrin koneella; viimeSyoId/K jätetään asettamatta -> ei laukaise kenenkään muun kuole()a)
+        const z = isFinite(m.zn) ? kaikki.find(q => q && q.n === m.zn) : null;
+        for (const zz of kaikki) {
+          if (zz.kontaktit) delete zz.kontaktit[p.id];
+          if (zz.kohdeId === p.id) { zz.kohdeId = null; zz.kohde = null; zz.reaktio = 0; zz.reaktioMs = 0; zz.reaktioAsti = 0; }
+        }
+        if (z) {
+          if (kp.x !== z.x || kp.y !== z.y) z.suunta = suunnaksi(Math.sign(kp.x - z.x), Math.sign(kp.y - z.y));
+          z.px = z.x; z.py = z.y;
+          z.viimeAskelMs = tMs; z.seuraavaAskelMs = Math.max(tMs + tikki, loppuMs); z.piirtoAskelMs = tikki;
+          z.syo = true; z.syoId = p.id; z.syoAstiMs = loppuMs;
+          z.kohdeId = null; z.kohde = null; z.reaktio = 0; z.reaktioMs = 0; z.reaktioAsti = 0;
+          z.vAsk = 0; z.vTauko = 0; z.vTaukoMs = 0; z.vTaukoAsti = 0; z.vDx = 0; z.vDy = 0; z.aaniKohde = null;
+          z.kontaktit = {}; z.kontaktiId = null; z.kontakti = 0; z.kontaktiRaja = 0; z.kontaktiMs = 0; z.kontaktiRajaMs = 0;
+          if (!z.muuttunut) z.kuoli = K;
+        }
+        // 2) makuu + lammikko + (makuun jälkeen) muuttunut: SAMA polku kuin uhrin koneella
+        aloitaMakuu(kp, suunta, K, tMs, tikki, s0, P);
+        tilasto.omaksuttuKuolema++;
+      } catch (x) { tilasto.virhe = String(x && x.stack || x).slice(0, 300); }
+    }
+  };
+
   // ---- yhteys
   const viesti = (data) => {
     let m = null; try { m = JSON.parse(String(data)); } catch (x) { return; }
@@ -1919,6 +1973,10 @@ const SYNK = (() => {
       m.z = m.z.map(pura); m.m = (Array.isArray(m.m) ? m.m : []).map(pura);
       m.l = (Array.isArray(m.l) ? m.l : []).map(a => Array.isArray(a) ? { l: a[0], x: a[1], y: a[2], n: a[3], k: a[4] } : {});
       SY.odottava = m; SY.snapAika = nyt; SY.snapJohtaja = id; tilasto.vastaanotettuSnap++;
+    } else if (m.t === 'kuoli' && isFinite(m.x) && isFinite(m.y)) {   // oma kaiku on jo suodatettu (id === omaId) ylempänä
+      SY.kuolemat.push({ id, x: Math.round(m.x), y: Math.round(m.y), su: m.su, K: m.K, zn: m.zn, saapui: nyt });
+      if (SY.kuolemat.length > 16) SY.kuolemat.shift();
+      tilasto.vastaanotettuKuolema++;
     }
   };
   const ajastaUudelleen = () => {
@@ -1953,6 +2011,10 @@ const SYNK = (() => {
     // koodi 1004 = kieltäytyi (rate). Ei uudelleenyritysten silmukkaa: lasketaan ja hidastetaan snapshot-väli hidasMs:ään hidasKestoMs ajaksi.
     tilasto.kanavaVirheet++; tilasto.viimeKanavaKoodi = e && e.code != null ? e.code : null;
     if (e && (e.code === 1004 || e.code === 429)) hidasAsti = Date.now() + Math.max(0, num(S().hidasKestoMs, 5000));
+    // kuolemaviesti juuri lähetetty ja palvelin kieltäytyi (1004/429) -> yksi uusinta (vastaanottaja on idempotentti, tuplaviesti ei haittaa)
+    if (e && (e.code === 1004 || e.code === 429) && kuoliViimeData && !kuoliPalvelinRetry && Date.now() - kuoliViimeTs < 700) {
+      kuoliPalvelinRetry = true; kuoliJono.push({ msg: kuoliViimeData, seuraava: Date.now() + 400 });
+    }
   };
   const ksOta = () => {
     const ks = ksSaatavilla(); if (!ks) return false;
@@ -1992,11 +2054,17 @@ const SYNK = (() => {
       for (const [id, h] of [...SY.sykkeet]) if (nyt - h.t > 60000) SY.sykkeet.delete(id);
       valitseKanava();
       if (!auki()) return;
+      if (kuoliJono.length && nyt >= kuoliJono[0].seuraava) {   // kuolemaviestin uusinta (ensisijainen)
+        const j = kuoliJono.shift();
+        if (laheta(j.msg)) { tilasto.lahetettyKuolema++; kuoliViimeTs = nyt; kuoliViimeData = j.msg; }
+        else if ((j.yritys = (j.yritys || 0) + 1) < 3) { j.seuraava = nyt + 400; kuoliJono.unshift(j); }   // paikallinen 3/s-raja (1 s ikkuna) täynnä: uusi yritys 400 ms päästä, enintään 3 uusintaa
+        else tilasto.kuolemaHylatty++;
+      }
       const v = valmis(nyt) ? 1 : 0;
       if (v && johtajaId(nyt) === omaId()) {
         // johtaja: VAIN snapshot (toimii sydämenlyöntinä); 1004:n jälkeen hitaampi väli
         const vali = nyt < hidasAsti ? Math.max(num(S().snapMs, 350), num(S().hidasMs, 500)) : num(S().snapMs, 350);
-        if (nyt - viimeSnapMs >= vali - 20 && snapLaheta()) viimeSnapMs = nyt;
+        if (!kuoliJono.length && nyt - viimeSnapMs >= vali - 20 && snapLaheta()) viimeSnapMs = nyt;   // jonossa oleva kuolemaviesti ohittaa snapshotin
       } else if (nyt - viimeHei >= Math.max(500, num(S().heiMs, 2000)) || v !== viimeV) heiLaheta(false);
     } catch (x) { tilasto.virhe = String(x && x.stack || x).slice(0, 300); }
   };
@@ -2022,7 +2090,7 @@ const SYNK = (() => {
       sykkeet: [...SY.sykkeet].map(([id, h]) => ({ id, ikaMs: nyt - h.t, valmisIkaMs: h.tv ? nyt - h.tv : null })), ...tilasto,
     };
   };
-  return { seuraa, johtajaId, kasitteleSnap, kaynnista, sulje, tiedot, snapLaheta, omaksuSnap, rakennaSnap };
+  return { seuraa, johtajaId, kasitteleSnap, kasitteleKuolemat, lahetaKuolema, kaynnista, sulje, tiedot, snapLaheta, omaksuSnap, rakennaSnap };
 })();
 tila.synkka = SYNK.tiedot; tila._synk = SYNK;
 
@@ -2079,6 +2147,7 @@ const tiki = () => {
     sopeutaMaara(SAILO.zombit, P, Math.max(k, SAILO.K));
   }
   while (SAILO.K < k) { SAILO.K++; tila.kohde = askel(SAILO.K, tila.zombit, P); }
+  SYNK.kasitteleKuolemat(P, SAILO.K);   // kuolemaviestit ENNEN snapshotia: makuu + syöjän pysäytys on jo voimassa kun johtajan tila omaksutaan (paikallinenSyo suojaa)
   SYNK.kasitteleSnap(P, SAILO.K);   // synkka: johtajan snapshot omaksutaan catch-upin JÄLKEEN (muuten uusi tila ajettaisiin vielä kerran eteenpäin)
   paivitaMakaavat(P, SAILO.K * tikki);
   tila.k = SAILO.K;
