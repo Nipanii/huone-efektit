@@ -1950,6 +1950,8 @@ const SYNK = (() => {
       const o1 = ks.on('message', ksViesti); if (typeof o1 === 'function') offs.push(o1);
       const o2 = ks.on('error', ksVirhe); if (typeof o2 === 'function') offs.push(o2);
       ks.subscribe(AIHE);
+      // hot-reload: vanhan instanssin unsubscribe voi pudottaa uuden tilauksen (palvelimella yksi per käyttäjä+aihe) -> tilataan uudelleen 10 s välein
+      const ri = setInterval(() => { try { if (!suljettu) ks.subscribe(AIHE); } catch (x) {} }, 10000); offs.push(() => clearInterval(ri));
       ksYht = { ks, offs }; kanava = 'kuplaScripts';
       if (!(SY.liittynyt > 0)) SY.liittynyt = Date.now();
       heiLaheta(true);
