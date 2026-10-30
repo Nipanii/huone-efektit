@@ -79,6 +79,7 @@ const ASETUS = {
   salasana: 'zk684',   // salainen sana jonka skripti sanoo kiinnijäädessä (wired: wf_trg_says_something -> wf_act_teleport_to)
   kuolemaMakuu: 1500,  // ms (kp 19:25); kiinnijäädessä uhrin hahmo makaa maassa ('lay') tämän ajan ennen zk684-teleporttia
   kuolemaLukko: 5000,  // ms; lukko ettei sama kiinnijäänti lähetä sanaa monta kertaa
+  maaliSuojaMs: 6000,  // ms (kp 30.10. 22:16 "res kuoli kun se pääs läpi"); voittokuiskauksen jälkeen pelaaja on näin kauan immuuni zombeille
   siemen: 684,         // deterministisen satunnaislukugeneraattorin siemen
   // kp 30.10. 20:45-20:52 "ei zombit oo nyt shared jos ei oo synkas": johtaja + snapshot. Kanava: ensisijaisesti window.kuplaScripts (aihe z684.synk), varalla VPS-WebSocket (url). Ilman kanavaa paikallinen simulaatio.
   synkka: {
@@ -338,6 +339,7 @@ const SAILO = (window.__zombitJaettu && window.__zombitJaettu.huone === huone)
 if (!Array.isArray(SAILO.muuttuneet)) SAILO.muuttuneet = [];
 if (!Array.isArray(SAILO.lammikot)) SAILO.lammikot = [];
 if (!Array.isArray(SAILO.aanet)) SAILO.aanet = [];
+if (!(SAILO.maalissa instanceof Map)) SAILO.maalissa = new Map();   // pelaaja-id -> { nimi, saapui, loppuMs }: maalisuoja (ks. kuuleMaali)
 if (!(SAILO.makaavat instanceof Map)) SAILO.makaavat = new Map();
 if (!(SAILO.piirretytIdt instanceof Set)) SAILO.piirretytIdt = new Set();
 if (!(SAILO.seuraavaMuuttunutN >= 1000)) SAILO.seuraavaMuuttunutN = 1000;
@@ -492,6 +494,11 @@ const onMakaava = (pid, tMs) => {
   if (tMs != null && tMs >= mk.loppuMs) return false;
   return true;
 };
+// Maalisuoja (kp 30.10. 22:16): voittokuiskauksen saanut pelaaja ei ole kohde eikä kerrytä kontaktia ennen loppuMs:ää (sama sääntö kaikilla clienteillä)
+const onMaalissa = (pid, tMs) => {
+  const m = SAILO.maalissa instanceof Map ? SAILO.maalissa.get(pid) : null;
+  return !!m && tMs != null && tMs < m.loppuMs;
+};
 const paivitaMakaavat = (P, tMs, k, tikki, s0) => {
   if (!(SAILO.makaavat instanceof Map) || !SAILO.makaavat.size) return;
   for (const [pid, mk] of [...SAILO.makaavat.entries()]) {
@@ -580,6 +587,7 @@ const valitseKohde = (z, dz, P, k, tMs, s0) => {
   for (const p of P) {
     if (!onKohde(p)) continue;
     if (onMakaava(p.id, tMs)) continue;   // kuolemamakuun aikana uhria ei jahdata
+    if (onMaalissa(p.id, tMs)) continue;   // maalisuojan aikana ei jahdata; nykyinen kohde pudotetaan (-> toinen kohde tai vaellus)
     if (z.muuttunut && p.id === z.lahdeId) continue;   // muuttunut ei jahtaa omaa lähdepelaajaansa
     const et = etaisyysPelaajaan(dz, p);
     if (et < 0) continue;   // yläkerroksessa tai muualla minne zombi ei pääse
@@ -1080,7 +1088,7 @@ const paivitaKontaktit = (z, P, k, tMs, tikki, s0, kaatuneet) => {
   if (!z.kontaktit || typeof z.kontaktit !== 'object') z.kontaktit = {};
   const kelvolliset = new Map();
   for (const p of P) {
-    if (!onKohde(p) || onMakaava(p.id, tMs) || (z.muuttunut && p.id === z.lahdeId)) continue;
+    if (!onKohde(p) || onMakaava(p.id, tMs) || onMaalissa(p.id, tMs) || (z.muuttunut && p.id === z.lahdeId)) continue;
     kelvolliset.set(p.id, p);
   }
   for (const idStr of Object.keys(z.kontaktit)) {
@@ -1542,6 +1550,31 @@ const kuuleChat = ev => {
 const vayla = e && e.events;
 if (vayla && typeof vayla.addEventListener === 'function') vayla.addEventListener('RSCE_CHAT_EVENT', kuuleChat);
 tila._kuuleChat = kuuleChat;
+// ---- maalisuoja (kp 30.10. 22:16 "tee teleportista nopeempi maaliin robo, res kuoli kun se pääs läpi. semmonen ei oo kivaa. ei kerennyt siis teleportata"):
+//   wiredin voittokuiskaus "%user% pääsi radan N läpi!" (chatType 1, näkyy kaikille huoneessa) -> pelaaja on ASETUS.maaliSuojaMs (6 s) immuuni:
+//   zombit eivät valitse häntä eivätkä kerrytä kontaktia (valitseKohde + paivitaKontaktit, sama sääntö johtajalla ja seuraajilla), eikä hänen oma kuole() aja.
+//   Pelaaja tunnistetaan NIMESTÄ (ei objectId:stä, 684.js:n kuuleMaali reagoi vain omaan indeksiin). Suojan loppu kiinnitetään tikkiin
+//   floor(vastaanotto / tikki) + 2 kuten äänet, jotta pieni vastaanottoajan ero ei hajota simulaatiota. Tilaan kajotaan vain tikissä (ei heti tässä).
+const MAALI = /^(.+) pääsi radan \d+ läpi!$/;
+const kuuleMaali = ev => {
+  try {
+    if (!ev || ev.chatType !== 1) return;
+    if (ev.session && ev.session.roomId != null && Number(ev.session.roomId) !== huone) return;
+    const m = MAALI.exec(String(ev.message || '').trim()); if (!m) return;
+    const nimi = m[1].trim(), P = pelaajat();
+    const p = P.find(q => q.nimi === nimi) || P.find(q => String(q.nimi || '').toLowerCase() === nimi.toLowerCase());
+    if (!p) { lokiin({ maali: nimi, id: null, syy: 'nimeä ei löydy pelaajista' }); return; }
+    const nyt = Date.now(), tikki = Math.max(50, Number(ASETUS.tikki) || 250), suojaMs = Math.max(0, Number(ASETUS.maaliSuojaMs ?? 6000));
+    const vanha = SAILO.maalissa.get(p.id);
+    if (vanha && nyt - vanha.saapui < 2000) return;   // sama kuiskaus kahdesti (tuplatoimitus) ei siirrä loppua
+    for (const [pid, v] of SAILO.maalissa) if (!v || nyt - v.loppuMs > 60000) SAILO.maalissa.delete(pid);
+    const loppuMs = (Math.floor(nyt / tikki) + 2) * tikki + suojaMs;
+    SAILO.maalissa.set(p.id, { nimi, saapui: nyt, loppuMs });
+    lokiin({ maali: nimi, id: p.id, suojaMs });
+  } catch (x) {}
+};
+if (vayla && typeof vayla.addEventListener === 'function') vayla.addEventListener('RSCE_CHAT_EVENT', kuuleMaali);
+tila._kuuleMaali = kuuleMaali; tila.maalissa = SAILO.maalissa;
 
 // ---- wired-script-hybridi (682.js:153-206, 442): salaisen sanan lähetys + kaiun nielu (suu ei liiku) + puhekuplan piilotus
 let koukkuYhteys = null, koukkuOma = null, koukkuAlkup = null;
@@ -1658,6 +1691,7 @@ const kuole = (syy, kaappari) => {
   const nyt = Date.now(), makuuMs = Math.max(0, Number(ASETUS.kuolemaMakuu ?? 1500));
   const lukko = Math.max(1000, Number(ASETUS.kuolemaLukko) || 5000);
   if (nyt - kuolemaKaynnissa < Math.max(lukko, makuuMs)) return;
+  if (onMaalissa(omaId(), nyt)) return;   // kp 22:16: maaliin päässyt ei kuole ennen kuin teleportti ehtii (maalisuoja)
   if (safe && saaSafe()) {
     if (nyt - safeIlmoitettu > 5000) { safeIlmoitettu = nyt; ilmoita(syy + ' (:safe päällä, ei kuolemaa)'); lokiin({ kuolema: syy, safe: true }); }
     return;
@@ -2200,6 +2234,7 @@ return () => {
   rafKaynnissa = false; clearInterval(ajastin); clearInterval(uusiKartta); removeEventListener('keydown', kuule, true);
   try { SYNK.sulje(); } catch (x) {}   // synkka: kuplaScripts off()+unsubscribe, WebSocket, uudelleenyhdistys- ja snapshot-ajastimet
   if (vayla && typeof vayla.removeEventListener === 'function') vayla.removeEventListener('RSCE_CHAT_EVENT', kuuleChat);
+  if (vayla && typeof vayla.removeEventListener === 'function') vayla.removeEventListener('RSCE_CHAT_EVENT', kuuleMaali);
   if (lammikkoKanvas && lammikkoKanvas.remove) lammikkoKanvas.remove();
   try {
     if (typeof document !== 'undefined' && document.querySelectorAll) {
