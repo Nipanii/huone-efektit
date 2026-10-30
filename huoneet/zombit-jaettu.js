@@ -3,13 +3,16 @@
 //   Herra-Robottia 245). Ei kiinteitä spawneja: zombi syntyy kävelykelpoiselle lattiaruudulle mahdollisimman kauas kaikista pelaajista
 //   (BFS-reittietäisyys, ei linnuntie), deterministisesti siemenestä + tikistä, ei ovelle eikä alle ASETUS.oviEtaisyys ruudun päähän
 //   ovesta. Kiinni saanut zombi syntyy seuraavalla tikillä samalla säännöllä uudelleen.
-// kp 30.10. 16:58-17:02:
-//   1) Zombikohtainen näköetäisyys + hystereesi: zombi huomaa pelaajan kun BFS-reittietäisyys <= ASETUS.huomaa (7), ja luopuu kun
-//      etäisyys > ASETUS.meneta (11). Näköpiirissä olevista valitaan "hitain" (pienin liike ikkunassa, tasapelissä pienin id).
-//   2) Ilman kohdetta zombi vaeltaa pysähtyillen: kulkee muutaman ruudun pätkiä (ASETUS.vaellusAskeleet 2..4, asento 'mv'),
+// kp 30.10. 16:58-17:02 & 17:30-17:31:
+//   1) Zombikohtainen näköetäisyys + hystereesi: jokaiselle zombille arvotaan syntyessä (ja uudelleensyntyessä) oma huomaamisetäisyys
+//      väliltä ASETUS.huomaaVali (5..9 ruutua); luopumisraja = oma huomaa + (ASETUS.meneta - ASETUS.huomaa) (hystereesiväli 4).
+//      Näköpiirissä olevista valitaan "hitain" (pienin liike ikkunassa, tasapelissä pienin id).
+//   2) Liikkeellelähdön reaktioviive: kun zombi huomaa pelaajan, se odottaa oman reaktioviiveensä (ASETUS.reaktioVali 0..3 tikkiä per
+//      huomaaminen) paikallaan ('std') kääntyneenä kohti pelaajaa ennen jahtiin lähtöä. Jos pelaaja poistuu näköpiiristä odotuksen aikana, odotus peruuntuu.
+//   3) Ilman kohdetta zombi vaeltaa pysähtyillen: kulkee muutaman ruudun pätkiä (ASETUS.vaellusAskeleet 2..4, asento 'mv'),
 //      seisoo 2..5 tikkiä paikallaan (ASETUS.vaellusTauko, asento 'std'), ja jatkaa uuteen satunnaiseen suuntaan (deterministinen PRNG).
-//   3) Kiinnijäännin grace period: vaatii kontaktin (sama tai viereinen ruutu samaan pelaajaan) ASETUS.kontaktiMin..kontaktiMax (1..3)
-//      peräkkäistä tikkiä (arvotaan deterministisesti jokaiselle kosketukselle) ennen kuin pelaaja kuolee (zk684 -> ovelle) ja zombi spawnaa kauas.
+//   4) Kiinnijäännin grace period: vaatii kontaktin VAIN samassa ruudussa (z.x === p.x && z.y === p.y) samaan pelaajaan
+//      ASETUS.kontaktiMin..kontaktiMax (3..6) peräkkäistä tikkiä (arvotaan deterministisesti jokaiselle kosketukselle) ennen kuin pelaaja kuolee (zk684 -> ovelle) ja zombi spawnaa kauas.
 // Konsolissa: zombit.loki · zombit.zombit · zombit.kohde · zombit.ovi · zombit.safe(true|false) · zombit.asetus · zombit.kuva()
 const ASETUS = {
   maara: 3,            // zombien määrä
@@ -17,13 +20,15 @@ const ASETUS = {
   epookki: 300000,     // ms; uusi aalto + hajonnan raja
   ikkuna: 10000,       // ms; "hitain" mitataan tältä ajalta
   kohdeTapa: 'hitain', // kohdelogiikka ('hitain' = pienin kuljettu matka ikkunan aikana, tasapelissä pienin käyttäjä-id)
-  huomaa: 7,           // ruutua (reittietäisyys): zombi huomaa pelaajan, kun etäisyys zombista <= huomaa
-  meneta: 11,          // ruutua (reittietäisyys): zombi luopuu jahdattavasta pelaajasta, kun etäisyys > meneta (hystereesi)
+  huomaa: 7,           // ruutua (reittietäisyys): perustason huomaamisetäisyys (hystereesiväli = meneta - huomaa = 4)
+  meneta: 11,          // ruutua (reittietäisyys): perustason luopumisraja (zombin oma meneta = z.huomaa + (meneta - huomaa))
+  huomaaVali: [5, 9],  // ruutua: jokaiselle zombille arvotaan syntyessä oma huomaamisetäisyys tältä väliltä (5..9)
+  reaktioVali: [0, 3], // tikkiä: kun zombi huomaa pelaajan, se odottaa 0..3 tikkiä paikallaan ('std') kohti kääntyneenä ennen jahtia
   vaellusAskeleet: [2, 4], // ruutua: vaeltaessa zombi liikkuu 2..4 ruudun pätkiä ('mv') ennen pysähdystä
   vaellusTauko: [2, 5],    // tikkiä: vaeltaessa zombi seisoo 2..5 tikkiä ('std') paikallaan pätkien välissä
-  kontakti: 2,         // tikkiä: oletuskontaktiaika (jos kontaktiMin/kontaktiMax asetetaan samaksi tai kontakti muutetaan)
-  kontaktiMin: 1,      // tikkiä: vähimmäiskontaktiaika (grace period) samassa/viereisessä ruudussa ennen kiinnijääntiä
-  kontaktiMax: 3,      // tikkiä: enimmäiskontaktiaika (arvotaan deterministisesti 1..3 jokaiselle kosketukselle)
+  kontakti: 3,         // tikkiä: oletuskontaktiaika (jos kontaktiMin/kontaktiMax asetetaan samaksi tai kontakti muutetaan)
+  kontaktiMin: 3,      // tikkiä: vähimmäiskontaktiaika (grace period) samassa ruudussa ennen kiinnijääntiä
+  kontaktiMax: 6,      // tikkiä: enimmäiskontaktiaika (arvotaan deterministisesti 3..6 jokaiselle kosketukselle)
   ovi: { x: null, y: null }, // täytetään huoneesta mitattuna; jos null, luetaan clientin huonemallista (vain spawn-etäisyyteen)
   oviEtaisyys: 10,     // ruutua (reittietäisyys): ei ovelle eikä alle N ruudun päähän ovesta
   kaukana: 10,         // ruutua (reittietäisyys): vähimmäisetäisyys pelaajista syntyessä (jos mahdollista)
@@ -237,11 +242,25 @@ const tavoitettava = (p) => {
   }
   return false;
 };
-// Zombikohtainen kohdevalinta: huomaa pelaajan kun BFS-reittietäisyys <= ASETUS.huomaa (7),
-//   luopuu kun etäisyys > ASETUS.meneta (11; hystereesi). Näköpiirissä olevista valitaan "hitain" (pienin liike ikkunassa, tasapelissä pienin id).
+const lukuValilta = (pari, oletusMin, oletusMax, rnd) => {
+  const a = Array.isArray(pari) ? Number(pari[0]) : NaN, b = Array.isArray(pari) ? Number(pari[1]) : NaN;
+  const min = Math.max(0, isFinite(a) ? Math.floor(a) : oletusMin);
+  const max = Math.max(min, isFinite(b) ? Math.floor(b) : oletusMax);
+  return min + Math.floor(rnd() * (max - min + 1));
+};
+const hystereesiVali = () => {
+  const h = Number(ASETUS.huomaa ?? 7), m = Number(ASETUS.menetä ?? ASETUS.meneta ?? 11);
+  return Math.max(0, (isFinite(m) ? m : 11) - (isFinite(h) ? h : 7));
+};
+const arvoHuomaa = (s0, k, zn) => lukuValilta(ASETUS.huomaaVali, 5, 9, arpa(s0 * 3571 + k * 2903 + zn * 131));
+const arvoReaktio = (s0, k, zn) => lukuValilta(ASETUS.reaktioVali, 0, 3, arpa(s0 * 2749 + k * 4099 + zn * 193));
+// Zombikohtainen kohdevalinta: huomaa pelaajan kun BFS-reittietäisyys <= z.huomaa (5..9),
+//   luopuu kun etäisyys > z.meneta (z.huomaa + (ASETUS.meneta - ASETUS.huomaa); hystereesi). Näköpiirissä olevista valitaan "hitain" (pienin liike ikkunassa, tasapelissä pienin id).
 const valitseKohde = (z, dz, P) => {
-  const huomaa = Math.max(0, Number(ASETUS.huomaa ?? 7));
-  const meneta = Math.max(huomaa, Number(ASETUS.menetä ?? ASETUS.meneta ?? 11));
+  if (z.huomaa == null) z.huomaa = arvoHuomaa(perusSiemen(), z.synty ?? SAILO.E, z.n);
+  const huomaa = Math.max(0, Number(z.huomaa));
+  const meneta = Math.max(huomaa, huomaa + hystereesiVali());
+  z.meneta = meneta;
   let paras = null;
   for (const p of P) {
     if (!onKohde(p)) continue;
@@ -256,16 +275,10 @@ const valitseKohde = (z, dz, P) => {
   }
   return paras;
 };
-const lukuValilta = (pari, oletusMin, oletusMax, rnd) => {
-  const a = Array.isArray(pari) ? Number(pari[0]) : NaN, b = Array.isArray(pari) ? Number(pari[1]) : NaN;
-  const min = Math.max(1, isFinite(a) ? Math.floor(a) : oletusMin);
-  const max = Math.max(min, isFinite(b) ? Math.floor(b) : oletusMax);
-  return min + Math.floor(rnd() * (max - min + 1));
-};
 const arvoKontaktiRaja = (s0, k, zn, pid) => {
-  const kiintea = ASETUS.kontakti !== 2 && ASETUS.kontaktiMin === 1 && ASETUS.kontaktiMax === 3;
-  const minK = Math.max(1, Math.floor(Number(kiintea ? ASETUS.kontakti : (ASETUS.kontaktiMin ?? ASETUS.kontakti ?? 1))));
-  const maxK = Math.max(minK, Math.floor(Number(kiintea ? ASETUS.kontakti : (ASETUS.kontaktiMax ?? ASETUS.kontakti ?? 3))));
+  const kiintea = ASETUS.kontakti !== 3 && ASETUS.kontaktiMin === 3 && ASETUS.kontaktiMax === 6;
+  const minK = Math.max(1, Math.floor(Number(kiintea ? ASETUS.kontakti : (ASETUS.kontaktiMin ?? ASETUS.kontakti ?? 3))));
+  const maxK = Math.max(minK, Math.floor(Number(kiintea ? ASETUS.kontakti : (ASETUS.kontaktiMax ?? ASETUS.kontakti ?? 6))));
   const rnd = arpa(s0 * 4999 + k * 6151 + zn * 97 + (pid || 0));
   return minK + Math.floor(rnd() * (maxK - minK + 1));
 };
@@ -356,8 +369,10 @@ const synny = (k, P) => {
   for (let n = 0; n < ASETUS.maara; n++) {
     const r = kaukainen(P, arpa(s0 * 7919 + k * 101 + n), varattu);
     varattu.add(r.y * W + r.x);
+    const huomaa = arvoHuomaa(s0, k, n);
     z.push({
-      n, x: r.x, y: r.y, px: r.x, py: r.y, kuoli: -1, suunta: 4,
+      n, x: r.x, y: r.y, px: r.x, py: r.y, kuoli: -1, synty: k, suunta: 4,
+      huomaa, meneta: huomaa + hystereesiVali(), reaktio: 0,
       kohdeId: null, kohde: null,
       vAsk: 0, vTauko: n % 3, vDx: 0, vDy: 0,
       kontaktiId: null, kontakti: 0, kontaktiRaja: 0, syoId: null,
@@ -366,7 +381,7 @@ const synny = (k, P) => {
   return z;
 };
 const etsiKontakti = (z, P) => {
-  const ehdokkaat = P.filter(p => onKohde(p) && Math.max(Math.abs(z.x - p.x), Math.abs(z.y - p.y)) <= 1 && tavoitettava(p) && liike(p.id).hyppy <= 3);
+  const ehdokkaat = P.filter(p => onKohde(p) && z.x === p.x && z.y === p.y && tavoitettava(p) && liike(p.id).hyppy <= 3);
   if (!ehdokkaat.length) return null;
   if (z.kontaktiId != null) {
     const sama = ehdokkaat.find(p => p.id === z.kontaktiId);
@@ -388,6 +403,7 @@ const askel = (k, Z, P) => {
     if (z.kuoli >= 0) {
       const r = kaukainen(P, arpa(s0 * 31 + k * 101 + z.n), varattu);
       z.x = z.px = r.x; z.y = z.py = r.y; z.kuoli = -1; z.syo = false; z.syoId = null; z.synty = k;
+      z.huomaa = arvoHuomaa(s0, k, z.n); z.meneta = z.huomaa + hystereesiVali(); z.reaktio = 0;
       z.kohdeId = null; z.kohde = null; z.vAsk = 0; z.vTauko = 0; z.vDx = 0; z.vDy = 0;
       z.kontaktiId = null; z.kontakti = 0; z.kontaktiRaja = 0;
       varattu.add(z.y * W + z.x); continue;
@@ -397,21 +413,30 @@ const askel = (k, Z, P) => {
     const oliKohde = z.kohdeId != null;
     const kohde = valitseKohde(z, dz, P);
     if (kohde) {
+      if (!oliKohde) {
+        z.reaktio = arvoReaktio(s0, k, z.n);
+      } else if (z.reaktio > 0) {
+        z.reaktio--;
+      }
       z.kohdeId = kohde.id; z.kohde = kohde;
       z.vAsk = 0; z.vTauko = 0; z.vDx = 0; z.vDy = 0;
       if (!ekaKohde) ekaKohde = kohde;
-      let d = kentat.get(kohde.id);
-      if (!d) { d = kentta(kohde.x, kohde.y); kentat.set(kohde.id, d); }
-      let paras = null; const nyt = d[z.y * W + z.x];
-      for (const [dx, dy] of NAAP) {
-        const x = z.x + dx, y = z.y + dy, j = y * W + x;
-        if (x < 0 || y < 0 || x >= W || y >= H || d[j] < 0 || varattu.has(j)) continue;
-        if ((nyt < 0 || d[j] < nyt) && (!paras || d[j] < paras.d)) paras = { x, y, d: d[j], dx, dy };
+      if (z.reaktio > 0) {
+        if (kohde.x !== z.x || kohde.y !== z.y) z.suunta = suunnaksi(Math.sign(kohde.x - z.x), Math.sign(kohde.y - z.y));
+      } else {
+        let d = kentat.get(kohde.id);
+        if (!d) { d = kentta(kohde.x, kohde.y); kentat.set(kohde.id, d); }
+        let paras = null; const nyt = d[z.y * W + z.x];
+        for (const [dx, dy] of NAAP) {
+          const x = z.x + dx, y = z.y + dy, j = y * W + x;
+          if (x < 0 || y < 0 || x >= W || y >= H || d[j] < 0 || varattu.has(j)) continue;
+          if ((nyt < 0 || d[j] < nyt) && (!paras || d[j] < paras.d)) paras = { x, y, d: d[j], dx, dy };
+        }
+        if (paras) { z.x = paras.x; z.y = paras.y; z.suunta = suunnaksi(paras.dx, paras.dy); }
+        else if (kohde.x !== z.x || kohde.y !== z.y) z.suunta = suunnaksi(Math.sign(kohde.x - z.x), Math.sign(kohde.y - z.y));
       }
-      if (paras) { z.x = paras.x; z.y = paras.y; z.suunta = suunnaksi(paras.dx, paras.dy); }
-      else if (kohde.x !== z.x || kohde.y !== z.y) z.suunta = suunnaksi(Math.sign(kohde.x - z.x), Math.sign(kohde.y - z.y));
     } else {
-      z.kohdeId = null; z.kohde = null;
+      z.kohdeId = null; z.kohde = null; z.reaktio = 0;
       if (oliKohde) {
         const rnd = arpa(s0 * 1009 + k * 9176 + z.n * 37);
         z.vAsk = 0; z.vDx = 0; z.vDy = 0;
@@ -424,7 +449,7 @@ const askel = (k, Z, P) => {
       z.kuoli = k; z.kontaktiId = null; z.kontakti = 0; z.kontaktiRaja = 0;
       continue;
     }
-    // Kiinnijäännin grace period: vaatii kontaktin (sama tai viereinen ruutu) samaan pelaajaan kontaktiRaja (1..3) peräkkäistä tikkiä.
+    // Kiinnijäännin grace period: vaatii kontaktin samassa ruudussa (z.x === p.x && z.y === p.y) samaan pelaajaan kontaktiRaja (3..6) peräkkäistä tikkiä.
     const kp = etsiKontakti(z, P);
     if (kp) {
       if (z.kontaktiId === kp.id) {
@@ -480,7 +505,8 @@ const piirra = () => {
 };
 tila.kuva = () => tila.zombit.map(z => ({
   n: z.n, x: z.x, y: z.y, kuoli: z.kuoli, kohde: z.kohdeId ?? null,
-  tila: z.kuoli >= 0 ? 'kuoli' : z.kohdeId != null ? 'jahtaa' : z.vTauko > 0 ? 'seisoo' : 'vaeltaa',
+  huomaa: z.huomaa, meneta: z.meneta, reaktio: z.reaktio || 0,
+  tila: z.kuoli >= 0 ? 'kuoli' : z.kohdeId != null ? (z.reaktio > 0 ? 'reagoi' : 'jahtaa') : z.vTauko > 0 ? 'seisoo' : 'vaeltaa',
   kontakti: z.kontakti ? (z.kontakti + '/' + z.kontaktiRaja) : null,
   id: piirretyt.get(z.n),
 }));
