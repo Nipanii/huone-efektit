@@ -168,8 +168,11 @@ const kuuleKomento = ev => {
   if (ev.key !== 'Enter' && ev.key !== 'NumpadEnter') return;
   const el = ev.target; if (!(el instanceof HTMLInputElement) || !el.matches(KENTTA)) return;
   const rivi = (el.value || '').trim();
-  // kp 30.10. 16:52 ':lyhty' ja ':kynttilä' kaikille pelaajille (ei rataryhmärajausta); lukko 2 s per komento
-  const valoSana = LYHTY_KOMENTO.test(rivi) ? 'zl684' : KYNTTILA_KOMENTO.test(rivi) ? 'zc684' : null;
+  // kp 30.10. 16:52 ':lyhty' ja ':kynttilä'; lukko 2 s per komento. kp 17:38 "lyhty ja kynttilä komento toimimaan vaan halloween rata
+  //   ryhmäläisille" (muut saavat lyhdyn Öljylamppu-esineestä 438617): muilta rivi menee chattiin normaalisti, kuten :efektit.
+  let valoSana = LYHTY_KOMENTO.test(rivi) ? 'zl684' : KYNTTILA_KOMENTO.test(rivi) ? 'zc684' : null;
+  if (valoSana) { let omaV = null; try { omaV = Number(window.NitroDevTools.roomEngine._sessionDataManager.userId); } catch (x) {}
+    if (![1, 282, 281, 245].includes(omaV)) valoSana = null; }
   if (valoSana) {
     ev.preventDefault(); ev.stopImmediatePropagation(); tyhjenna(el);
     const nyt = Date.now(); if (nyt - (komentoLukko[valoSana] || 0) < KOMENTO_LUKKO_MS) return;
