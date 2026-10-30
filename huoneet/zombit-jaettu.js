@@ -1455,7 +1455,17 @@ const omaRuutu = () => {
   const o = e.getRoomObject(huone, i, 100), L = o && o.getLocation();
   return L ? { i, x: Math.round(L.x), y: Math.round(L.y) } : null;
 };
-let kuolemaKaynnissa = 0, safeIlmoitettu = 0, omaViimeSyoK = -1, odottavaKuolema = null;
+let kuolemaKaynnissa = 0, safeIlmoitettu = 0, omaViimeSyoK = -1, odottavaKuolema = null, kavelyEstoAsti = 0, kavelyH = null, kavelyAlkup = null, kavelyOma = null;
+const asennaKavelyEsto = () => {
+  try {
+    const h = e && e.objectEventHandler; if (!h || typeof h.sendWalkUpdate !== 'function') return;
+    if (kavelyH === h && h.sendWalkUpdate === kavelyOma) return;
+    const alkup = h.sendWalkUpdate;
+    kavelyOma = function (...a) { if (Date.now() < kavelyEstoAsti) return; return alkup.apply(this, a); };
+    h.sendWalkUpdate = kavelyOma; kavelyH = h; kavelyAlkup = alkup;
+  } catch (x) {}
+};
+const puraKavelyEsto = () => { try { if (kavelyH && kavelyH.sendWalkUpdate === kavelyOma) kavelyH.sendWalkUpdate = kavelyAlkup; } catch (x) {} kavelyH = kavelyOma = kavelyAlkup = null; };
 const kuole = (syy) => {
   const nyt = Date.now(), makuuMs = Math.max(0, Number(ASETUS.kuolemaMakuu ?? 1500));
   const lukko = Math.max(1000, Number(ASETUS.kuolemaLukko) || 5000);
@@ -1465,6 +1475,8 @@ const kuole = (syy) => {
     return;
   }
   kuolemaKaynnissa = nyt; tila.kuolemat++; ilmoita(syy);
+  // kp 20:06 "kun makaa pysty kävellä samalla": oman hahmon kävelykomennot estetään makuun ajan (sendWalkUpdate-kääre, puretaan siivouksessa)
+  kavelyEstoAsti = nyt + makuuMs + 300; asennaKavelyEsto();
   const o = omaRuutu();
   if (o && o.i != null && makuuMs > 0) asetaHahmonAsento(o.i, 'lay');
   const laheta = () => {
@@ -1587,6 +1599,7 @@ return () => {
   if (vayla && typeof vayla.removeEventListener === 'function') vayla.removeEventListener('RSCE_CHAT_EVENT', kuuleChat);
   if (lammikkoKanvas && lammikkoKanvas.remove) lammikkoKanvas.remove();
   kuplaVahti.disconnect();
+  puraKavelyEsto();
   if (odottavaKuolema) { const k = odottavaKuolema; odottavaKuolema = null; clearTimeout(k.aj); try { k.laheta(); } catch (x) {} }   // ei jätetä kuolemaa lähtemättä
   for (const a of kuplaAjastimet) clearTimeout(a); kuplaAjastimet.clear();
   for (const a of makuuAjastimet) clearTimeout(a); makuuAjastimet.clear();
