@@ -40,8 +40,8 @@ const ASETUS = {
   vaellusAskeleet: [2, 4], // ruutua: vaeltaessa zombi liikkuu 2..4 ruudun pätkiä ('mv') ennen pysähdystä
   vaellusTauko: [2, 5],    // sekuntia (tai ms jos >= 50): vaeltaessa zombi seisoo 2..5 s ('std') paikallaan pätkien välissä
   kontakti: 3,         // sekuntia (tai ms jos >= 50): oletuskontaktiraja (jos kontaktiMin/kontaktiMax asetetaan samaksi tai kontakti muutetaan)
-  kontaktiMin: 3,      // sekuntia (tai ms jos >= 50): vähimmäiskontaktiraja ennen kiinnijääntiä
-  kontaktiMax: 6,      // sekuntia (tai ms jos >= 50): enimmäiskontaktiraja (arvotaan deterministisesti 3..6 s per zombi+pelaaja)
+  kontaktiMin: 1.5,    // kp 19:39 "nopeuta vähän kuolemista" (oli 3). sekuntia (tai ms jos >= 50): vähimmäiskontaktiraja ennen kiinnijääntiä
+  kontaktiMax: 3,      // (oli 6) sekuntia (tai ms jos >= 50): enimmäiskontaktiraja (arvotaan deterministisesti 3..6 s per zombi+pelaaja)
   kontaktiSama: 1,     // kertymäkerroin samassa ruudussa (+1 per s eli +tikki ms per tikki)
   kontaktiViereinen: 0.5, // kertymäkerroin viereisessä ruudussa (+0.5 per s eli +0.5*tikki ms per tikki)
   kontaktiHiipuma: 0.25,  // hiipumakerroin ilman kontaktia (-0.25 per s eli -0.25*tikki ms per tikki; ei nollaudu heti)
