@@ -918,8 +918,9 @@ let V = null, figuuri = ASETUS.figuuri, seuraavaId = -950001, asut = [];
 // kp 30.10. 18:58 "tarvittais enemmän eri näkösiä zombeja": pohja-asu kiertää huoneen kaikista Zombie-boteista (id-järjestys, sama kaikilla)
 //   ja jokainen saa Left 4 Kuplan zombifioinnin omalla siemenellä (iho, pää, tummennus) -> eri näköisiä myös saman pohjan päällä.
 //   Pohjat: Zombie-botit + huoneen pelaajien asut (kuten Left 4 Kuplassa: katsojan/pelaajan asu zombifioituna) + vara-asu.
-const valitseAsu = z => { let pel = []; try { pel = pelaajat().map(p => p.figuuri).filter(Boolean); } catch (x) {}
-  const lista = [...asut, ...pel, figuuri].filter((f, i, a) => f && a.indexOf(f) === i), n = Math.abs(Number(z.n) || 0) + Math.abs(Number(SAILO.E) || 0);
+// kp 19:11 "en haluu et kopioidaan pelaajien asut pohjaksi" -> pelaajien asut pois pohjista.
+const valitseAsu = z => {
+  const lista = [...asut, figuuri].filter((f, i, a) => f && a.indexOf(f) === i), n = Math.abs(Number(z.n) || 0) + Math.abs(Number(SAILO.E) || 0);
   return zombifioiAsu(lista[n % lista.length], (n * 7919 + 104729) >>> 0) || lista[n % lista.length]; };
 const valmistele = () => {
   const s = istunto(), ud = s && s.userDataManager; let loydetty = false; const uudetAsut = [];
