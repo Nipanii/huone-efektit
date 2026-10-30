@@ -1091,7 +1091,8 @@ const askel = (k, Z, P) => {
   if (!(SAILO.viimeSij instanceof Map)) SAILO.viimeSij = new Map();
   { const ov = ruudukko.ovi;
     for (const p of P || []) { if (!p || !p.id) continue; const ed = SAILO.viimeSij.get(p.id);
-      if (ed && p.i !== omaI && ov && Math.hypot(p.x - ed.x, p.y - ed.y) > 3 && Math.hypot(p.x - ov.x, p.y - ov.y) <= 2.5
+      // kp 20:53 "zombi tuli portin läpi": maalista ovelle siirtynyt EI ole kuollut -> vain zombien kävelyruudulta (ok, ei eiZombeja-aluetta)
+      if (ed && p.i !== omaI && ov && ruudukko.ok && ruudukko.ok[ed.y * ruudukko.W + ed.x] && Math.hypot(p.x - ed.x, p.y - ed.y) > 3 && Math.hypot(p.x - ov.x, p.y - ov.y) <= 2.5
           && !(SAILO.makaavat instanceof Map && SAILO.makaavat.has(p.id))) {
         try { luoMuuttunut({ id: p.id, nimi: p.nimi, figuuri: p.figuuri, x: ed.x, y: ed.y }, 4, k, tMs, tikki, s0, P); paivitaLammikot(P); } catch (x) {}
       }
