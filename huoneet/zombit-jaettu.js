@@ -64,6 +64,7 @@ const ASETUS = {
   vaihtoVali: 3000,    // ms; kohteenvaihdon arvonnan minimiväli ettei arvo joka tikki
   aaniVaihtoTn: [0.35, 0.6], // [puhe, huuto] (kp 19:15): todennäköisyys vaihtaa kohteeksi äänen päästänyt pelaaja lähellä (BFS <= huomaa)
   aaniVaihtoMax: 0.8,  // ryhmän kertyneen äänipainon mukainen maksimitodennäköisyys
+  kuolemaOvi: { x: 29, y: 5 },   // zk684-teleportin kohde attic15_tele 425376 @29,5 (684-tila.md 16:29); muiden kuoleman tunnistus
   ovi: { x: null, y: null }, // täytetään huoneesta mitattuna; jos null, luetaan clientin huonemallista (vain spawn-etäisyyteen)
   eiSpawnia: [[20, 34, 28, 37]],   // alanurkan tasku (Mesa Escopeta 22,37), kp 30.10. 18:59
   eiZombeja: null,     // kp 19:00 "tuol on aidattu alue · siin on portti · sen taakse ei saa mennä zombeja", oletus = eiSpawnia
@@ -1089,7 +1090,7 @@ const askel = (k, Z, P) => {
   const omaI = omaIndeksi();
   // Toisen pelaajan kuolema: hahmo hyppää > 3 ruutua ovelle (zk684-teleportti) -> lammikko + muuttunut viimeiseen ruutuun.
   if (!(SAILO.viimeSij instanceof Map)) SAILO.viimeSij = new Map();
-  { const ov = ruudukko.ovi;
+  { const ov = ruudukko.ovi || ASETUS.kuolemaOvi;   // 684: huoneella ei ovea (doors -1,-1) -> zk684-teleportin kohde
     for (const p of P || []) { if (!p || !p.id) continue; const ed = SAILO.viimeSij.get(p.id);
       // kp 20:53 "zombi tuli portin läpi": maalista ovelle siirtynyt EI ole kuollut -> vain zombien kävelyruudulta (ok, ei eiZombeja-aluetta)
       if (ed && p.i !== omaI && ov && ruudukko.ok && ruudukko.ok[ed.y * ruudukko.W + ed.x] && Math.hypot(p.x - ed.x, p.y - ed.y) > 3 && Math.hypot(p.x - ov.x, p.y - ov.y) <= 2.5
