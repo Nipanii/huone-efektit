@@ -22,7 +22,7 @@
 const SALLITUT = [1, 282, 281, 245];   // Res, kurkkupomo, sona, Herra-Robotti
 const ASETUS = {
   maara: 3,            // zombien määrä (AUKI kp:lle)
-  tikki: 2000,         // ms per ruutu (pelaaja 500 ms/ruutu -> zombi 4x hitaampi; AUKI kp:lle)
+  tikki: 1000,         // ms per ruutu (pelaaja 500 ms/ruutu -> zombi 2x hitaampi; kp 30.10. 10:08 "nopeus oli ehkä vähän liioitellun hidas", oli 2000)
   epookki: 300000,     // ms; uusi aalto + hajonnan raja
   ikkuna: 10000,       // ms; "hitain" mitataan tältä ajalta
   ovi: { x: 30, y: 15 },
@@ -139,7 +139,8 @@ const valmistele = () => { const s = istunto(), ud = s && s.userDataManager; let
   return !!V; };
 const piirretyt = new Map();   // n -> objekti-id
 const piirra = () => {
-  const p = Math.min(1, ((Date.now() % ASETUS.tikki) / ASETUS.tikki) / 0.85), { z: Z } = ruudukko;
+  // kp 30.10. 10:08 "liikkuivat vähän nykien": ennen /0.85 = pysähdys 15 % joka ruudulla + piirto 100 ms välein (10 fps). Nyt koko tikki liukuu, piirto rAF:llä.
+  const p = Math.min(1, (Date.now() % ASETUS.tikki) / ASETUS.tikki), { z: Z } = ruudukko;
   for (const z of tila.zombit) {
     let g = piirretyt.get(z.n);
     const x = z.px + (z.x - z.px) * p, y = z.py + (z.y - z.py) * p, zz = Math.max(0, Z[Math.round(y) * ruudukko.W + Math.round(x)] || 0), sd = z.suunta * 45;
@@ -204,7 +205,8 @@ const tiki = () => {
   while (SAILO.K < k) { SAILO.K++; tila.kohde = askel(SAILO.K, tila.zombit, pelaajat()); }
   tila.k = SAILO.K;
 };
-const ajastin = setInterval(() => { try { tiki(); if (ruudukko) { piirra(); tarkistaOma(); } } catch (x) { tila.virheet++; lokiin({ virhe: String(x && x.stack || x).slice(0, 300) }); if (tila.virheet > 50) clearInterval(ajastin); } }, 100);
+let rafKaynnissa = true; const kehys = () => { if (!rafKaynnissa) return; try { if (ruudukko) piirra(); } catch (x) {} requestAnimationFrame(kehys); }; requestAnimationFrame(kehys);
+const ajastin = setInterval(() => { try { tiki(); if (ruudukko) { tarkistaOma(); } } catch (x) { tila.virheet++; lokiin({ virhe: String(x && x.stack || x).slice(0, 300) }); if (tila.virheet > 50) clearInterval(ajastin); } }, 100);
 const uusiKartta = setInterval(() => { try { if (ruudukko) { const r = rakenna(); if (r && r.ruudut.length) ruudukko = r; } } catch (x) {} }, 5000);
 
 // ---- :safe (vain rataryhmä, kuten :efektit; rivi ei lähde palvelimelle)
@@ -221,6 +223,6 @@ const kuule = ev => {
 addEventListener('keydown', kuule, true); tila._kuule = kuule;   // testaus: zombit._kuule(valeTapahtuma)
 lokiin({ alku: huone, safe });
 
-return () => { clearInterval(ajastin); clearInterval(uusiKartta); removeEventListener('keydown', kuule, true);
+return () => { rafKaynnissa = false; clearInterval(ajastin); clearInterval(uusiKartta); removeEventListener('keydown', kuule, true);
   for (const g of piirretyt.values()) try { e.removeRoomObjectUser(huone, g); } catch (x) {}
   piirretyt.clear(); if (window.zombit === tila) delete window.zombit; };
