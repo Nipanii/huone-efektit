@@ -207,9 +207,16 @@ const estaa = (x, y, z) => { const k = kartta, tx = Math.round(x), ty = Math.rou
 // Säteet valosta kulmaväliltä a0..a1. Osuessa jatketaan vähän esteen sisään, jotta sen lähin reuna valaistuu.
 const seinaa = (x, y) => { const k = kartta, tx = Math.round(x), ty = Math.round(y); return tx < 0 || ty < 0 || tx >= k.W || ty >= k.H || !k.lattiaa[ty * k.W + tx]; };
 
+// kp 30.10. 18:12 'yritin lattiattoman kohdan yli valaista lyhdyllä; ei onnistunut': lattiaton aukko huoneen sisällä ei ole seinä.
+// Jos säde osuu lattiattomaan ruutuun ja säteen matkalla tulee vielä vapaata lattiaa, valo hyppää aukon yli; ulkoreunalla lattiaa ei tule -> osuu kuten ennen.
+const lattiaton = (x, y) => { const k = kartta, tx = Math.round(x), ty = Math.round(y); return tx >= 0 && ty >= 0 && tx < k.W && ty < k.H && !k.lattiaa[ty * k.W + tx]; };
 const sateile = (l, a0, a1, n, r, vainSeinat) => { const pts = [];
   for (let i = 0; i <= n; i++) { const a = a0 + (a1 - a0) * i / n, dx = Math.cos(a), dy = Math.sin(a); let d = 0.3, osui = false;
-    for (; d < r; d += tila.askel) if (vainSeinat ? seinaa(l.x + dx * d, l.y + dy * d) : estaa(l.x + dx * d, l.y + dy * d, l.z)) { osui = true; break; }
+    const este = (dd) => vainSeinat ? seinaa(l.x + dx * dd, l.y + dy * dd) : estaa(l.x + dx * dd, l.y + dy * dd, l.z);
+    for (; d < r; d += tila.askel) if (este(d)) {
+      if (lattiaton(l.x + dx * d, l.y + dy * d)) { let e2 = d; while (e2 < r && lattiaton(l.x + dx * e2, l.y + dy * e2)) e2 += tila.askel;
+        if (e2 < r && !este(e2)) { d = e2; continue; } }
+      osui = true; break; }
     const dd = osui ? Math.min(r, d + 0.45) : r; pts.push({ x: l.x + dx * dd, y: l.y + dy * dd, osui }); }
   return pts; };
 
