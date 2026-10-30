@@ -193,6 +193,50 @@ const ilmoitaKasi = () => { const nyt = Date.now(); if (nyt - kasiIlmoitettu < 3
 kasiEsto();
 const kasiAjastin = setInterval(kasiEsto, 2000);
 
+// kp 20:35-20:36 "pääsin läpi robo ei tullu onnittelua" · "wired script hybrid NIINKU AIEMMIN · AIEMMISSA HALLOWEEN HUONEISSA":
+//   sama malli kuin 681.js:198-247 / 682.js: voittopinon palvelinwired (wf_act_show_message, näkyvyys koko huone) kuiskaa
+//   jokaiselle "%user% pääsi radan N läpi!", ja skripti kuulee sen omalta väylältä (RSCE_CHAT_EVENT, chatType 1) ->
+//   banneri 8 s / 40 px + konfetti ja ilotulitus 9 s. Ilman huone-efektejä näkyy pelkkä wired-viesti.
+const MAALI = /^(.+) pääsi radan (\d+) läpi!$/;
+const viimLapi = new Map(), juhlaLaput = new Set();
+const banneri = (teksti, ms = 8000, px = 40) => {
+  const d = document.createElement('div'); d.textContent = teksti;
+  d.style.cssText = 'position:fixed;left:50%;top:18%;transform:translate(-50%,0);z-index:99999;pointer-events:none;font:bold ' + px + 'px sans-serif;' +
+    'color:#fff;text-shadow:0 0 4px #000,0 0 4px #000,2px 2px 0 #000;white-space:nowrap;transition:opacity .6s';
+  document.body.appendChild(d); juhlaLaput.add(d);
+  setTimeout(() => { d.style.opacity = '0'; }, ms); setTimeout(() => { d.remove(); juhlaLaput.delete(d); }, ms + 700);
+};
+const juhla = () => {
+  const c = document.createElement('canvas'), w = c.width = innerWidth, h = c.height = innerHeight, g = c.getContext('2d');
+  c.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:100vh;z-index:99998;pointer-events:none';
+  document.body.appendChild(c); juhlaLaput.add(c);
+  const V = ['#ff7a00', '#a24bff', '#7dff4a', '#ffd23f', '#ff3b3b', '#ffffff'], P = [], t0 = performance.now(), KESTO = 9000;
+  const rak = (x, y) => { const v = V[Math.random() * V.length | 0]; for (let i = 0; i < 70; i++) { const a = Math.random() * 6.283, n = 2 + Math.random() * 5;
+    P.push({ x, y, vx: Math.cos(a) * n, vy: Math.sin(a) * n, e: 1, v, r: 2 + Math.random() * 2, k: 0 }); } };
+  for (let i = 0; i < 160; i++) P.push({ x: Math.random() * w, y: -20 - Math.random() * h * 0.4, vx: (Math.random() - 0.5) * 1.2, vy: 0.8 + Math.random() * 0.8, e: 1, v: V[i % V.length], r: 3 + Math.random() * 4, k: 1, kul: Math.random() * 6.283 });
+  let seur = 0;
+  const askel = nyt => { const t = nyt - t0; if (t > KESTO + 1500 || !c.isConnected) { c.remove(); juhlaLaput.delete(c); return; }
+    if (t < KESTO && t > seur) { rak(w * (0.15 + Math.random() * 0.7), h * (0.15 + Math.random() * 0.4)); seur = t + 450 + Math.random() * 400; }
+    g.clearRect(0, 0, w, h); const haiv = t > KESTO ? 1 - (t - KESTO) / 1500 : 1;
+    for (let i = P.length - 1; i >= 0; i--) { const q = P[i]; q.x += q.vx; q.y += q.vy;
+      if (q.k) { q.vy = Math.min(q.vy + 0.01, 1.7); q.kul += 0.06; q.vx += Math.sin(q.kul) * 0.03; } else { q.vy += 0.06; q.vx *= 0.985; q.vy *= 0.985; q.e -= 0.012; }
+      if (q.e <= 0 || q.y > h + 30) { P.splice(i, 1); continue; }
+      g.globalAlpha = Math.max(0, Math.min(1, q.e * haiv)); g.fillStyle = q.v;
+      if (q.k) { g.save(); g.translate(q.x, q.y); g.rotate(q.kul); g.fillRect(-q.r, -q.r / 2, q.r * 2, q.r); g.restore(); } else { g.beginPath(); g.arc(q.x, q.y, q.r, 0, 6.283); g.fill(); } }
+    requestAnimationFrame(askel); };
+  requestAnimationFrame(askel);
+};
+tila.juhla = () => { banneri('☠ Testi selvisi läpi! ☠'); juhla(); };   // konsolista: pimeys.juhla()
+const vayla = window.NitroDevTools && window.NitroDevTools.roomEngine && window.NitroDevTools.roomEngine.events;
+const kuuleMaali = ev => { try {
+  if (!ev || ev.chatType !== 1 || ev.objectId !== omaIndeksi()) return;
+  const m = MAALI.exec(String(ev.message || '').trim()); if (!m) return;
+  const nyt = Date.now(); if (nyt - (viimLapi.get(m[1]) || 0) < 10000) return; viimLapi.set(m[1], nyt);
+  tila.loki.push({ lapi: 'saatu', kuka: m[1] });
+  banneri('☠ ' + m[1] + ' selvisi läpi! ☠'); juhla();
+} catch (x) { tila.loki.push({ lapi: 'virhe', viesti: String(x) }); } };
+if (vayla && vayla.addEventListener) vayla.addEventListener('RSCE_CHAT_EVENT', kuuleMaali);
+
 // Chat-komento: kaapataan Enter ennen pelin omaa käsittelijää (sama kenttä ja tapa kuin pitka-viesti-lisäosassa).
 const KENTTA = 'input.nitro-chat-input-control', KOMENTO = /^:efektit(?:\s+(pois|päälle|paalle|on|off))?$/i;
 const LYHTY_KOMENTO = /^:lyhty$/i, KYNTTILA_KOMENTO = /^:kynttil[äa]$/i, KOMENTO_LUKKO_MS = 2000;
@@ -462,5 +506,6 @@ return () => { aktiivinen = false; cancelAnimationFrame(raf); removeEventListene
   kuplaVahti.disconnect(); for (const a of kuplaAjastimet) clearTimeout(a); kuplaAjastimet.clear();
   for (const a of keskitysAjastimet) { clearInterval(a); clearTimeout(a); } keskitysAjastimet.clear();
   puraKasiEsto(); clearInterval(kasiAjastin);
+  if (vayla && vayla.removeEventListener) vayla.removeEventListener('RSCE_CHAT_EVENT', kuuleMaali); for (const d of juhlaLaput) d.remove(); juhlaLaput.clear();
   puraKoukku(); if (typeof queueMicrotask === 'function') queueMicrotask(puraKoukku);
   kerros.remove(); if (window.pimeys === tila) delete window.pimeys; };
