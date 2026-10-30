@@ -48,7 +48,7 @@ const ASETUS = {
   kontaktiMin: 0.5,    // kp 19:46 "kiinni jää 0,5-1,5s" (oli 3). sekuntia (tai ms jos >= 50): vähimmäiskontaktiraja ennen kiinnijääntiä
   kontaktiMax: 1.5,    // (oli 6) sekuntia (tai ms jos >= 50): enimmäiskontaktiraja (arvotaan deterministisesti 3..6 s per zombi+pelaaja)
   kontaktiSama: 1,     // kertymäkerroin samassa ruudussa (+1 per s eli +tikki ms per tikki)
-  kontaktiViereinen: 0.5, // kertymäkerroin viereisessä ruudussa (+0.5 per s eli +0.5*tikki ms per tikki)
+  kontaktiViereinen: 0,   // kp 20:11 "käy": vain sama ruutu kerryttää (oli 0.5). kertymäkerroin viereisessä ruudussa (+0.5 per s eli +0.5*tikki ms per tikki)
   kontaktiHiipuma: 0.25,  // hiipumakerroin ilman kontaktia (-0.25 per s eli -0.25*tikki ms per tikki; ei nollaudu heti)
   muuttunutMin: 120000, // ms; kiinni jääneestä pelaajasta syntyneen muuttuneen zombin vähimmäiselinaika (2 min) ennen pimeässä despawnausta
   muuttuneitaMax: 4,   // enintään näin monta muuttunutta zombia samaan aikaan huoneessa (vanhin poistuu ensin)
