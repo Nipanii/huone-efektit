@@ -238,8 +238,8 @@ const kuuleMaali = ev => { try {
 if (vayla && vayla.addEventListener) vayla.addEventListener('RSCE_CHAT_EVENT', kuuleMaali);
 
 // Chat-komento: kaapataan Enter ennen pelin omaa käsittelijää (sama kenttä ja tapa kuin pitka-viesti-lisäosassa).
-const KENTTA = 'input.nitro-chat-input-control', KOMENTO = /^:efektit(?:\s+(pois|päälle|paalle|on|off))?$/i;
-const LYHTY_KOMENTO = /^:lyhty$/i, KYNTTILA_KOMENTO = /^:kynttil[äa]$/i, KOMENTO_LUKKO_MS = 2000;
+const KENTTA = 'input.nitro-chat-input-control', KOMENTO = /^:\s*efektit(?:\s+(pois|päälle|paalle|on|off))?$/i;
+const LYHTY_KOMENTO = /^:\s*lyhty$/i, KYNTTILA_KOMENTO = /^:\s*kynttil[äa]$/i, KOMENTO_LUKKO_MS = 2000;   // kp 21:47 ': efektit' välilyönnillä meni chattiin
 const komentoLukko = { zl684: 0, zc684: 0 };
 const tyhjenna = el => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, ''); el.dispatchEvent(new Event('input', { bubbles: true })); };
 const ilmoita = teksti => { const d = document.createElement('div');
