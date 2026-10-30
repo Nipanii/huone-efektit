@@ -500,6 +500,8 @@ const aloitaMakuu = (kp, k, tMs) => {
     return;
   }
   asetaHahmonAsento(kp.i, 'lay');
+  // kp 20:06 "kai kuollessa targeted pelaaja resetoituu, vaik ois huutanu": uhrin äänet pois, ettei vanha huuto vedä zombeja hänen peräänsä
+  if (Array.isArray(SAILO.aanet)) SAILO.aanet = SAILO.aanet.filter(a => a && a.id !== kp.id);
   const mk = { id: kp.id, i: kp.i, x: kp.x, y: kp.y, alkuK: k, alkuMs: tMs, loppuMs: tMs + makuuMs, ajastin: null };
   mk.ajastin = setTimeout(() => {
     makuuAjastimet.delete(mk.ajastin);
