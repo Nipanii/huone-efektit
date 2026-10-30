@@ -26,18 +26,32 @@ const tila = window.pimeys = { versio: 'huone-684 valosim kerros-body', huone, t
   // varjoValo = kalusteen varjoon jäävä osuus valosta (kp 21:55 'partly lit'; kp 23:47 'varjot pitää mennä iha mustaks' -> 0)
   // 23:47: Res 'valo alue isommaks' -> ymparys-arvot n. x1.4; tummuus 0.99 -> 1
   // ymparys = piirin säde ruutuina, keila = keilan pituus ruutuina, kulma = keilan puolikulma asteina, liekki = lämmin sävy + lepatus
-  valot: { 1058: { nimi: 'Öljylamppu', ymparys: 2.5, keila: 7.5, kulma: 30, liekki: 1 }, 1027: { nimi: 'Kynttilä', ymparys: 2.4, keila: 2.8, kulma: 60, liekki: 1 },
+  // kp 30.10. 16:52 'tee se :lyhty komento jo. ja :kynttilä' · 'lyhdyllä isompi valo range': 1058 = Lyhty (ymparys 3.5, keila 9.5)
+  valot: { 1058: { nimi: 'Lyhty', ymparys: 3.5, keila: 9.5, kulma: 30, liekki: 1 }, 1027: { nimi: 'Kynttilä', ymparys: 2.4, keila: 2.8, kulma: 60, liekki: 1 },
     1113: { nimi: 'LED-kynttilä', ymparys: 2.4, keila: 2.8, kulma: 60 }, 1031: { nimi: 'Soihtu', ymparys: 4.2, keila: 5.5, kulma: 60, liekki: 1 } },
     // kp 20:42:15: kynttilälläkin pitää näkyä enemmän katseen suuntaan kuin selän taakse -> jokaisella käsivalolla leveä keila
   lamppu: { ymparys: 4.2, liekki: 1 }, lamppuKuvio: /lamp|light|vela|candle|torch|lantern/i, ohitaLamput: ['army_c15_light'],   // kp 21:54: kattolamppu teki oudon läikän -> 'laita se pois päältä'
  
-  dimmeri: { vari: '#2a1050', voima: 0.35 }, loki: [], mitta: 0 };
+  sanat: { lyhty: 'zl684', kynttila: 'zc684' }, dimmeri: { vari: '#2a1050', voima: 0.35 }, loki: [], mitta: 0 };
 tila.loki.push = function () { const t = new Date().toTimeString().slice(0, 8); for (const o of arguments) if (o && typeof o === 'object' && !o.t) o.t = t;
   if (this.length > 200) this.splice(0, this.length - 200); return Array.prototype.push.apply(this, arguments); };
 
+const dv = (o, k) => { const d = o && Object.getOwnPropertyDescriptor(o, k); return d && !d.get ? d.value : undefined; };
+const istunto = () => { const sm = dv(e, '_roomSessionManager'); return sm && sm.getSession && sm.getSession(huone); };
 const omaIndeksi = () => {
-  const sm = e && Object.getOwnPropertyDescriptor(e, '_roomSessionManager'); const s = sm && sm.value && sm.value.getSession && sm.value.getSession(huone);
-  const i = s && s.ownRoomIndex; return (i == null || i < 0) ? null : i;
+  const s = istunto(), i = s && s.ownRoomIndex; if (i != null && i >= 0) return i;
+  const ud = s && s.userDataManager, sd = dv(e, '_sessionDataManager') || {}, id = Number(sd._userId || sd.userId || 0), nimi = String(sd._name || sd.userName || '').trim().toLowerCase();
+  if (!ud || !ud.getUserDataByIndex || (!id && !nimi)) return null;
+  for (const o of (e && e.getRoomObjects && e.getRoomObjects(huone, 100)) || []) { const u = o && ud.getUserDataByIndex(o.id);
+    if (u && ((id > 0 && Number(u.webID) === id) || (nimi && String(u.name || '').trim().toLowerCase() === nimi))) return o.id; }
+  return null;
+};
+const yhteys = () => {
+  const nahty = new Set(); let c = null;
+  const etsi = (o, d) => { if (!o || c || d > 4 || typeof o !== 'object' || nahty.has(o)) return; nahty.add(o);
+    if (Object.getOwnPropertyDescriptor(o, '_cryptoState')) { c = o; return; }
+    for (const k of Object.getOwnPropertyNames(o)) { const de = Object.getOwnPropertyDescriptor(o, k); if (de && !de.get && de.value && typeof de.value === 'object') etsi(de.value, d + 1); } };
+  etsi(dv(e, '_roomSessionManager'), 0); return c;
 };
 // kp 29.10. 22:27-22:44 'tää sekoo jos laittaa inventoorin päälle' · 'ei saa huijaa et glitchaa efektin pois' · kauppa sama.
 // Syy (mitattu robolla 22:51 kp:n clientin rakenteella): kanvas valittiin KOON mukaan kaikista sivun kanvaksista ja pimeys
@@ -82,8 +96,68 @@ tila.paalla = (p) => { if (p === undefined) return paalla; paalla = !!p;
   tila.loki.push({ efektit: paalla ? 'päällä' : 'pois' }); return paalla; };
 tila.paalla(paalla);
 
+// Wired-script-hybridi (682.js:153-206, 442 ja zombit-jaettu.js:345-393): :lyhty -> "zl684" (1058), :kynttilä/:kynttila -> "zc684" (1027).
+// Palvelin kaiuttaa wf_trg_says_something (piilota=1) -sanat lähettäjälle kuiskauksena (2704) -> niellään handleMessagesissa (suu ei liiku)
+// ja piilotetaan mahdollinen puhekupla MutationObserverilla. Huoneen wired antaa käsiesineen; skripti ei anna sitä itse.
+const SALAISET = new Set(['zl684', 'zc684']);
+let aktiivinen = true, koukkuYhteys = null, koukkuOma = null, koukkuAlkup = null;
+const koukku = () => {
+  const c = yhteys(); if (!c || typeof c.handleMessages !== 'function') return null;
+  if (koukkuYhteys === c) return c;
+  const alkup = c.handleMessages;
+  const oma = function (...viestit) {
+    if (aktiivinen) {
+      try {
+        let i;
+        viestit = viestit.filter(v => {
+          const p = v && v.parser;
+          if (p && typeof p.message === 'string' && SALAISET.has(p.message.trim().toLowerCase())) {
+            if (i === undefined) i = omaIndeksi();
+            if (i == null || p.roomIndex === i) return false;
+          }
+          return true;
+        });
+        if (!viestit.length) return;
+      } catch (x) {}
+    }
+    return alkup.apply(this, viestit);
+  };
+  c.handleMessages = oma; koukkuYhteys = c; koukkuOma = oma; koukkuAlkup = alkup; return c;
+};
+const puraKoukku = () => {
+  try {
+    if (koukkuYhteys && koukkuYhteys.handleMessages === koukkuOma) {
+      if (koukkuAlkup === Object.getPrototypeOf(koukkuYhteys).handleMessages) delete koukkuYhteys.handleMessages;
+      else koukkuYhteys.handleMessages = koukkuAlkup;
+    }
+  } catch (x) {}
+};
+const KUPLA_RE = /:\s*(zl684|zc684)\s*↩?\s*$/i;
+const kuplaPiiloon = el => {
+  try { if (KUPLA_RE.test(el.textContent || '') && el.style.display !== 'none') el.style.display = 'none'; } catch (x) {}
+};
+const kuplat = () => { for (const b of document.querySelectorAll('.bubble-container')) kuplaPiiloon(b); };
+const kuplaVahti = new MutationObserver(kuplat);
+if (document.body) kuplaVahti.observe(document.body, { childList: true, subtree: true, characterData: true });
+const kuplaAjastimet = new Set();
+const sanoSalainen = sana => {
+  const koodi = String(sana || '').trim(); if (!koodi) return false;
+  try {
+    koukku();
+    const s = istunto(); if (!s || typeof s.sendChatMessage !== 'function') return false;
+    s.sendChatMessage(koodi, 0);
+    kuplat();
+    for (const ms of [30, 300, 1000]) { const a = setTimeout(() => { kuplaAjastimet.delete(a); kuplat(); }, ms); kuplaAjastimet.add(a); }
+    return true;
+  } catch (x) { tila.loki.push({ salasanaVirhe: String(x) }); return false; }
+};
+tila._sanoSalainen = sanoSalainen;
+koukku();
+
 // Chat-komento: kaapataan Enter ennen pelin omaa käsittelijää (sama kenttä ja tapa kuin pitka-viesti-lisäosassa).
 const KENTTA = 'input.nitro-chat-input-control', KOMENTO = /^:efektit(?:\s+(pois|päälle|paalle|on|off))?$/i;
+const LYHTY_KOMENTO = /^:lyhty$/i, KYNTTILA_KOMENTO = /^:kynttil[äa]$/i, KOMENTO_LUKKO_MS = 2000;
+const komentoLukko = { zl684: 0, zc684: 0 };
 const tyhjenna = el => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, ''); el.dispatchEvent(new Event('input', { bubbles: true })); };
 const ilmoita = teksti => { const d = document.createElement('div');
   d.textContent = teksti;
@@ -93,7 +167,18 @@ const ilmoita = teksti => { const d = document.createElement('div');
 const kuuleKomento = ev => {
   if (ev.key !== 'Enter' && ev.key !== 'NumpadEnter') return;
   const el = ev.target; if (!(el instanceof HTMLInputElement) || !el.matches(KENTTA)) return;
-  const m = KOMENTO.exec((el.value || '').trim()); if (!m) return;
+  const rivi = (el.value || '').trim();
+  // kp 30.10. 16:52 ':lyhty' ja ':kynttilä' kaikille pelaajille (ei rataryhmärajausta); lukko 2 s per komento
+  const valoSana = LYHTY_KOMENTO.test(rivi) ? 'zl684' : KYNTTILA_KOMENTO.test(rivi) ? 'zc684' : null;
+  if (valoSana) {
+    ev.preventDefault(); ev.stopImmediatePropagation(); tyhjenna(el);
+    const nyt = Date.now(); if (nyt - (komentoLukko[valoSana] || 0) < KOMENTO_LUKKO_MS) return;
+    komentoLukko[valoSana] = nyt;
+    const ok = sanoSalainen(valoSana);
+    tila.loki.push({ komento: valoSana === 'zl684' ? 'lyhty' : 'kynttilä', sana: valoSana, ok });
+    return;
+  }
+  const m = KOMENTO.exec(rivi); if (!m) return;
   // kp 22:28 'ei saa huijaa et glitchaa efektin pois': komento vain rataryhmälle (1 Res, 282 kp, 281 sona, 245 robo), muilta rivi menee chattiin normaalisti
   let oma = null; try { oma = Number(window.NitroDevTools.roomEngine._sessionDataManager.userId); } catch (x) {}
   if (![1, 282, 281, 245].includes(oma)) return;
@@ -243,5 +328,7 @@ const piirra = () => {
 raf = requestAnimationFrame(piirra);
 tila.loki.push({ alku: huone, efektit: paalla ? 'päällä' : 'pois' });
 
-return () => { cancelAnimationFrame(raf); removeEventListener('keydown', kuuleKomento, true); kerros.remove();
-  if (window.pimeys === tila) delete window.pimeys; };
+return () => { aktiivinen = false; cancelAnimationFrame(raf); removeEventListener('keydown', kuuleKomento, true);
+  kuplaVahti.disconnect(); for (const a of kuplaAjastimet) clearTimeout(a); kuplaAjastimet.clear();
+  puraKoukku(); if (typeof queueMicrotask === 'function') queueMicrotask(puraKoukku);
+  kerros.remove(); if (window.pimeys === tila) delete window.pimeys; };
