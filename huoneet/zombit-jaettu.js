@@ -1041,7 +1041,10 @@ const paivitaKontaktit = (z, P, k, tMs, tikki, s0, kaatuneet) => {
     if (kaatuneet && kaatuneet.has(p.id)) continue;
     const voiKoskea = tavoitettava(p) && liike(p.id).hyppy <= 3;
     const etRuutu = voiKoskea ? Math.max(Math.abs(z.x - p.x), Math.abs(z.y - p.y)) : 999;
-    const kerroin = etRuutu === 0 ? kSama : etRuutu === 1 ? kVier : -kHiip;
+    // kp 20:40 "jos makaa tos robo nii ei voi kuolla": sängyllä/kalusteella (ei zombien kävelyruutu) zombi ei pääse samaan ruutuun ->
+    //   silloin viereinen ruutu kerryttää kuin sama ruutu.
+    const kalusteella = etRuutu === 1 && !(ruudukko.ok && ruudukko.ok[p.y * ruudukko.W + p.x]);
+    const kerroin = etRuutu === 0 || kalusteella ? kSama : etRuutu === 1 ? kVier : -kHiip;
     let t = z.kontaktit[p.id];
     if (kerroin > 0) {
       if (!t || !(t.ms > 0)) {
@@ -1078,6 +1081,16 @@ const askel = (k, Z, P) => {
   const a = ansaRuutu(), { W, H } = ruudukko, varattu = new Set(), s0 = perusSiemen(), kentat = new Map();
   paivitaLammikot(P);
   paivitaMakaavat(P, tMs, k, tikki, s0);
+  const omaI = omaIndeksi();
+  // Toisen pelaajan kuolema: hahmo hyppää > 3 ruutua ovelle (zk684-teleportti) -> lammikko + muuttunut viimeiseen ruutuun.
+  if (!(SAILO.viimeSij instanceof Map)) SAILO.viimeSij = new Map();
+  { const ov = ruudukko.ovi;
+    for (const p of P || []) { if (!p || !p.id) continue; const ed = SAILO.viimeSij.get(p.id);
+      if (ed && p.i !== omaI && ov && Math.hypot(p.x - ed.x, p.y - ed.y) > 3 && Math.hypot(p.x - ov.x, p.y - ov.y) <= 2.5
+          && !(SAILO.makaavat instanceof Map && SAILO.makaavat.has(p.id))) {
+        try { luoMuuttunut({ id: p.id, nimi: p.nimi, figuuri: p.figuuri, x: ed.x, y: ed.y }, 4, k, tMs, tikki, s0, P); paivitaLammikot(P); } catch (x) {}
+      }
+      SAILO.viimeSij.set(p.id, { x: p.x, y: p.y }); } }
   synkkaaPimeatZombit(Z, P, k);
   sopeutaMaara(Z, P, k);
   let ekaKohde = null;
@@ -1188,7 +1201,10 @@ const askel = (k, Z, P) => {
     }
 
     // Kiinnijäännin kertyvä kontaktilaskuri (per zombi + pelaaja): +1/s samassa ruudussa, +0.5/s viereisessä, -0.25/s ilman kontaktia.
-    const { saalis, aktP, aktT } = paivitaKontaktit(z, P, k, tMs, tikki, s0, kaatuneet);
+    let { saalis, aktP, aktT } = paivitaKontaktit(z, P, k, tMs, tikki, s0, kaatuneet);
+    // kp 20:39 "mun kuolema ei näkyny sun ruudulla" / desync: vain UHRIN oma kone päättää kiinnijäännin (se lähettää zk684).
+    //   Muiden koneiden zombit eivät tapa toisen pelaajaa paikallisesti (tuotti valekuolemia); kuolema näkyy muille ovelle-teleportista.
+    if (saalis && saalis.p && saalis.p.i !== omaI) { if (z.kontaktit) delete z.kontaktit[saalis.p.id]; saalis = null; }
     if (saalis) {
       const kp = saalis.p;
       const makuuMs = Math.max(0, Number(ASETUS.kuolemaMakuu ?? 1500));
@@ -1346,13 +1362,25 @@ const piirraLammikot = () => {
   };
   const { z: Z } = ruudukko;
   if (lammikot.length) {
-    lctx.save();
-    for (const lm of lammikot) {
-      if (!lm || !isFinite(lm.x) || !isFinite(lm.y)) continue;
+    // kp 20:41 "zombien ympärillä kans joku ihme aura mikä epärendaa noi veret": leikkaus koski KAIKKIA lammikoita hahmon kohdalla.
+    //   Nyt syvyysjärjestys (Habbo: x+y): lammikot piirretään takimmaisesta etummaiseen ja kunkin jälkeen pyyhitään vain ne
+    //   hahmot, jotka seisovat SAMASSA ruudussa tai sen EDESSÄ (syvyys >= lammikon). Hahmon edessä oleva lammikko jää näkyviin.
+    const hahmot = [];
+    if (typeof e.getRoomObjectBoundingRectangle === 'function' && r.width > 0) {
+      for (const o of e.getRoomObjects(huone, 100) || []) {
+        if (!o || String(o.type) !== 'user') continue;
+        try { const b = e.getRoomObjectBoundingRectangle(huone, o.id, 100, 1), L = o.getLocation();
+          if (b && b.width > 0 && L) hahmot.push({ b, syv: L.x + L.y }); } catch (x) {}
+      }
+    }
+    const fx = W / (r.width || 1), fy = H / (r.height || 1);
+    const jarj = lammikot.filter(lm => lm && isFinite(lm.x) && isFinite(lm.y)).sort((a, b) => (a.x + a.y) - (b.x + b.y));
+    for (const lm of jarj) {
       const zz = Math.max(0, Z[Math.round(lm.y) * ruudukko.W + Math.round(lm.x)] || 0);
       const o = ruudulle(lm.x, lm.y, zz), ex = ruudulle(lm.x + 1, lm.y, zz);
       if (!o || !ex) continue;
       const sc = Math.max(10, Math.abs(ex.x - o.x));
+      lctx.save();
       lctx.fillStyle = lm.vari || '#b01212';
       for (const p of lm.pisarat || []) {
         const pt = ruudulle(lm.x + p.dx, lm.y + p.dy, zz);
@@ -1363,22 +1391,13 @@ const piirraLammikot = () => {
         lctx.ellipse(pt.x, pt.y, rx, ry, 0, 0, Math.PI * 2);
         lctx.fill();
       }
-    }
-    lctx.restore();
-    // kp 20:02 "veri rendaa pelaajan hahmon päälle": hahmot (pelaajat + zombit) peittävät lattialla olevan lammikon ->
-    //   pyyhitään lammikkokerroksesta jokaisen hahmon TARKKA ruutulaatikko (getRoomObjectBoundingRectangle, CSS-px), ei arvioitua kaistaa.
-    if (typeof e.getRoomObjectBoundingRectangle === 'function' && r.width > 0) {
-      const fx = W / r.width, fy = H / r.height;
-      for (const o of e.getRoomObjects(huone, 100) || []) {
-        if (!o || String(o.type) !== 'user') continue;
-        try {
-          const b = e.getRoomObjectBoundingRectangle(huone, o.id, 100, 1); if (!b || !(b.width > 0)) continue;
-          // kp 20:25 "ku menee lähelle verilammikkoo nii veri katoo · alue hahmon ympäril": koko laatikko oli liian iso ->
-          //   pyyhitään vain hahmon muotoinen kapea soikio (laatikon keskiosa), ei laatikon tyhjiä kulmia.
-          const cx = (b.x - r.left + b.width / 2) * fx, cy = (b.y - r.top + b.height * 0.5) * fy;
-          lctx.save(); lctx.globalCompositeOperation = 'destination-out'; lctx.beginPath();
-          lctx.ellipse(cx, cy, Math.max(2, b.width * 0.26 * fx), Math.max(2, b.height * 0.47 * fy), 0, 0, Math.PI * 2); lctx.fill(); lctx.restore();
-        } catch (x) {}
+      lctx.restore();
+      const lsyv = Math.round(lm.x) + Math.round(lm.y);
+      for (const h of hahmot) {
+        if (h.syv + 0.01 < lsyv) continue;   // hahmo lammikon takana -> lammikko piirtyy sen päälle (oikein)
+        const b = h.b, cx = (b.x - r.left + b.width / 2) * fx, cy = (b.y - r.top + b.height * 0.5) * fy;
+        lctx.save(); lctx.globalCompositeOperation = 'destination-out'; lctx.beginPath();
+        lctx.ellipse(cx, cy, Math.max(2, b.width * 0.24 * fx), Math.max(2, b.height * 0.47 * fy), 0, 0, Math.PI * 2); lctx.fill(); lctx.restore();
       }
     }
   }
