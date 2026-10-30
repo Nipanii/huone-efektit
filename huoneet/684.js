@@ -382,8 +382,17 @@ const keskitaSpawnille = () => {
 
 // Huoneeseen tullessa Nitro asettaa oman offsetinsa viiveellä -> odotetaan että hahmo ja canvas ovat valmiina,
 // ja varmistetaan keskitys toistamalla kokeiluja 200 ms välein max ~5 s kunnes offset on vakiintunut.
+// Keskitys ajetaan vain OIKEALLA huoneeseen tulolla, EI skriptin live-päivityksessä (ohitetaan jos sama istunto/huone jatkuu).
+const istuntoOlio = istunto();
+// Istunto-OLIO (ei roomId): uusi huoneeseen tulo luo uuden istunto-olion, joten sama huone uudelleen keskittää taas.
+const nykyinenIstunto = istuntoOlio || huone;
+const keskitysMuisti = window.__h684Keskitys;
+const onSamaIstunto = !!istuntoOlio && !!keskitysMuisti && keskitysMuisti.huone === huone && keskitysMuisti.istunto === nykyinenIstunto;
+window.__h684Keskitys = { huone, istunto: nykyinenIstunto };
+
 let keskitysYritykset = 0;
 const aloitaKeskitys = () => {
+  if (onSamaIstunto) return;   // ohita keskitys live-päivityksessä
   const a = setInterval(() => {
     keskitysYritykset++;
     const pos = omaSijainti();
