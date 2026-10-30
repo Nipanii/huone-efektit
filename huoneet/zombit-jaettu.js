@@ -3,10 +3,13 @@
 //   Herra-Robottia 245). Ei kiinteitä spawneja: zombi syntyy kävelykelpoiselle lattiaruudulle mahdollisimman kauas kaikista pelaajista
 //   (BFS-reittietäisyys, ei linnuntie), deterministisesti siemenestä + tikistä, ei ovelle eikä alle ASETUS.oviEtaisyys ruudun päähän
 //   ovesta. Kiinni saanut zombi syntyy seuraavalla tikillä samalla säännöllä uudelleen.
-//   Kiinnijäänti -> ovelle wired-script-hybridillä: kun zombi saa OMAN pelaajan kiinni, skripti lähettää salaisen sanan (ASETUS.salasana)
-//   tavallisena chat-viestinä ja piilottaa sekä suun liikkeen (handleMessages-kaikunielu) että puhekuplan (MutationObserver), kuten 682.js.
-//   Huoneen wired (wf_trg_says_something [1,1,0] -> wf_act_teleport_to) hoitaa siirron ovelle. Ei 7016-muuttujateleporttia.
-//   Ei aseita, ei lobbya, ei vihreää lyhtyä, ei piikkejä, ei ansaa (ansa: null), ei :safe-poikkeusta muille kuin ASETUS.turvassa-listalle.
+// kp 30.10. 16:58-17:02:
+//   1) Zombikohtainen näköetäisyys + hystereesi: zombi huomaa pelaajan kun BFS-reittietäisyys <= ASETUS.huomaa (7), ja luopuu kun
+//      etäisyys > ASETUS.meneta (11). Näköpiirissä olevista valitaan "hitain" (pienin liike ikkunassa, tasapelissä pienin id).
+//   2) Ilman kohdetta zombi vaeltaa pysähtyillen: kulkee muutaman ruudun pätkiä (ASETUS.vaellusAskeleet 2..4, asento 'mv'),
+//      seisoo 2..5 tikkiä paikallaan (ASETUS.vaellusTauko, asento 'std'), ja jatkaa uuteen satunnaiseen suuntaan (deterministinen PRNG).
+//   3) Kiinnijäännin grace period: vaatii kontaktin (sama tai viereinen ruutu samaan pelaajaan) ASETUS.kontaktiMin..kontaktiMax (1..3)
+//      peräkkäistä tikkiä (arvotaan deterministisesti jokaiselle kosketukselle) ennen kuin pelaaja kuolee (zk684 -> ovelle) ja zombi spawnaa kauas.
 // Konsolissa: zombit.loki · zombit.zombit · zombit.kohde · zombit.ovi · zombit.safe(true|false) · zombit.asetus · zombit.kuva()
 const ASETUS = {
   maara: 3,            // zombien määrä
@@ -14,6 +17,13 @@ const ASETUS = {
   epookki: 300000,     // ms; uusi aalto + hajonnan raja
   ikkuna: 10000,       // ms; "hitain" mitataan tältä ajalta
   kohdeTapa: 'hitain', // kohdelogiikka ('hitain' = pienin kuljettu matka ikkunan aikana, tasapelissä pienin käyttäjä-id)
+  huomaa: 7,           // ruutua (reittietäisyys): zombi huomaa pelaajan, kun etäisyys zombista <= huomaa
+  meneta: 11,          // ruutua (reittietäisyys): zombi luopuu jahdattavasta pelaajasta, kun etäisyys > meneta (hystereesi)
+  vaellusAskeleet: [2, 4], // ruutua: vaeltaessa zombi liikkuu 2..4 ruudun pätkiä ('mv') ennen pysähdystä
+  vaellusTauko: [2, 5],    // tikkiä: vaeltaessa zombi seisoo 2..5 tikkiä ('std') paikallaan pätkien välissä
+  kontakti: 2,         // tikkiä: oletuskontaktiaika (jos kontaktiMin/kontaktiMax asetetaan samaksi tai kontakti muutetaan)
+  kontaktiMin: 1,      // tikkiä: vähimmäiskontaktiaika (grace period) samassa/viereisessä ruudussa ennen kiinnijääntiä
+  kontaktiMax: 3,      // tikkiä: enimmäiskontaktiaika (arvotaan deterministisesti 1..3 jokaiselle kosketukselle)
   ovi: { x: null, y: null }, // täytetään huoneesta mitattuna; jos null, luetaan clientin huonemallista (vain spawn-etäisyyteen)
   oviEtaisyys: 10,     // ruutua (reittietäisyys): ei ovelle eikä alle N ruudun päähän ovesta
   kaukana: 10,         // ruutua (reittietäisyys): vähimmäisetäisyys pelaajista syntyessä (jos mahdollista)
@@ -28,6 +38,7 @@ const ASETUS = {
   siemen: 684,         // deterministisen satunnaislukugeneraattorin siemen
   figuuri: 'hd-11509-1461.hr-3714-45.ch-3530-1330.lg-11495-1408.sh-3720-82',   // varalla; oikea luetaan huoneen Zombie-botilta
 };
+Object.defineProperty(ASETUS, 'menetä', { get: () => ASETUS.meneta, set: v => { ASETUS.meneta = v; } });
 
 const e = window.NitroDevTools && window.NitroDevTools.roomEngine;
 const huone = Number((kupla && kupla.roomId && kupla.roomId()) || (e && e.activeRoomId)) || 0;
@@ -206,21 +217,97 @@ const liike = (id) => {
   }
   return { s, hyppy };
 };
-const hitain = (P) => {
-  const { W, H, ok } = ruudukko; let paras = null;
-  for (const p of P) {
-    if (!onKohde(p)) continue;
-    let tavoitettava = false;
-    for (const [dx, dy] of [[0, 0]].concat(NAAP)) {
-      const x = p.x + dx, y = p.y + dy;
-      if (x >= 0 && y >= 0 && x < W && y < H && ok[y * W + x]) { tavoitettava = true; break; }
-    }
-    if (!tavoitettava) continue;   // yläkerroksessa tai muualla minne zombi ei pääse
-    // Teleportannut (yli 3 ruutua tikissä = kuoli ja siirtyi ovelle, tai tuli huoneeseen) ei ole kohde ikkunan aikana.
-    const l = liike(p.id); if (l.hyppy > 3) continue;
-    const m = l.s; if (!paras || m < paras.m) paras = { ...p, m };   // P on id-järjestyksessä -> tasapelissä pienin id
+const etaisyysPelaajaan = (dz, p) => {
+  const { W, H, ok } = ruudukko;
+  if (p.x >= 0 && p.y >= 0 && p.x < W && p.y < H && ok[p.y * W + p.x]) return dz[p.y * W + p.x];
+  let paras = -1;
+  for (const [dx, dy] of NAAP) {
+    const x = p.x + dx, y = p.y + dy;
+    if (x < 0 || y < 0 || x >= W || y >= H) continue;
+    const e = dz[y * W + x];
+    if (e >= 0 && (paras < 0 || e + 1 < paras)) paras = e + 1;
   }
   return paras;
+};
+const tavoitettava = (p) => {
+  const { W, H, ok } = ruudukko;
+  for (const [dx, dy] of [[0, 0]].concat(NAAP)) {
+    const x = p.x + dx, y = p.y + dy;
+    if (x >= 0 && y >= 0 && x < W && y < H && ok[y * W + x]) return true;
+  }
+  return false;
+};
+// Zombikohtainen kohdevalinta: huomaa pelaajan kun BFS-reittietäisyys <= ASETUS.huomaa (7),
+//   luopuu kun etäisyys > ASETUS.meneta (11; hystereesi). Näköpiirissä olevista valitaan "hitain" (pienin liike ikkunassa, tasapelissä pienin id).
+const valitseKohde = (z, dz, P) => {
+  const huomaa = Math.max(0, Number(ASETUS.huomaa ?? 7));
+  const meneta = Math.max(huomaa, Number(ASETUS.menetä ?? ASETUS.meneta ?? 11));
+  let paras = null;
+  for (const p of P) {
+    if (!onKohde(p)) continue;
+    const et = etaisyysPelaajaan(dz, p);
+    if (et < 0) continue;   // yläkerroksessa tai muualla minne zombi ei pääse
+    const raja = p.id === z.kohdeId ? meneta : huomaa;
+    if (et > raja) continue;   // näköpiirin ulkopuolella
+    // Teleportannut (yli 3 ruutua tikissä = kuoli ja siirtyi ovelle, tai tuli huoneeseen) ei ole kohde ikkunan aikana.
+    const l = liike(p.id); if (l.hyppy > 3) continue;
+    const m = l.s;
+    if (!paras || m < paras.m) paras = { ...p, m, et };   // P on id-järjestyksessä -> tasapelissä pienin id
+  }
+  return paras;
+};
+const lukuValilta = (pari, oletusMin, oletusMax, rnd) => {
+  const a = Array.isArray(pari) ? Number(pari[0]) : NaN, b = Array.isArray(pari) ? Number(pari[1]) : NaN;
+  const min = Math.max(1, isFinite(a) ? Math.floor(a) : oletusMin);
+  const max = Math.max(min, isFinite(b) ? Math.floor(b) : oletusMax);
+  return min + Math.floor(rnd() * (max - min + 1));
+};
+const arvoKontaktiRaja = (s0, k, zn, pid) => {
+  const kiintea = ASETUS.kontakti !== 2 && ASETUS.kontaktiMin === 1 && ASETUS.kontaktiMax === 3;
+  const minK = Math.max(1, Math.floor(Number(kiintea ? ASETUS.kontakti : (ASETUS.kontaktiMin ?? ASETUS.kontakti ?? 1))));
+  const maxK = Math.max(minK, Math.floor(Number(kiintea ? ASETUS.kontakti : (ASETUS.kontaktiMax ?? ASETUS.kontakti ?? 3))));
+  const rnd = arpa(s0 * 4999 + k * 6151 + zn * 97 + (pid || 0));
+  return minK + Math.floor(rnd() * (maxK - minK + 1));
+};
+// Vaellus ilman kohdetta: liikkuu muutaman ruudun pätkiä (vaellusAskeleet 2..4, asento 'mv'),
+//   seisoo hetken paikallaan (vaellusTauko 2..5 tikkiä, asento 'std'), ja jatkaa uuteen satunnaiseen suuntaan.
+const vaella = (k, z, varattu, s0, a) => {
+  const rnd = arpa(s0 * 1009 + k * 9176 + z.n * 37);
+  if (z.vTauko > 0) {
+    z.vTauko--;
+    return;   // seisoo paikallaan -> px === x, py === y -> asento 'std'
+  }
+  if (!(z.vAsk > 0)) {
+    z.vAsk = lukuValilta(ASETUS.vaellusAskeleet, 2, 4, rnd);
+    z.vDx = 0; z.vDy = 0;
+  }
+  const { W, H, ok } = ruudukko, ehdokkaat = [];
+  for (const [dx, dy] of NAAP) {
+    const x = z.x + dx, y = z.y + dy, j = y * W + x;
+    if (x < 0 || y < 0 || x >= W || y >= H || !ok[j] || varattu.has(j)) continue;
+    if (a && x === a.x && y === a.y) continue;
+    if (dx !== 0 && dy !== 0 && (!ok[z.y * W + x] || !ok[y * W + z.x])) continue;
+    ehdokkaat.push({ x, y, dx, dy });
+  }
+  if (!ehdokkaat.length) {
+    z.vAsk = 0; z.vDx = 0; z.vDy = 0;
+    z.vTauko = lukuValilta(ASETUS.vaellusTauko, 2, 5, rnd);
+    return;
+  }
+  let valittu = (z.vDx || z.vDy) ? ehdokkaat.find(e => e.dx === z.vDx && e.dy === z.vDy) : null;
+  if (!valittu) {
+    const vastasuunta = (z.suunta + 4) & 7;
+    const muut = ehdokkaat.filter(e => suunnaksi(e.dx, e.dy) !== vastasuunta);
+    const joukko = muut.length ? muut : ehdokkaat;
+    valittu = joukko[Math.floor(rnd() * joukko.length)];
+    z.vDx = valittu.dx; z.vDy = valittu.dy;
+  }
+  z.x = valittu.x; z.y = valittu.y; z.suunta = suunnaksi(valittu.dx, valittu.dy);
+  z.vAsk--;
+  if (z.vAsk <= 0) {
+    z.vDx = 0; z.vDy = 0;
+    z.vTauko = lukuValilta(ASETUS.vaellusTauko, 2, 5, rnd);
+  }
 };
 
 // Spawn ilman kiinteitä pisteitä: kävelykelpoinen lattiaruutu mahdollisimman kaukana kaikista pelaajista (BFS-reittietäisyys),
@@ -269,26 +356,52 @@ const synny = (k, P) => {
   for (let n = 0; n < ASETUS.maara; n++) {
     const r = kaukainen(P, arpa(s0 * 7919 + k * 101 + n), varattu);
     varattu.add(r.y * W + r.x);
-    z.push({ n, x: r.x, y: r.y, px: r.x, py: r.y, kuoli: -1, suunta: 4 });
+    z.push({
+      n, x: r.x, y: r.y, px: r.x, py: r.y, kuoli: -1, suunta: 4,
+      kohdeId: null, kohde: null,
+      vAsk: 0, vTauko: n % 3, vDx: 0, vDy: 0,
+      kontaktiId: null, kontakti: 0, kontaktiRaja: 0, syoId: null,
+    });
   }
   return z;
 };
+const etsiKontakti = (z, P) => {
+  const ehdokkaat = P.filter(p => onKohde(p) && Math.max(Math.abs(z.x - p.x), Math.abs(z.y - p.y)) <= 1 && tavoitettava(p) && liike(p.id).hyppy <= 3);
+  if (!ehdokkaat.length) return null;
+  if (z.kontaktiId != null) {
+    const sama = ehdokkaat.find(p => p.id === z.kontaktiId);
+    if (sama) return sama;
+  }
+  if (z.kohdeId != null) {
+    const jahdattu = ehdokkaat.find(p => p.id === z.kohdeId);
+    if (jahdattu) return jahdattu;
+  }
+  return ehdokkaat[0];
+};
 const askel = (k, Z, P) => {
   kirjaa(k, P);
-  const a = ansaRuutu(), kohde = hitain(P), d = kohde ? kentta(kohde.x, kohde.y) : null, { W, H, ok } = ruudukko, varattu = new Set(), s0 = perusSiemen();
+  const a = ansaRuutu(), { W, H, ok } = ruudukko, varattu = new Set(), s0 = perusSiemen(), kentat = new Map();
+  let ekaKohde = null;
   for (const z of Z) if (z.kuoli < 0) varattu.add(z.y * W + z.x);
   for (const z of Z) {
     z.px = z.x; z.py = z.y;
     if (z.kuoli >= 0) {
       const r = kaukainen(P, arpa(s0 * 31 + k * 101 + z.n), varattu);
-      z.x = z.px = r.x; z.y = z.py = r.y; z.kuoli = -1; z.syo = false; z.synty = k;
+      z.x = z.px = r.x; z.y = z.py = r.y; z.kuoli = -1; z.syo = false; z.syoId = null; z.synty = k;
+      z.kohdeId = null; z.kohde = null; z.vAsk = 0; z.vTauko = 0; z.vDx = 0; z.vDy = 0;
+      z.kontaktiId = null; z.kontakti = 0; z.kontaktiRaja = 0;
       varattu.add(z.y * W + z.x); continue;
     }
-    if (P.some(p => onKohde(p) && p.x === z.x && p.y === z.y)) {
-      z.kuoli = k; z.syo = true; continue;
-    }
     varattu.delete(z.y * W + z.x);
-    if (d) {
+    const dz = kentta(z.x, z.y);
+    const oliKohde = z.kohdeId != null;
+    const kohde = valitseKohde(z, dz, P);
+    if (kohde) {
+      z.kohdeId = kohde.id; z.kohde = kohde;
+      z.vAsk = 0; z.vTauko = 0; z.vDx = 0; z.vDy = 0;
+      if (!ekaKohde) ekaKohde = kohde;
+      let d = kentat.get(kohde.id);
+      if (!d) { d = kentta(kohde.x, kohde.y); kentat.set(kohde.id, d); }
       let paras = null; const nyt = d[z.y * W + z.x];
       for (const [dx, dy] of NAAP) {
         const x = z.x + dx, y = z.y + dy, j = y * W + x;
@@ -296,15 +409,41 @@ const askel = (k, Z, P) => {
         if ((nyt < 0 || d[j] < nyt) && (!paras || d[j] < paras.d)) paras = { x, y, d: d[j], dx, dy };
       }
       if (paras) { z.x = paras.x; z.y = paras.y; z.suunta = suunnaksi(paras.dx, paras.dy); }
+      else if (kohde.x !== z.x || kohde.y !== z.y) z.suunta = suunnaksi(Math.sign(kohde.x - z.x), Math.sign(kohde.y - z.y));
+    } else {
+      z.kohdeId = null; z.kohde = null;
+      if (oliKohde) {
+        const rnd = arpa(s0 * 1009 + k * 9176 + z.n * 37);
+        z.vAsk = 0; z.vDx = 0; z.vDy = 0;
+        z.vTauko = lukuValilta(ASETUS.vaellusTauko, 2, 5, rnd);
+      }
+      vaella(k, z, varattu, s0, a);
     }
     varattu.add(z.y * W + z.x);
-    if (a && z.x === a.x && z.y === a.y) z.kuoli = k;
-    // Kiinni saatu: zombi "syö" tämän tikin ja syntyy seuraavalla tikillä kauas kaikista pelaajista.
-    else if (P.some(p => onKohde(p) && ((p.x === z.x && p.y === z.y) || (!ok[p.y * W + p.x] && kohde && p.id === kohde.id && Math.max(Math.abs(z.x - p.x), Math.abs(z.y - p.y)) <= 1)))) {
-      z.kuoli = k; z.syo = true;
+    if (a && z.x === a.x && z.y === a.y) {
+      z.kuoli = k; z.kontaktiId = null; z.kontakti = 0; z.kontaktiRaja = 0;
+      continue;
+    }
+    // Kiinnijäännin grace period: vaatii kontaktin (sama tai viereinen ruutu) samaan pelaajaan kontaktiRaja (1..3) peräkkäistä tikkiä.
+    const kp = etsiKontakti(z, P);
+    if (kp) {
+      if (z.kontaktiId === kp.id) {
+        z.kontakti = (z.kontakti || 0) + 1;
+      } else {
+        z.kontaktiId = kp.id;
+        z.kontakti = 1;
+        z.kontaktiRaja = arvoKontaktiRaja(s0, k, z.n, kp.id);
+      }
+      if (kp.x !== z.x || kp.y !== z.y) z.suunta = suunnaksi(Math.sign(kp.x - z.x), Math.sign(kp.y - z.y));
+      if (z.kontakti >= z.kontaktiRaja) {
+        z.kuoli = k; z.syo = true; z.syoId = kp.id; z.viimeSyoId = kp.id; z.viimeSyoK = k;
+        z.kontaktiId = null; z.kontakti = 0; z.kontaktiRaja = 0;
+      }
+    } else {
+      z.kontaktiId = null; z.kontakti = 0; z.kontaktiRaja = 0;
     }
   }
-  return kohde;
+  return ekaKohde;
 };
 const suunnaksi = (dx, dy) => ({ '0,-1': 0, '1,-1': 1, '1,0': 2, '1,1': 3, '0,1': 4, '-1,1': 5, '-1,0': 6, '-1,-1': 7 })[dx + ',' + dy] ?? 4;
 
@@ -339,7 +478,12 @@ const piirra = () => {
     } catch (x) {}
   }
 };
-tila.kuva = () => tila.zombit.map(z => ({ n: z.n, x: z.x, y: z.y, kuoli: z.kuoli, id: piirretyt.get(z.n) }));
+tila.kuva = () => tila.zombit.map(z => ({
+  n: z.n, x: z.x, y: z.y, kuoli: z.kuoli, kohde: z.kohdeId ?? null,
+  tila: z.kuoli >= 0 ? 'kuoli' : z.kohdeId != null ? 'jahtaa' : z.vTauko > 0 ? 'seisoo' : 'vaeltaa',
+  kontakti: z.kontakti ? (z.kontakti + '/' + z.kontaktiRaja) : null,
+  id: piirretyt.get(z.n),
+}));
 
 // ---- wired-script-hybridi (682.js:153-206, 442): salaisen sanan lähetys + kaiun nielu (suu ei liiku) + puhekuplan piilotus
 let koukkuYhteys = null, koukkuOma = null, koukkuAlkup = null;
@@ -404,7 +548,7 @@ const omaRuutu = () => {
   const o = e.getRoomObject(huone, i, 100), L = o && o.getLocation();
   return L ? { i, x: Math.round(L.x), y: Math.round(L.y) } : null;
 };
-let kuolemaKaynnissa = 0, safeIlmoitettu = 0;
+let kuolemaKaynnissa = 0, safeIlmoitettu = 0, omaViimeSyoK = -1;
 const kuole = (syy) => {
   const nyt = Date.now(), lukko = Math.max(1000, Number(ASETUS.kuolemaLukko) || 5000);
   if (nyt - kuolemaKaynnissa < lukko) return;
@@ -416,16 +560,19 @@ const kuole = (syy) => {
   const o = omaRuutu(), ok = sanoSalainen();
   lokiin({ kuolema: syy, tapa: ok ? 'wired-salasana (' + ASETUS.salasana + ')' : 'salasanan lähetys epäonnistui', ennen: o && [o.x, o.y] });
 };
-const hitainId = () => tila.kohde && tila.kohde.id;
 const tarkistaOma = () => {
   if (Date.now() - ALKU < ARMO) return;
-  if (!onKohde({ id: omaId() })) return;
+  const id = omaId();
+  if (!onKohde({ id })) return;
   const o = omaRuutu(); if (!o) return;
   const a = ansaRuutu();
   if (a && o.x === a.x && o.y === a.y) return kuole('Astuit ansaan!');
-  for (const z of tila.zombit) if ((z.kuoli < 0 || z.syo) && z.x === o.x && z.y === o.y) return kuole('Zombi sai sinut kiinni!');
-  if (!ruudukko.ok[o.y * ruudukko.W + o.x]) for (const z of tila.zombit)   // tuolilla tms.: zombi viereisessä ruudussa riittää
-    if ((z.kuoli < 0 || z.syo) && Math.max(Math.abs(z.x - o.x), Math.abs(z.y - o.y)) <= 1 && ruudukko.ok[z.y * ruudukko.W + z.x] && hitainId() === omaId()) return kuole('Zombi sai sinut kiinni!');
+  for (const z of tila.zombit) {
+    if ((z.syo && z.syoId === id) || (z.viimeSyoId === id && z.viimeSyoK > omaViimeSyoK && SAILO.K - z.viimeSyoK <= 2)) {
+      omaViimeSyoK = z.viimeSyoK ?? SAILO.K;
+      return kuole('Zombi sai sinut kiinni!');
+    }
+  }
 };
 
 // ---- kello
