@@ -595,8 +595,26 @@ const valitseKohde = (z, dz, P, k, tMs, s0) => {
 
   if (!ehdokkaat.length) return null;
 
+  // kp 21:54 "menin zombie jono välii ku jahtas toista · ei tullu mun kimppuu": vieressä (BFS <= ASETUS.vieressa, oletus 1) oleva pelaaja
+  //   voittaa aina: jahdatessa vaihto heti ilman arvontaa ja ilman reaktioviivettä, jos hän on lähempänä kuin nykyinen kohde;
+  //   ilman kohdetta valitaan lähin vieressä oleva (muuten hitain kuten ennen).
+  const vieressaRaja = Math.max(0, Number(ASETUS.vieressa ?? 1));
+  const vieressa = ehdokkaat.filter(e => e.et <= vieressaRaja).sort((p, q) => p.et - q.et || p.m - q.m || p.id - q.id)[0] || null;
+
   // 1. Jos zombi jo jahtaa kohdetta ja nykyinen kohde on yhä kelvollinen:
   if (nykyinenP) {
+    if (vieressa && vieressa.id !== z.kohdeId && vieressa.et < nykyinenEt) {
+      z._vaihdettuKohteeseen = true; z._valitonVaihto = true;
+      return vieressa;
+    }
+    // kp 22:19 "purkka korjaus. jos on puolet lähempänä kuin jahdattava esim niin pitäs riittää": pelaaja, jonka BFS-etäisyys on
+    //   enintään ASETUS.vaihtoSuhde (0.5) x nykyisen kohteen etäisyys (ja <= huomaa), vie kohteen aina, ilman arvontaa (normaali reaktioviive).
+    const vaihtoSuhde = Number(ASETUS.vaihtoSuhde ?? 0.5);
+    if (vaihtoSuhde > 0) {
+      const puolet = ehdokkaat.filter(e => e.id !== z.kohdeId && e.et <= huomaa && e.et <= nykyinenEt * vaihtoSuhde)
+        .sort((p, q) => p.et - q.et || p.m - q.m || p.id - q.id)[0];
+      if (puolet) { z._vaihdettuKohteeseen = true; return puolet; }
+    }
     // A) Äänivaihto (kp 19:15): kun jahtaava zombi kuulee uuden äänen pelaajalta B != kohdeId ja B on lähellä (et <= huomaa; huuto x1.5)
     if (Array.isArray(SAILO.aanet) && SAILO.aanet.length) {
       const kestoMs = Math.max(1000, aikaMs(ASETUS.aaniKesto ?? 30000, 30));
@@ -651,7 +669,8 @@ const valitseKohde = (z, dz, P, k, tMs, s0) => {
     return nykyinenP;
   }
 
-  // 2. Ei nykyistä kohdetta -> valitaan hitain (pienin liike ikkunassa, tasapelissä pienin id)
+  // 2. Ei nykyistä kohdetta -> vieressä oleva ensin, muuten hitain (pienin liike ikkunassa, tasapelissä pienin id)
+  if (vieressa) return vieressa;
   let paras = null;
   for (const e of ehdokkaat) {
     if (!paras || e.m < paras.m) paras = e;
@@ -1181,10 +1200,11 @@ const askel = (k, Z, P) => {
       varattu.delete(z.y * W + z.x);
       const dz = kentta(z.x, z.y);
       const oliKohde = z.kohdeId != null;
-      z._vaihdettuKohteeseen = false;
+      z._vaihdettuKohteeseen = false; z._valitonVaihto = false;
       const kohde = valitseKohde(z, dz, P, k, tMs, s0);
       if (kohde) {
-        if (!oliKohde || z._vaihdettuKohteeseen) {
+        if (z._valitonVaihto) z.reaktioAsti = tMs;   // jahtaava zombi kääntyy vieressä olevaan heti, ei 0..3 s reaktiota
+        else if (!oliKohde || z._vaihdettuKohteeseen) {
           const rMs = arvoReaktioMs(s0, k, z.n);
           z.reaktioAsti = tMs + rMs;
         }
