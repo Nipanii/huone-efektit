@@ -164,6 +164,35 @@ const sanoSalainen = sana => {
 tila._sanoSalainen = sanoSalainen;
 koukku();
 
+// kp 20:22 "handitem komennot pitää olla disabled täs huonees · ettei voi huijata tai pistää pois kynttilää/lyhtyä":
+//   (1) :handitem/:hand/:item -komennot (komennot-palvelin.json cmd_hand_item) niellään ennen lähetystä (chat/huuto/kuiskaus),
+//   (2) clientin oma handitemControlBlocked-lippu päälle (DarkUI HanditemActionPolicy: piilottaa drop_carry_item + pass_hand_item).
+const KASI_KOMENTO = /^s*:s*(handitem|hand|item)b/i;
+let kasiSessio = null, kasiAlkup = null, kasiLippuAlkup = null;
+const kasiEsto = () => {
+  const s = istunto(); if (!s || kasiSessio === s) return;
+  puraKasiEsto(); kasiSessio = s; kasiAlkup = {}; kasiLippuAlkup = s.handitemControlBlocked;
+  for (const m of ['sendChatMessage', 'sendShoutMessage', 'sendWhisperMessage']) {
+    const alkup = s[m]; if (typeof alkup !== 'function') continue; kasiAlkup[m] = alkup;
+    s[m] = function (...a) { const t = m === 'sendWhisperMessage' ? a[1] : a[0];
+      if (typeof t === 'string' && KASI_KOMENTO.test(t)) { ilmoitaKasi(); return; } return alkup.apply(this, a); };
+  }
+  try { s.handitemControlBlocked = true; } catch (x) {}
+};
+const puraKasiEsto = () => {
+  const s = kasiSessio; if (!s) return;
+  for (const m of Object.keys(kasiAlkup || {})) { try { if (Object.getPrototypeOf(s)[m] === kasiAlkup[m]) delete s[m]; else s[m] = kasiAlkup[m]; } catch (x) {} }
+  try { s.handitemControlBlocked = !!kasiLippuAlkup; } catch (x) {}
+  kasiSessio = null; kasiAlkup = null;
+};
+let kasiIlmoitettu = 0;
+const ilmoitaKasi = () => { const nyt = Date.now(); if (nyt - kasiIlmoitettu < 3000) return; kasiIlmoitettu = nyt;
+  try { const d = document.createElement('div'); d.textContent = 'Käsiesinekomennot eivät toimi tässä huoneessa';
+    d.style.cssText = 'position:fixed;left:50%;top:14%;transform:translateX(-50%);z-index:99999;pointer-events:none;padding:8px 16px;background:rgba(0,0,0,.75);color:#fff;font:bold 15px sans-serif;border-radius:6px';
+    document.body.appendChild(d); setTimeout(() => d.remove(), 2000); } catch (x) {} };
+kasiEsto();
+const kasiAjastin = setInterval(kasiEsto, 2000);
+
 // Chat-komento: kaapataan Enter ennen pelin omaa käsittelijää (sama kenttä ja tapa kuin pitka-viesti-lisäosassa).
 const KENTTA = 'input.nitro-chat-input-control', KOMENTO = /^:efektit(?:\s+(pois|päälle|paalle|on|off))?$/i;
 const LYHTY_KOMENTO = /^:lyhty$/i, KYNTTILA_KOMENTO = /^:kynttil[äa]$/i, KOMENTO_LUKKO_MS = 2000;
@@ -432,5 +461,6 @@ keskitysAjastimet.add(siirtymaVahti);
 return () => { aktiivinen = false; cancelAnimationFrame(raf); removeEventListener('keydown', kuuleKomento, true);
   kuplaVahti.disconnect(); for (const a of kuplaAjastimet) clearTimeout(a); kuplaAjastimet.clear();
   for (const a of keskitysAjastimet) { clearInterval(a); clearTimeout(a); } keskitysAjastimet.clear();
+  puraKasiEsto(); clearInterval(kasiAjastin);
   puraKoukku(); if (typeof queueMicrotask === 'function') queueMicrotask(puraKoukku);
   kerros.remove(); if (window.pimeys === tila) delete window.pimeys; };

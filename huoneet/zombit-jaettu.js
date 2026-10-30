@@ -1371,7 +1371,11 @@ const piirraLammikot = () => {
         if (!o || String(o.type) !== 'user') continue;
         try {
           const b = e.getRoomObjectBoundingRectangle(huone, o.id, 100, 1); if (!b || !(b.width > 0)) continue;
-          lctx.clearRect((b.x - r.left) * fx, (b.y - r.top) * fy, b.width * fx, b.height * fy);
+          // kp 20:25 "ku menee lähelle verilammikkoo nii veri katoo · alue hahmon ympäril": koko laatikko oli liian iso ->
+          //   pyyhitään vain hahmon muotoinen kapea soikio (laatikon keskiosa), ei laatikon tyhjiä kulmia.
+          const cx = (b.x - r.left + b.width / 2) * fx, cy = (b.y - r.top + b.height * 0.5) * fy;
+          lctx.save(); lctx.globalCompositeOperation = 'destination-out'; lctx.beginPath();
+          lctx.ellipse(cx, cy, Math.max(2, b.width * 0.26 * fx), Math.max(2, b.height * 0.47 * fy), 0, 0, Math.PI * 2); lctx.fill(); lctx.restore();
         } catch (x) {}
       }
     }
