@@ -54,6 +54,7 @@ const ASETUS = {
   tutkiRaja: 1.8,      // äänen voimakkuusraja: tämän ylittävä ääni katkaisee vaellustauon heti ja laittaa zombin tutkimaan äänen lähtöruutua
   tutkiEtaisyys: 2,    // ruutua (BFS-reitti): zombi tutkii kunnes on <= N ruudun päässä äänen lähtöruudusta
   ovi: { x: null, y: null }, // täytetään huoneesta mitattuna; jos null, luetaan clientin huonemallista (vain spawn-etäisyyteen)
+  eiSpawnia: [[20, 34, 28, 37]],   // alanurkan tasku (Mesa Escopeta 22,37), kp 30.10. 18:59
   oviEtaisyys: 10,     // ruutua (reittietäisyys): ei ovelle eikä alle N ruudun päähän ovesta
   kaukana: 10,         // ruutua (reittietäisyys): vähimmäisetäisyys pelaajista syntyessä (jos mahdollista)
   hajonta: 3,          // ruutua: syntyruutu valitaan kauimpien ruutujen kärjestä (maxEtaisyys - hajonta .. maxEtaisyys)
@@ -609,12 +610,15 @@ const vaella = (k, tMs, tikki, z, dz, varattu, s0, a, kentat) => {
 
 // Spawn ilman kiinteitä pisteitä: kävelykelpoinen lattiaruutu mahdollisimman kaukana kaikista pelaajista (BFS-reittietäisyys),
 //   ei ovelle eikä alle ASETUS.oviEtaisyys ruudun päähän ovesta, deterministisesti siemenestä + tikistä.
+// kp 30.10. 18:59 "tuol on alue mihin ei sais spawnata zombeja" (osoitti Mesa Escopeta 446609 @ 22,37): ASETUS.eiSpawnia = [x0, y0, x1, y1] -suorakaiteet.
+const eiSpawnia = (x, y) => (Array.isArray(ASETUS.eiSpawnia) ? ASETUS.eiSpawnia : []).some(r => Array.isArray(r) && x >= r[0] && y >= r[1] && x <= r[2] && y <= r[3]);
 const kaukainen = (P, rnd, varattu) => {
   const { W, H, ok, ruudut, ovi, dOvi } = ruudukko, a = ansaRuutu(), minOvi = Math.max(1, Number(ASETUS.oviEtaisyys) || 0);
   let ehdokkaat = ruudut.filter(i => {
     const x = i % W, y = (i - x) / W;
     if (a && x === a.x && y === a.y) return false;
     if (ovi && x === ovi.x && y === ovi.y) return false;
+    if (eiSpawnia(x, y)) return false;
     return true;
   });
   if (!ehdokkaat.length) ehdokkaat = ruudut.slice();
