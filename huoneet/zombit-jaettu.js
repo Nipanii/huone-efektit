@@ -1281,6 +1281,18 @@ const piirraLammikot = () => {
     }
   }
   lctx.restore();
+  // kp 20:02 "veri rendaa pelaajan hahmon päälle": hahmot (pelaajat + zombit) peittävät lattialla olevan lammikon ->
+  //   pyyhitään lammikkokerroksesta jokaisen hahmon TARKKA ruutulaatikko (getRoomObjectBoundingRectangle, CSS-px), ei arvioitua kaistaa.
+  if (lammikot.length && typeof e.getRoomObjectBoundingRectangle === 'function' && r.width > 0) {
+    const fx = W / r.width, fy = H / r.height;
+    for (const o of e.getRoomObjects(huone, 100) || []) {
+      if (!o || String(o.type) !== 'user') continue;
+      try {
+        const b = e.getRoomObjectBoundingRectangle(huone, o.id, 100, 1); if (!b || !(b.width > 0)) continue;
+        lctx.clearRect((b.x - r.left) * fx, (b.y - r.top) * fy, b.width * fx, b.height * fy);
+      } catch (x) {}
+    }
+  }
 };
 
 const piirretyt = new Map(), piirrettyAsento = new Map();   // n -> objekti-id, n -> viimeksi piirretty asento
@@ -1441,7 +1453,7 @@ const omaRuutu = () => {
   const o = e.getRoomObject(huone, i, 100), L = o && o.getLocation();
   return L ? { i, x: Math.round(L.x), y: Math.round(L.y) } : null;
 };
-let kuolemaKaynnissa = 0, safeIlmoitettu = 0, omaViimeSyoK = -1;
+let kuolemaKaynnissa = 0, safeIlmoitettu = 0, omaViimeSyoK = -1, odottavaKuolema = null;
 const kuole = (syy) => {
   const nyt = Date.now(), makuuMs = Math.max(0, Number(ASETUS.kuolemaMakuu ?? 1500));
   const lukko = Math.max(1000, Number(ASETUS.kuolemaLukko) || 5000);
@@ -1460,7 +1472,10 @@ const kuole = (syy) => {
     lokiin({ kuolema: syy, tapa: ok ? 'wired-salasana (' + ASETUS.salasana + ')' : 'salasanan lähetys epäonnistui', ennen: o && [o.x, o.y], makuuMs });
   };
   if (makuuMs > 0) {
-    const aj = setTimeout(() => { kuplaAjastimet.delete(aj); laheta(); }, makuuMs);
+    // kp 20:02 "mun hahmo ei teleportannu ollenkaa kuoleman jälkee": live-päivitys kesken makuun pyyhki ajastimen -> zk684 jäi lähtemättä.
+    //   Odottava lähetys talteen; siivous lähettää sen heti (ks. return-siivous).
+    const aj = setTimeout(() => { kuplaAjastimet.delete(aj); odottavaKuolema = null; laheta(); }, makuuMs);
+    odottavaKuolema = { aj, laheta };
     if (aj && typeof aj.unref === 'function') aj.unref();
     kuplaAjastimet.add(aj);
   } else {
@@ -1570,6 +1585,7 @@ return () => {
   if (vayla && typeof vayla.removeEventListener === 'function') vayla.removeEventListener('RSCE_CHAT_EVENT', kuuleChat);
   if (lammikkoKanvas && lammikkoKanvas.remove) lammikkoKanvas.remove();
   kuplaVahti.disconnect();
+  if (odottavaKuolema) { const k = odottavaKuolema; odottavaKuolema = null; clearTimeout(k.aj); try { k.laheta(); } catch (x) {} }   // ei jätetä kuolemaa lähtemättä
   for (const a of kuplaAjastimet) clearTimeout(a); kuplaAjastimet.clear();
   for (const a of makuuAjastimet) clearTimeout(a); makuuAjastimet.clear();
   try {
