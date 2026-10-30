@@ -667,6 +667,8 @@ const luoLammikko = (x, y, zn, kp, k, tMs, s0) => {
 const luoMuuttunut = (kp, suunta, k, tMs, tikki, s0) => {
   const lukkoMs = Math.max(1000, Number(ASETUS.kuolemaLukko) || 5000);
   if (SAILO.muuttuneet.some(m => m.lahdeId === kp.id && tMs - m.syntyMs < lukkoMs)) return null;
+  // kp 30.10. 18:58 "piti tulla vaan yks kerrallaan": yksi muuttunut per pelaaja, uusi kuolema korvaa vanhan (ja sen lammikon)
+  SAILO.muuttuneet = SAILO.muuttuneet.filter(m => m.lahdeId !== kp.id);
   const maxM = Math.max(1, Math.floor(Number(ASETUS.muuttuneitaMax ?? 4)));
   while (SAILO.muuttuneet.length >= maxM) SAILO.muuttuneet.shift();
   const zn = ++SAILO.seuraavaMuuttunutN;
@@ -908,16 +910,22 @@ const askel = (k, Z, P) => {
 const suunnaksi = (dx, dy) => ({ '0,-1': 0, '1,-1': 1, '1,0': 2, '1,1': 3, '0,1': 4, '-1,1': 5, '-1,0': 6, '-1,-1': 7 })[dx + ',' + dy] ?? 4;
 
 // ---- piirto (paikalliset hahmot negatiivisilla id:illä + värilammikot kanvaksella lattian päällä, vain tässä clientissä)
-let V = null, figuuri = ASETUS.figuuri, seuraavaId = -950001;
+let V = null, figuuri = ASETUS.figuuri, seuraavaId = -950001, asut = [];
+// kp 30.10. 18:58 "tarvittais enemmän eri näkösiä zombeja": pohja-asu kiertää huoneen kaikista Zombie-boteista (id-järjestys, sama kaikilla)
+//   ja jokainen saa Left 4 Kuplan zombifioinnin omalla siemenellä (iho, pää, tummennus) -> eri näköisiä myös saman pohjan päällä.
+const valitseAsu = z => { const lista = asut.length ? asut : [figuuri], n = Math.abs(Number(z.n) || 0) + Math.abs(Number(SAILO.E) || 0);
+  return zombifioiAsu(lista[n % lista.length], (n * 7919 + 104729) >>> 0) || lista[n % lista.length]; };
 const valmistele = () => {
-  const s = istunto(), ud = s && s.userDataManager; let loydetty = false;
+  const s = istunto(), ud = s && s.userDataManager; let loydetty = false; const uudetAsut = [];
   for (const o of [...(e.getRoomObjects(huone, 100) || [])].sort((a, b) => a.id - b.id)) {
     if (!V && o.getLocation) V = o.getLocation().constructor;
     const u = ud && ud.getUserDataByIndex && ud.getUserDataByIndex(o.id);
-    if (!loydetty && u && /zombi/i.test(String(u.name || '')) && /bot/i.test(String(o.type))) {
-      const f = o.model && o.model.getValue('figure'); if (f) { figuuri = f; loydetty = true; }
+    if (u && /zombi/i.test(String(u.name || '')) && /bot/i.test(String(o.type))) {
+      const f = o.model && o.model.getValue('figure');
+      if (f) { if (!loydetty) { figuuri = f; loydetty = true; } if (!uudetAsut.includes(f)) uudetAsut.push(f); }
     }
   }
+  if (uudetAsut.length) asut = uudetAsut;
   if (!V) { const f = (e.getRoomObjects(huone, 10) || [])[0]; if (f && f.getLocation) V = f.getLocation().constructor; }
   return !!V;
 };
@@ -1000,7 +1008,7 @@ const piirra = () => {
     const p = Math.max(0, Math.min(1, (nyt - alkuMs) / askelMs));
     let g = piirretyt.get(z.n);
     const x = z.px + (z.x - z.px) * p, y = z.py + (z.y - z.py) * p, zz = Math.max(0, Z[Math.round(y) * ruudukko.W + Math.round(x)] || 0), sd = z.suunta * 45;
-    const asu = (z.muuttunut && z.figuuri) ? z.figuuri : figuuri;
+    const asu = (z.muuttunut && z.figuuri) ? z.figuuri : (z._asu || (z._asu = valitseAsu(z)));
     if (g == null) { g = seuraavaId--; if (!e.addRoomObjectUser(huone, g, new V(x, y, zz), new V(sd), sd, 1, asu)) continue; piirretyt.set(z.n, g); }
     try {
       e.updateRoomObjectUserLocation(huone, g, new V(x, y, zz), null, false, 0, new V(sd), sd, true, false, 16);
