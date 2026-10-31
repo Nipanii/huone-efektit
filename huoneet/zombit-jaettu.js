@@ -875,7 +875,7 @@ const kohtiSafeHousea = (k, tMs, tikki, z, varattu, s0, a, kentat) => {
   const S = safeHouseTila(), iskuMs = Math.max(tikki, Number(SH.iskuMs) || 1000);
   if (S && !SYNK.seuraa() && tMs - (z.shIsku ?? -1e15) >= iskuMs) {
     z.shIsku = tMs;
-    const ennen = S.hp; S.hp = Math.max(0, S.hp - Math.max(0, Number(SH.vahinko) || 1)); S.iskut++; S.viime = tMs;
+    const ennen = S.hp; S.hp = Math.max(0, S.hp - Math.max(0, Number(SH.vahinko) || 1)); S.iskut++; S.viime = tMs; S.ix = z.x; S.iy = z.y;
     if (ennen > 0 && S.hp <= 0) lokiin({ safeHouse: 'HP 0 (vaihe 2: pelin loppu ei toteutettu)', iskut: S.iskut });
   }
   return true;
@@ -2571,7 +2571,7 @@ AMMUNTA = (() => {
   // seuraaja: pisteet, HP:t, tuoreet tapot (ruumis kaikille) ja päättyneet runit johtajan snapshotista
   const omaksu = (snap, P) => {
     vuoroOmaksu(snap);   // 811 vuoro: johtajan päätös voittaa
-    if (ASETUS.safeHouse && Array.isArray(snap.sh)) { const S = safeHouseTila(); if (S) { S.hp = Math.max(0, Number(snap.sh[0]) || 0); S.max = Math.max(1, Number(snap.sh[1]) || S.max); S.iskut = snap.sh[2] | 0; } }   // vaihe 1c
+    if (ASETUS.safeHouse && Array.isArray(snap.sh)) { const S = safeHouseTila(); if (S) { S.hp = Math.max(0, Number(snap.sh[0]) || 0); S.max = Math.max(1, Number(snap.sh[1]) || S.max); S.iskut = snap.sh[2] | 0; S.ix = snap.sh[3]; S.iy = snap.sh[4]; } }   // vaihe 1c
     if (snap.ta && typeof snap.ta === 'object') {
       const uusi = {};
       for (const [k, a] of Object.entries(snap.ta)) { const id = Number(k); if (!(id > 0) || !Array.isArray(a)) continue;
@@ -2598,7 +2598,7 @@ AMMUNTA = (() => {
   };
   const snapLisaa = (snap) => {
     vuoroSnap(snap);   // 811 vuoro (vu, vn, vv)
-    if (ASETUS.safeHouse) { const S = safeHouseTila(); if (S) snap.sh = [Math.round(S.hp * 10) / 10, S.max, S.iskut | 0]; }   // vaihe 1c
+    if (ASETUS.safeHouse) { const S = safeHouseTila(); if (S) snap.sh = [Math.round(S.hp * 10) / 10, S.max, S.iskut | 0, S.ix, S.iy]; }   // vaihe 1c
     const ta = {}, P = pelaajat(), lasna = new Set(P.map(p => p.id));
     for (const [k, p] of Object.entries(AM.pisteet)) { const id = Number(k); if (!lasna.has(id) && !(p.tapot > 0)) continue;
       ta[id] = [p.tapot | 0, p.lapi ? 1 : 0, p.run | 0, String(p.nimi || '').slice(0, 24)]; }
@@ -2883,15 +2883,17 @@ AMMUNTA = (() => {
   const piilossa = (z) => { if (!z.muuttunut && z.kuoli >= 0 && !z.syo) return true; const p = piilotetut.get(z.n); return !!p && p.sn === z.synty && Date.now() < p.asti; };
   // kp 17:59 "laita et vilkkuu punasena samanlail ku pelaaja ku ottaa dmg": S.iskut kasvaa -> rakennuksen spritet vuorottelevat kuten paivitaValahdys.
   //   Seuraajakin näkee, koska iskut tulevat snapshotista.
-  let shIskut = null, shAsti = 0, shPaalla = false;
-  const shSavy = (vari) => { const nimi = ASETUS.safeHouse && ASETUS.safeHouse.rakennus; if (!nimi) return;
-    try { for (const o of e.getRoomObjects(huone, 10) || []) { if (!o || String(o.type) !== nimi) continue; for (const q of (o.visualization && o.visualization.sprites) || []) {
-      if (q.alpha !== 255 || q.blendMode === 'add') continue; if (q.color !== vari) { q.color = vari; if (q.increaseUpdateCounter) q.increaseUpdateCounter(); } } } } catch (x) {} };
+  //   kp 18:12 "vaan se seinä vilkkuu minkä edessä zombi on": vain iskun lähin rakennuspala.
+  let shIskut = null; const shPalat = new Map();   // kalusteen id -> vilkku asti
+  const shSavy = (id, vari) => { try { const o = e.getRoomObject(huone, id, 10); for (const q of (o && o.visualization && o.visualization.sprites) || []) {
+    if (q.alpha !== 255 || q.blendMode === 'add') continue; if (q.color !== vari) { q.color = vari; if (q.increaseUpdateCounter) q.increaseUpdateCounter(); } } } catch (x) {} };
+  const shLahin = (x, y) => { const nimi = ASETUS.safeHouse && ASETUS.safeHouse.rakennus; let par = null, pm = Infinity; if (!nimi || !isFinite(x) || !isFinite(y)) return null;
+    try { for (const o of e.getRoomObjects(huone, 10) || []) { if (!o || String(o.type) !== nimi) continue; const L = o.getLocation(), m = Math.hypot(L.x + 0.5 - x, L.y + 0.5 - y); if (m < pm) { pm = m; par = o.id; } } } catch (x2) {}
+    return par; };
   const shValahdys = (nyt) => { const S = safeHouseTila(); if (!S) return;
-    if (shIskut != null && S.iskut > shIskut) shAsti = nyt + Math.max(50, Number(ASETUS.safeHouse.valahdysMs) || 300);
+    if (shIskut != null && S.iskut > shIskut) { const id = shLahin(S.ix, S.iy); if (id != null) shPalat.set(id, nyt + Math.max(50, Number(ASETUS.safeHouse.valahdysMs) || 300)); }
     shIskut = S.iskut;
-    if (nyt < shAsti) { shPaalla = true; shSavy(Math.floor(nyt / 120) % 2 ? 0xff9090 : 0xff2a2a); }
-    else if (shPaalla) { shPaalla = false; shSavy(0xffffff); } };
+    for (const [id, asti] of [...shPalat]) { if (nyt < asti) shSavy(id, Math.floor(nyt / 120) % 2 ? 0xff9090 : 0xff2a2a); else { shSavy(id, 0xffffff); shPalat.delete(id); } } };
   const piirto = () => {
     shValahdys(Date.now());
     const nyt = Date.now();
@@ -3339,7 +3341,7 @@ AMMUNTA = (() => {
     for (const r of ruumiit.values()) { try { e.removeRoomObjectUser(huone, r.g); } catch (x) {} SAILO.piirretytIdt.delete(r.g); }
     ruumiit.clear();
     for (const n of valahdys.keys()) { const g = piirretyt.get(n); if (g != null) savyta(g, 0xffffff); }
-    if (shPaalla) { shPaalla = false; shSavy(0xffffff); }
+    for (const id of shPalat.keys()) shSavy(id, 0xffffff); shPalat.clear();
     if (jkanvas && jkanvas.remove) jkanvas.remove();
     if (vEl && vEl.remove) vEl.remove();
     if (window[GLOBAALI] && window[GLOBAALI].huone === huone) delete window[GLOBAALI];
