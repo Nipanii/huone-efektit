@@ -241,8 +241,8 @@ ASETUS.kitit = null;   // 684: ei ensiapukitteja (811/817: HUONEET[huone].kitit 
 //   VAIHE 2 / kp 16:01 -koukut (UUTTA, ei L4K:ssa): aani = laukauksen ääniveto (null = hiljainen) · aggroSade = osutun lähellä olevat zombit
 //   kohdistavat ampujaan (null = ei) · nollaaKontakti = käyttö nollaa oman kiinnijäämislaskurin kaikilta zombeilta (kp: "miekan käyttö nollais
 //   aina kiinni jäämis laskurin") · kontaktiKerroin = kiinnijäännin rajan kerroin ase kädessä (vaihtoehto B).
-//   kasi = käsiesine (vaihe 1c, kp 17:00 "ase handitemit puuttuu"): L4K:n oma tapa = `:handitem <id>` chat-komentona (shooter :24-25, :35, :505-509, :587),
-//   EI asukanavaa. Pyssy 1126, Jousi 1128, Miekka 1094 (L4K:n kasi-arvot). VIP-komento: ilman VIP:tä ase ei näy kädessä, peli toimii (shooter :101).
+//   kasi = käsiesine (vaihe 1c, kp 17:00 "ase handitemit puuttuu"): L4K:n oma tapa oli `:handitem <id>` chat-komento (shooter :24-25, :35, :505-509, :587); tässä EI enää chat-komentoa (kp 31.10. 21:35), käsi piirretään clientin omalla engine-kutsulla,
+//   EI asukanavaa. Pyssy 1126, Jousi 1128, Miekka 1094 (L4K:n kasi-arvot). Ei VIP-/oikeusriippuvuutta: ase näkyy kaikilla (client-render, ei pakettia).
 ASETUS.aseet = {
   luoti: { ikoni: '🔫', nimi: 'Pistooli', kasi: 1126, m: 'p', tyyli: 'luoti', vari: '#ffd23f', nopeus: 21.6, auto: true, cd: 350, lento: 30, lineaari: [20, 30],
     aani: null, aggroSade: 14, nollaaKontakti: false, kontaktiKerroin: 1 },
@@ -2227,7 +2227,7 @@ const SYNK = (() => {
   //   kp 21:07 "en näe kans jerbanin healttia": vuoron pelaajan HP (hp: [hp, vuoronro]) kulkee samoin kuin ka: lähtee minkä tahansa viestin mukana, vain muuttuessa (hpOdottaa tyhjenee kun viesti lähti).
   //   Shooter-1.15.2 jViesti :554 (hp lähtee muutoksessa :634/:849/:942/:1735, vastaanotto :1076-1080, piirto :1909).
   //   kp 21:25 "zombi oli ammuttu ja otin dmg": osumia EI pudoteta (live 33/302 hävisi, ennuste umpeutui ja zombi palasi). Kaikki odottavat osumat kulkevat os-kentässä minkä tahansa viestin mukana.
-  let katseOdottaa = null, laukauksetOdottaa = [], hpOdottaa = null, osumaOdottaa = [], osumaViime = null, osumaNro = Date.now() % 100000000;
+  let katseOdottaa = null, laukauksetOdottaa = [], hpOdottaa = null, osumaOdottaa = [], osumaViime = null, osumaNro = Date.now() % 100000000, kasiOdottaa = null;
   const laheta = (o) => {
     if (!auki()) return false;
     try {
@@ -2235,6 +2235,7 @@ const SYNK = (() => {
       const ext = {};
       if (katseOdottaa != null) ext.ka = katseOdottaa;
       if (hpOdottaa != null) ext.hp = hpOdottaa;
+      if (kasiOdottaa != null) ext.ha = kasiOdottaa;   // kp 21:35: vuoron pelaajan käsiase muille (ei chat-komentoa)
       if (laukauksetOdottaa.length) { ext.la = laukauksetOdottaa.slice(); laukauksetOdottaa.length = 0; }
       let osMukana = 0;
       if (osumaOdottaa.length) {   // ei yli maxTavuja: loput jäävät jonoon seuraavaan viestiin
@@ -2247,7 +2248,7 @@ const SYNK = (() => {
       while (lahetysAjat.length && nyt - lahetysAjat[0] >= 1000) lahetysAjat.shift();
       if (lahetysAjat.length >= (ks ? Math.max(1, num(S().maxLahetysS, 3)) : 15)) { tilasto.hylattyRaja++; return false; }
       if (ks) ksYht.ks.send(AIHE, s); else ws.send(s);
-      lahetysAjat.push(nyt); tilasto.viimeKoko = s.length; katseOdottaa = null; hpOdottaa = null;
+      lahetysAjat.push(nyt); tilasto.viimeKoko = s.length; katseOdottaa = null; hpOdottaa = null; kasiOdottaa = null;
       if (osMukana) { osumaViime = { osat: osumaOdottaa.splice(0, osMukana), t: nyt }; tilasto.lahetettyOsuma = (tilasto.lahetettyOsuma || 0) + osMukana; }
       return true;
     } catch (x) { tilasto.virhe = String(x); return false; }
@@ -2520,6 +2521,7 @@ const SYNK = (() => {
     if (lahettaja > 0 && id !== lahettaja) { tilasto.vaaraLahettaja = (tilasto.vaaraLahettaja || 0) + 1; return; }   // payloadin id on lähettäjän oma väite; kanavan senderId ratkaisee (kp 20:24: komento ei saa kulkea toisen id:llä)
     if (m.ka != null && AMMUNTA) AMMUNTA.katseSaapui(id, Number(m.ka));
     if (m.hp != null && AMMUNTA) AMMUNTA.hpSaapui(id, m.hp);   // kp 21:07: vuoron pelaajan HP-palkki muille
+    if (m.ha != null && AMMUNTA) AMMUNTA.kasiSaapui(id, m.ha);   // kp 21:35: vuoron pelaajan käsiase muille
     if (m.la && Array.isArray(m.la) && AMMUNTA) AMMUNTA.laukauksetSaapui(id, m.la);
     if (Array.isArray(m.os) && ASETUS.ammuttava && AMMUNTA) { AMMUNTA.osumatSaapui(id, m.os, Date.now()); tilasto.vastaanotettuOsuma = (tilasto.vastaanotettuOsuma || 0) + m.os.length; }
     const nyt = Date.now(), raja = Math.max(1000, num(S().hiljaisuusMs, 10000));
@@ -2667,7 +2669,7 @@ const SYNK = (() => {
       sykkeet: [...SY.sykkeet].map(([id, h]) => ({ id, ikaMs: nyt - h.t, valmisIkaMs: h.tv ? nyt - h.tv : null })), ...tilasto,
     };
   };
-  return { seuraa, johtajaId, kasitteleSnap, kasitteleKuolemat, lahetaKuolema, lahetaOsuma, osumatTick, lahetaVuoro, lahetaKitti, lahetaKatse, lahetaHp, lahetaLaukaus, kaynnista, sulje, tiedot, snapLaheta, omaksuSnap, rakennaSnap };
+  return { seuraa, johtajaId, kasitteleSnap, kasitteleKuolemat, lahetaKuolema, lahetaOsuma, osumatTick, lahetaVuoro, lahetaKitti, lahetaKatse, lahetaHp, lahetaLaukaus, kasiLaita: (v) => { kasiOdottaa = v | 0; }, kaynnista, sulje, tiedot, snapLaheta, omaksuSnap, rakennaSnap };
 })();
 tila.synkka = SYNK.tiedot; tila._synk = SYNK;
 
@@ -2710,16 +2712,46 @@ AMMUNTA = (() => {
   const valitseAse = (w) => { if (!ASETUS.aseet || !ASETUS.aseet[w]) return false; ASETUS.ase.valittu = w; veto = null; autoPois();
     if (aseAktiivinen()) kasiin(aseOf(w).kasi);   // vaihe 1c: L4K valitseAse (shooter :825) vaihtaa myös käden
     try { hudPaivita(); } catch (x) {} return true; };
-  // ---- käsiesine (vaihe 1c, kp 17:00 "ase handitemit puuttuu"): L4K kasiin() = chat-komento ':handitem <id>' (shooter :586-587, mitattu
-  //   L4K:ssa robolla 19.10.: figure_carry_object = id). Lähetys clientin omalla sendChatMessagella = sama kuin pelaaja kirjoittaisi komennon
-  //   chattiin. EI asukanavaa (2730 / figure / datajako). VIP-komento: ilman VIP:tä ase ei näy kädessä, peli toimii (shooter :101).
-  //   Ei toistoa: sama id ei lähde kahdesti (AM.kasiNyt säilyy live-päivityksen yli). Tyhjennys ':handitem 0' vain jos tämä skripti asetti käden.
+  // ---- käsiesine (vaihe 1c, kp 17:00 "ase handitemit puuttuu"; kp 31.10. 21:35 "rendaa se vaa ruudulle"): EI chat-komentoa. ':handitem <id>' ilman oikeutta
+  //   tulee julkisena puhekuplana (RoomChatManager.java:311, CommandHandler.java:75-101), joten ase piirretään vain clientissä: huoneen oma engine
+  //   (RoomEngine.updateRoomObjectUserAction(huone, indeksi, 'figure_carry_object', id) = Nitro_Render_V3 RoomEngine.ts:2346/2371, sama kutsu jota
+  //   RoomMessageHandler.ts:1918 käyttää palvelimen RoomUnitHandItem-paketille). Ei pakettia palvelimelle. Palvelin ei ylikirjoita: carry muuttuu vain
+  //   RoomUnitHandItem-paketista, UNIT_STATUS ei koske siihen. Muille vuoron pelaajan ase kulkee kentällä ha (id, 0 = tyhjä) minkä tahansa lähtevän pelikanavaviestin
+  //   mukana kuten ka / hp / la (EI asukanavaa 2730 / figure / datajako). Pyssy 1126, Jousi 1128, Miekka 1094.
+  //   AM.kasiNyt = TOIVOTTU käsiesine (säilyy live-päivityksen yli); kasiTick korjaa jos avatar-olio syntyi uudelleen. Tyhjennys (0) vain jos tämä skripti asetti käden.
+  const KASI_ID = () => Object.keys(ASETUS.aseet || {}).map(w => ASETUS.aseet[w] && ASETUS.aseet[w].kasi | 0).filter(v => v > 0);
+  const kasiAseta = (i, v) => { try { if (i == null || i < 0 || !e || typeof e.updateRoomObjectUserAction !== 'function') return false; return !!e.updateRoomObjectUserAction(huone, i, 'figure_carry_object', v | 0); } catch (x) { return false; } };
+  const kasiLue = (i) => { try { const o = e.getRoomObject(huone, i, 100); return o && o.model ? (Number(o.model.getValue('figure_carry_object')) || 0) : null; } catch (x) { return null; } };
+  if (!(AM.muKasi instanceof Map)) AM.muKasi = new Map();   // pelaajan id -> { v, t } (muiden vuoron pelaajien käsiase)
   const kasiin = (id) => {
-    return false;   // kp 21:35 "älä laita pelaajia käyttää handitem oikeesti": ei :handitem-komentoa, käsiase piirretään clientissa
     id = Math.max(0, id | 0); if (AM.kasiNyt === id) return false;
     if (!id && !(AM.kasiNyt > 0)) return false;
-    try { const s = istunto(); if (!s || typeof s.sendChatMessage !== 'function') return false; s.sendChatMessage(':handitem ' + id, 0); AM.kasiNyt = id; tilasto.kasi = (tilasto.kasi || 0) + 1; lokiin({ kasi: id }); return true; }
+    try { AM.kasiNyt = id; AM.kasiLahetetty = Date.now(); kasiAseta(omaIndeksi(), id); SYNK.kasiLaita(id); tilasto.kasi = (tilasto.kasi || 0) + 1; lokiin({ kasi: id }); return true; }
     catch (x) { return false; }
+  };
+  const KASI_VIRKISTYS_MS = 5000, KASI_VANHENEE_MS = 15000;
+  const kasiSaapui = (pid, v) => {
+    v = Number(v) | 0; if (pid === omaId() || !(pid > 0)) return;
+    if (v !== 0 && !KASI_ID().includes(v)) return;   // vain tunnetut aseet (muu client ei saa asettaa mielivaltaista carry-arvoa)
+    const p = (pelaajat() || []).find(q => q && q.id === pid);
+    if (v) { AM.muKasi.set(pid, { v, t: Date.now() }); while (AM.muKasi.size > 8) AM.muKasi.delete(AM.muKasi.keys().next().value); }
+    else AM.muKasi.delete(pid);
+    if (p) kasiAseta(p.i, v);
+  };
+  const kasiTick = (nyt) => {
+    if (nyt - (AM.kasiTickTs || 0) < 500) return; AM.kasiTickTs = nyt;
+    if (AM.kasiNyt > 0) {
+      const i = omaIndeksi(); if (i != null && i >= 0 && kasiLue(i) !== AM.kasiNyt) kasiAseta(i, AM.kasiNyt);
+      if (nyt - (AM.kasiLahetetty || 0) >= KASI_VIRKISTYS_MS) { AM.kasiLahetetty = nyt; SYNK.kasiLaita(AM.kasiNyt); }   // myöhemmin liittyvät + hukkunut viesti
+    }
+    if (!AM.muKasi.size) return;
+    const ps = pelaajat() || [];
+    for (const [pid, r] of [...AM.muKasi]) {
+      const p = ps.find(q => q && q.id === pid);
+      if (!p) { AM.muKasi.delete(pid); continue; }
+      if (nyt - r.t > KASI_VANHENEE_MS) { AM.muKasi.delete(pid); kasiAseta(p.i, 0); continue; }
+      if (kasiLue(p.i) !== r.v) kasiAseta(p.i, r.v);
+    }
   };
   const latausMs = A => A.lataus ? A.lataus[2] : A.lapi ? A.lapi[1] : 1000;   // shooter :913
   const lapiLyonti = (A, c) => !!(A && A.lapi && c != null && +c >= 1);       // shooter :919
@@ -2820,6 +2852,7 @@ AMMUNTA = (() => {
   const kasittele = (P, K) => {
     const nyt = Date.now();
     healTick(nyt);
+    kasiTick(nyt);   // kp 21:35: käsiase clientissä (oma + vuoron pelaajan muille)
     hpLahetaTick();   // kp 21:07: vuoron pelaajan HP muille
     kitTick(nyt, P);   // ensiapukitit (811/817)
     for (const [n, v] of [...AM.odottavat]) if (nyt > v.asti) AM.odottavat.delete(n);
@@ -3133,7 +3166,7 @@ AMMUNTA = (() => {
   const VT = AM.vuoro;
   const VA = () => ASETUS.vuoro || null;
   // kohde 6 (kp 18:09-18:10 "tos pelin alotuksessa toi peli HUD pitäs tulla heti" · "ei oo vaa ammuttavaa ennen ku peli alkaa" · "HUD heti etee" · "ja ase kätee"):
-  //   vuoron pelaajalla ase, HUD ja käsiesine (:handitem) ovat käytössä heti kun vuoro alkaa (vaihe 0: siirto + laskenta), eivät vasta vaiheessa 1. Ennen: vu.vaihe === 1.
+  //   vuoron pelaajalla ase, HUD ja käsiesine (clientin carry) ovat käytössä heti kun vuoro alkaa (vaihe 0: siirto + laskenta), eivät vasta vaiheessa 1. Ennen: vu.vaihe === 1.
   //   Zombeja ei vaiheessa 0 vielä ole (ASETUS.kohteet = [] kunnes peli alkaa, nollaaPeli), joten ammuttavaa ei ole; osuman auktoriteettitarkistus (vaihe === 1) ennallaan.
   const vuoroSallii = () => { if (!VA()) return true; const vu = VT.vu; return !!vu && vu.id === omaId() && (vu.vaihe === 1 || VT.siirtynyt === vu.nro); };   // kp 19:51: ase ja HUD vasta kun pelaaja on siirtynyt
   const nollaaPeli = () => {   // zombit pois ja aallot alkuun (ei automaattista uutta aaltoa: seuraava vuoro aloittaa)
@@ -3955,7 +3988,7 @@ AMMUNTA = (() => {
   // Ohjauksen vaiheen vaihto (L4K vaiheVahti :2241-2246 + gmPelinAjaksi :2104-2107): kun ase tulee käyttöön / poistuu käytöstä, pidetyt napit,
   //   jännitys ja automaattitulitus pois; käyttöön tullessa chat-tila vain jos chat-kentässä on keskeneräistä tekstiä (L4K 1.15.2), muuten peli.
   //   Clientin oma game mode (kuplafix.gameMode) pois pelin ajaksi, EI palauteta (L4K 0.9.5: palautus lähetti joka kirjaimen omana viestinään).
-  //   Käsiesine: käyttöön tullessa valittu ase käteen, poistuessa ':handitem 0' (L4K kasiin(0) kuollessa :835).
+  //   Käsiesine: käyttöön tullessa valittu ase käteen, poistuessa käsi tyhjäksi (kasiin(0); L4K :835), vain clientissä.
   let ohjausOli = null;
   const GM_AVAIN = 'kuplafix.gameMode';
   const gmPois = () => { try { if (JSON.parse(localStorage.getItem(GM_AVAIN)) === true) { localStorage.setItem(GM_AVAIN, 'false'); window.dispatchEvent(new StorageEvent('storage', { key: GM_AVAIN })); lokiin({ gameMode: 'pois pelin ajaksi' }); } } catch (x) {} };
@@ -4009,7 +4042,7 @@ AMMUNTA = (() => {
     ammu, ammuSuuntaan, asetaAse, ase: () => aseOn, valitseAse, aseNyt, runLoppu, tilasto, AM, auktoriteetti, luodit: () => luodit.length, jaljet: () => jaljet.length,
     purema, paranna, kontaktiKerroin, nollaaKontakti, hp: () => AM.hp, wasd: { pidetyt, tick: wasdTick, nappain, nosto }, hiiri,
     vuoroTick, vuoroPyyda, vuoroVastaanota, vuoro: () => VT.vu, VT, vuoroSallii, aseKaytossa: aseAktiivinen, vuoroTeksti,
-    omaHpPalkki, muHpPalkki, hpSaapui, hpLahetaTick, safeHouseHpPalkki, gateHpPalkit,
+    omaHpPalkki, muHpPalkki, hpSaapui, hpLahetaTick, kasiSaapui, kasiTick, safeHouseHpPalkki, gateHpPalkit,
     aseJarj: () => ASEJARJ_N(), rulla, kitit: () => AM.kitit, kitTick, kittiVastaanota, kitPeli, kitPiirrettavat,   // ensiapukitit (testausta varten)
     katse: { tick: katseTick, kulma: hiirenKulma },
     este: { esteMatka, esteKartta, peitossa, peittoLaatikot, lentoZ, kamera },   // kohde 1 (testausta varten, kuten shooter :1018 __kshEste)
