@@ -109,7 +109,7 @@ const piirra = () => {
       for (const [t, a] of [[nimi, 'left'], [String(p), 'right']]) { const td = document.createElement('td'); td.textContent = t; td.style.cssText = 'text-align:' + a + ';padding:2px 6px'; tr.appendChild(td); }
       eiTbl.appendChild(tr); }
     eiRulla.appendChild(eiTbl); sisalto.appendChild(eiRulla);
-    const huom = document.createElement('div'); huom.textContent = 'Mockup: pisteet eivät ole oikeita.';
+    const huom = document.createElement('div'); huom.textContent = 'Vain paras tuloksesi tallennetaan. Voit yrittää rataa niin monta kertaa kuin haluat.';   // sona 16:10 (korvasi mockup-huomautuksen)
     huom.style.cssText = 'margin-top:8px;font-size:11px;color:' + V.himmea + ';font-style:italic';
     sisalto.appendChild(huom);
   } else {
