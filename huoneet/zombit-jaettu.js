@@ -136,6 +136,7 @@ const HUONEET = {
     // Vaihe 1c (sona 17:01-17:02 "kun pelaaja kuolee niin hän menee takaisin ylös" · "Siihen se teleportataan kun peli loppuu"): kun OMA vuoro päättyy
     //   (kuolema / :lopetapeli / mikä tahansa loppu), pelaajan oma client sanoo lopetusSanan kerran -> wired wf_trg_says_something "zl811"
     //   + wf_act_teleport_to furni 511793 (Matto habbox_couture_grand_tapis @2,2 z 7.2). Sama piilotus kuin za811.
+    veriKalusteet: true,
     lopetusSana: 'zl811',
     teleKuolema: false, muuttunutKuolemasta: false, ammuttava: true,
     maaraPohja: 4, maaraMin: 5, maaraMax: 8,   // OMA VALINTA (säädettävä): yksinpelaajalle 5 zombia kerrallaan (684:n kaavalla 3)
@@ -1563,6 +1564,14 @@ const paivitaValahdys = (kontaktissa) => {
   for (const p of kontaktissa) if (p && p.i != null) { nyky.add(p.i); savytetyt.set(p.i, true); savyta(p.i, Math.floor(nyt / 120) % 2 ? 0xff9090 : 0xff2a2a); }
   for (const id of [...savytetyt.keys()]) if (!nyky.has(id)) { savyta(id, 0xffffff); savytetyt.delete(id); }
 };
+let veriPeitto = null;
+const veriPeittajat = () => { const nyt = Date.now(); if (veriPeitto && nyt - veriPeitto.t < 3000) return veriPeitto.l; const l = [];
+  try { const sd = dv(e, '_sessionDataManager');
+    for (const o of e.getRoomObjects(huone, 10) || []) { const m = o && o.model, L = o && o.getLocation && o.getLocation(); if (!m || !L) continue;
+      const fd = sd && sd.getFloorItemData && sd.getFloorItemData(m.getValue('furniture_type_id')); if (!fd || fd.canStandOn) continue;
+      l.push({ id: o.id, x: L.x, y: L.y, syv: L.x + L.y }); } } catch (x) {}
+  veriPeitto = { t: nyt, l }; return l; };
+const jarjLahella = (lammikot, k) => lammikot.some(lm => lm && Math.abs(lm.x - k.x) <= 8 && Math.abs(lm.y - k.y) <= 8);
 const piirraLammikot = () => {
   if (!lammikkoKanvas || !lctx || typeof document === 'undefined' || !document.body) return;
   const lammikot = Array.isArray(SAILO.lammikot) ? SAILO.lammikot : (tila.lammikot || []);
@@ -1608,6 +1617,10 @@ const piirraLammikot = () => {
           if (b && b.width > 0 && L) hahmot.push({ b, syv: L.x + L.y }); } catch (x) {}
       }
     }
+    // kp 18:06 "veri piirtyy kaiken päälle?": kanvas on huoneen päällä, joten myös kalusteet edessä pyyhkivät lammikon (vain 811/817).
+    //   Lattiat ja muut joiden päälle voi astua eivät peitä. RAJA: suorakaide, joten kalusteen vierestä voi kadota vähän verta.
+    if (ASETUS.veriKalusteet && typeof e.getRoomObjectBoundingRectangle === 'function') for (const k of veriPeittajat()) { if (!jarjLahella(lammikot, k)) continue;
+      try { const b = e.getRoomObjectBoundingRectangle(huone, k.id, 10, 1); if (b && b.width > 0) hahmot.push({ b, syv: k.syv }); } catch (x) {} }
     const fx = W / (r.width || 1), fy = H / (r.height || 1);
     const jarj = lammikot.filter(lm => lm && isFinite(lm.x) && isFinite(lm.y)).sort((a, b) => (a.x + a.y) - (b.x + b.y));
     for (const lm of jarj) {
