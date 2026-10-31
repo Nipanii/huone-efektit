@@ -55,6 +55,7 @@
     "811": {
       "nimi": "Hallowen rata (6/6) (aulan kopio, sona)",
       "skriptit": [
+        "huoneet/hween-wired.js",
         "huoneet/811.js",
         "huoneet/zombit-jaettu.js"
       ]
@@ -62,6 +63,7 @@
     "817": {
       "nimi": "Rata 6 B (811 levennetty, finaali)",
       "skriptit": [
+        "huoneet/hween-wired.js",
         "huoneet/811.js",
         "huoneet/zombit-jaettu.js"
       ]
