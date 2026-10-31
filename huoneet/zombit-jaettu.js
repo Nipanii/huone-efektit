@@ -293,6 +293,7 @@ const lueOvi = (W, H) => {
 const arpa = (n) => { let a = (n >>> 0) || 1; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };
 const NAAP = [[0, -1], [1, 0], [0, 1], [-1, 0], [1, -1], [1, 1], [-1, 1], [-1, -1]];   // kiinteä järjestys = sama valinta kaikilla
 let ruudukko = null;
+tila.ruudukko = () => ruudukko;
 
 // Monilähteinen BFS-reittietäisyys kävelykelpoisella ruudukolla (kulman oikaisu estetty).
 const bfsKentta = (W, H, ok, pisteet) => {
@@ -319,13 +320,42 @@ const bfsKentta = (W, H, ok, pisteet) => {
 };
 const kentta = (kx, ky) => bfsKentta(ruudukko.W, ruudukko.H, ruudukko.ok, [{ x: kx, y: ky }]).d;
 
+// shooter-1.15.2.user.js:1022-1031 kitEsteet: kalusteet joiden päälle ei voi astua (!canStandOn) ovat zombeille esteitä
+let kitEsteMuisti = null;
+const kitEsteet = (rid) => {
+  const nyt = Date.now();
+  if (kitEsteMuisti && kitEsteMuisti.rid === rid && nyt - kitEsteMuisti.t < 3000) return kitEsteMuisti.s;
+  const s = new Set();
+  try {
+    const sd = dv(e, '_sessionDataManager');
+    const objs = (e.getRoomObjects && e.getRoomObjects(rid, 10))
+      || (e.getRoomInstance && e.getRoomInstance(rid) && e.getRoomInstance(rid).getRoomObjectsForCategory && e.getRoomInstance(rid).getRoomObjectsForCategory(10))
+      || [];
+    for (const o of objs) {
+      const m = o && o.model, L = o && o.getLocation && o.getLocation();
+      if (!m || !L) continue;
+      // Kohde 3 lisäys 18:18: vartiotorni 513115 / army_c15_watchtwr @37,26 on este riippumatta tilasta
+      const isTower = (o.id === 513115) || (m.getValue && (m.getValue('furniture_type_id') === 8052 || String(o.type || '').includes('watchtwr')));
+      let fd = null;
+      try { fd = sd && sd.getFloorItemData && sd.getFloorItemData(m.getValue('furniture_type_id')); } catch (x) {}
+      if (fd && fd.canStandOn && !isTower) continue;
+      const d = Math.round(((o.getDirection && o.getDirection() && o.getDirection().x) || 0) / 45) % 4;
+      let sx = (m.getValue && m.getValue('furniture_size_x')) || 1, sy = (m.getValue && m.getValue('furniture_size_y')) || 1;
+      if (d === 2) [sx, sy] = [sy, sx];
+      const lx = Math.round(L.x), ly = Math.round(L.y);
+      for (let i = 0; i < sx; i++) for (let j = 0; j < sy; j++) s.add((lx + i) + ',' + (ly + j));
+    }
+  } catch (x) {}
+  kitEsteMuisti = { rid, t: nyt, s }; return s;
+};
+
 const rakenna = () => {   // zombien kävelyruudut: perustason lattia (|korkeus| < 0.5), matala pino; yhteys oveen tai suurin yhtenäinen lattia-alue
   const hm = e.getFurnitureStackingHeightMap(huone), wg = e.getLegacyWallGeometry(huone); if (!hm || !wg) return null;
-  const W = hm.width, H = hm.height, ok = new Uint8Array(W * H), z = new Float32Array(W * H);
+  const W = hm.width, H = hm.height, ok = new Uint8Array(W * H), z = new Float32Array(W * H), ke = kitEsteet(huone);
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const i = y * W + x; if (!wg.isRoomTile(x, y) || (hm._isRoomTile && !hm._isRoomTile[i])) continue;
     const lattia = wg.getHeight(x, y), pino = hm.getTileHeight(x, y); z[i] = pino;
-    if (Math.abs(lattia) < 0.5 && pino - lattia <= ASETUS.lattiaYli && !eiZombeja(x, y)) ok[i] = 1;
+    if (Math.abs(lattia) < 0.5 && pino - lattia <= ASETUS.lattiaYli && !eiZombeja(x, y) && !ke.has(x + ',' + y)) ok[i] = 1;
   }
   const ovi = lueOvi(W, H); tila.ovi = ovi;
   const yht = new Uint8Array(W * H), jono = [];
