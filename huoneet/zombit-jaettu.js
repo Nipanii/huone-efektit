@@ -3406,7 +3406,7 @@ AMMUNTA = (() => {
   const gateZ = new Map();   // palan id -> { t, z }: ruudun korkeus object-haulla korkeintaan 2 s välein
   const gateHpPalkit = () => {
     const out = []; if (!ASETUS.aidat || (VA() && !VT.vu)) return out;
-    const AT = aitaTila(); if (!AT) return out; const nyt = Date.now();
+    const AT = aitaTila(); if (AT && AT.tuhoutuneetIds && AT.tuhoutuneetIds.size > 0) return [];   // kp 19:45: kun yksi on tuhottu, muille ei palkkia if (!AT) return out; const nyt = Date.now();
     for (const pa of AT.palat || []) {
       if (!(pa.hp > 0) || (AT.tuhoutuneetIds && AT.tuhoutuneetIds.has(pa.id))) continue;
       let c = gateZ.get(pa.id); if (!c || nyt - c.t > 2000) { let z = c ? c.z : 0; try { z = Number(e.getRoomObject(huone, pa.id, 10).getLocation().z) || 0; } catch (x) {} c = { t: nyt, z }; gateZ.set(pa.id, c); }
