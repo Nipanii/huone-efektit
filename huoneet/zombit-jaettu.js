@@ -3113,13 +3113,17 @@ AMMUNTA = (() => {
     } else { ctx.globalAlpha = Math.max(0, 0.6 * (1 - (ika - PYOR_MS) / 350)); ctx.lineWidth = 2; ctx.shadowBlur = 4; kaari(k0, k0 + 2 * Math.PI, 72); }
     ctx.restore();
   }
+  // ---- kohde 2 (kp 18:07 "omalle pelaajalle tosiaa health bar"): oman pelaajan HP-palkki hahmon yläpuolelle, shooter-1.15.2 `palkki` :1862-1866 sellaisenaan
+  //   (z+2.9, leveys 40, tausta #000a 42x7, väri >0.5 #3ddc5a / >0.25 #f5c542 / muuten #e5484d, arvo <= 0 -> 💀; osuus = HP / max kuten shooter 1.12.0). HP = AM.hp.
+  //   Piirretään kun oma pelaaja on pelissä (vuoroSallii); shooter piirtää omankin palkin aina (:1909). Huom: kiinnijaanti 'kontakti' -tilassa AM.hp ei muutu (täynnä).
+  const omaHpPalkki = () => { if (!vuoroSallii()) return null; const m = omaPaikka(); return m ? { x: m.x, y: m.y, z: m.z, hp: AM.hp } : null; };
   const piirraJaljet = (nyt) => {
     const kesto = Math.max(50, Number(ASETUS.ase.jalkiMs) || 450);
     while (jaljet.length && nyt - jaljet[0].t0 > (jaljet[0].lapi ? 750 : kesto)) jaljet.shift();
     if (!jkanvas || !jctx || !document.body) return;
     const W = window.innerWidth || 0, H = window.innerHeight || 0;
-    const palkit = hpPalkit(nyt);
-    if (!jaljet.length && !luodit.length && !palkit.length && !veto) { if (jkanvas.width) jctx.clearRect(0, 0, jkanvas.width, jkanvas.height); return; }
+    const palkit = hpPalkit(nyt), omaP = omaHpPalkki();
+    if (!jaljet.length && !luodit.length && !palkit.length && !veto && !omaP) { if (jkanvas.width) jctx.clearRect(0, 0, jkanvas.width, jkanvas.height); return; }
     if (jkanvas.parentNode !== document.body) document.body.appendChild(jkanvas);
     if (jkanvas.width !== W || jkanvas.height !== H) { jkanvas.width = W; jkanvas.height = H; jkanvas.style.width = W + 'px'; jkanvas.style.height = H + 'px'; }
     jctx.clearRect(0, 0, W, H);
@@ -3147,6 +3151,13 @@ AMMUNTA = (() => {
     for (const b of palkit) {   // L4K :1685-1687
       const sc = p(b.x, b.y, b.z + 2.7); if (!sc) continue; const w = 30;
       jctx.fillStyle = '#000a'; jctx.fillRect(sc.x - w / 2 - 1, sc.y - 1, w + 2, 6); jctx.fillStyle = '#8bd24a'; jctx.fillRect(sc.x - w / 2, sc.y, w * b.os, 4);
+    }
+    if (omaP) {   // shooter :1862-1866 palkki(omaNimi(), hp)
+      const sc = p(omaP.x, omaP.y, omaP.z + 2.9);
+      if (sc) { const w = 40; jctx.fillStyle = '#000a'; jctx.fillRect(sc.x - w / 2 - 1, sc.y - 1, w + 2, 7);
+        const os = Math.min(1, Math.max(0, omaP.hp) / hpMax());
+        jctx.fillStyle = os > 0.5 ? '#3ddc5a' : os > 0.25 ? '#f5c542' : '#e5484d'; jctx.fillRect(sc.x - w / 2, sc.y, w * os, 5);
+        if (omaP.hp <= 0) { jctx.font = '16px sans-serif'; jctx.fillText('💀', sc.x - 8, sc.y - 4); } }
     }
   };
 
@@ -3399,6 +3410,7 @@ AMMUNTA = (() => {
     ammu, ammuSuuntaan, asetaAse, ase: () => aseOn, valitseAse, aseNyt, runLoppu, tilasto, AM, auktoriteetti, luodit: () => luodit.length,
     purema, paranna, kontaktiKerroin, nollaaKontakti, hp: () => AM.hp, wasd: { pidetyt, tick: wasdTick, nappain, nosto }, hiiri,
     vuoroTick, vuoroPyyda, vuoroVastaanota, vuoro: () => VT.vu, VT, vuoroSallii, aseKaytossa: aseAktiivinen, vuoroTeksti,
+    omaHpPalkki,
     este: { esteMatka, esteKartta, peitossa, peittoLaatikot, lentoZ, kamera },   // kohde 1 (testausta varten, kuten shooter :1018 __kshEste)
     // vaihe 1c
     hpPalkit, kasiin, kasi: () => AM.kasiNyt, kameraAktiivinen, kameraLukitse, kameraVaihda, hudPaivita, hudTila, chat: () => chatTila, vaihdaAse };
