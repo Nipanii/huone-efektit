@@ -3736,9 +3736,16 @@ AMMUNTA = (() => {
   // kp 31.10. "portille health bar": kunkin portin (ASETUS.aidat.palat) HP-palkki portin yläpuolelle; sama tyyli kuin omaP / shP (40 px, 42x7 tausta, väri >0.5/>0.25).
   //   HP aitaTila().palat[i].hp (seuraajilla snap.ai); ei palkkia tuhoutuneelle palalle eikä vuoropelin ulkopuolella (VA() ilman VT.vu). 684: ASETUS.aidat null -> [].
   const gateZ = new Map();   // palan id -> { t, z }: ruudun korkeus object-haulla korkeintaan 2 s välein
+  // sama ehto kuin kohtiAitaa: zombi iskee palaa vain jos sen hyökkäysruudusta ei ole reittiä safe houselle. Välimuisti tuhojen määrän ja ruudukon mukaan (kutsutaan joka ruudulla).
+  let tieMuisti = null;
+  const porttiYhaTiella = AT => { const SH = ASETUS.safeHouse, AI = ASETUS.aidat; if (!ruudukko || !SH || !Array.isArray(SH.ruudut) || !AI) return true;
+    if (tieMuisti && tieMuisti.n === AT.tuhoutuneetIds.size && tieMuisti.r === ruudukko) return tieMuisti.v;
+    const { W, H, ok } = ruudukko, d = bfsKentta(W, H, ok, SH.ruudut.filter(r => Array.isArray(r)).map(r => ({ x: r[0], y: r[1] }))).d;
+    const v = (AI.hyokkaysRuudut || []).some(r => Array.isArray(r) && ok[r[1] * W + r[0]] && d[r[1] * W + r[0]] < 0 && AT.palat.some(p => p.hp > 0 && p.x === r[0] + r[2] && p.y === r[1] + r[3]));
+    tieMuisti = { n: AT.tuhoutuneetIds.size, r: ruudukko, v }; return v; };
   const gateHpPalkit = () => {
     const out = []; if (!ASETUS.aidat || (VA() && !VT.vu)) return out;
-    const AT = aitaTila(); if (AT && AT.tuhoutuneetIds && AT.tuhoutuneetIds.size > 0) return [];   // kp 19:45: kun yksi on tuhottu, muille ei palkkia
+    const AT = aitaTila(); if (AT && AT.tuhoutuneetIds && AT.tuhoutuneetIds.size > 0 && !porttiYhaTiella(AT)) return [];   // kp 19:45 'kun yksi on tuhottu, muille ei palkkia', tarkennus 31.10. 23:48: yksi tuho ei aina avaa reittiä, joten palkit piiloon vasta kun reitti on auki
     if (!AT) return out; const nyt = Date.now();
     for (const pa of AT.palat || []) {
       if (!(pa.hp > 0) || (AT.tuhoutuneetIds && AT.tuhoutuneetIds.has(pa.id))) continue;
