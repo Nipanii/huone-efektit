@@ -3850,6 +3850,7 @@ AMMUNTA = (() => {
     hudO.k = lisaa(kd, tyyli(d('div'), SIRU));
     hudO.tila = lisaa(kd, tyyli(d('div'), SIRU));
     hudO.kamera = lisaa(kd, tyyli(d('div'), SIRU + ';font-weight:normal;font-size:10px'));
+    if (ASETUS.vuoro) { const v = lisaa(kd, tyyli(d('div'), SIRU + ';font-weight:normal;font-size:10px')); v.textContent = 'Q / rulla: vaihda ase'; }   // kp 20:44 "laitetaan se johonkin hudiin"
     return h;
   };
   const hudTila = () => ({ nakyy: aseAktiivinen(), ase: ASETUS.ase.valittu, chat: chatTila, kamera: kameraAktiivinen(), k: omaTapot(), hp: hpTila() ? Math.round(AM.hp) : null,
