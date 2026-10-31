@@ -3946,7 +3946,8 @@ AMMUNTA = (() => {
   let hudEl = null; const hudO = { slotit: {}, hp: null, hpI: null, hpT: null, k: null, tila: null, kamera: null };
   try { if (document.querySelectorAll) for (const v of document.querySelectorAll('[data-zombit-hud]')) v.remove(); } catch (x) {}
   const tyyli = (el, t) => { if (el && el.style) el.style.cssText = t; return el; };
-  const SLOT = 'width:62px;height:62px;border-radius:9px;background:#1b2c45;border:2px solid #0b1320;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;color:#dce6f2;padding:0;font:inherit;pointer-events:auto';
+  const PISTOOLI_SVG = '<svg width="44" height="38" viewBox="0 0 30 26" style="display:block;margin:1px auto"><path d="M2 5h24v3h2v3h-2v2H13l-1 2h-2l-2 8H2l3-11-3-1z" fill="#3b4048" stroke="#10141a" stroke-width="1"/><path d="M4 7h21" stroke="#8d96a3" stroke-width="1.5"/><path d="M10 15c1 3 4 3 5 0" fill="none" stroke="#10141a" stroke-width="1.5"/></svg>';   // kp 23:04 "lelupyssy": emoji piirtyy vesipyssynä
+  const SLOT = 'width:62px;min-height:62px;border-radius:9px;background:#1b2c45;border:2px solid #0b1320;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;color:#dce6f2;padding:0;font:inherit;pointer-events:auto';
   const SLOT_ON = SLOT + ';border-color:#8fb6ff;background:linear-gradient(180deg,#3d7be0,#2a5db5);box-shadow:0 0 12px rgba(61,123,224,.7)';
   const SIRU = 'background:rgba(14,24,40,.94);border:2px solid #283f5d;border-radius:8px;padding:3px 9px;font-weight:bold;font-size:12px;text-align:center;min-width:44px';
   // kp 31.10. 22:17 "laitetaanko transparentiks · koskee vaa pelaajaa · 50% läpinäkyvyys": chat-kuplat puoliksi läpi vain vuorossa olevan omalla ruudulla. kp 22:20 "ei saa osuu chattii pelaajal": klikit menevät kuplien läpi.
@@ -3968,19 +3969,19 @@ AMMUNTA = (() => {
     hudO.hp = lisaa(h, tyyli(d('div'), 'width:330px;height:18px;border-radius:9px;background:#0b1320;border:2px solid #283f5d;position:relative;overflow:hidden;box-shadow:0 3px 10px rgba(0,0,0,.5)'));
     hudO.hpI = lisaa(hudO.hp, tyyli(d('i'), 'position:absolute;left:0;top:0;bottom:0;transition:width .15s'));
     hudO.hpT = lisaa(hudO.hp, tyyli(d('span'), 'position:absolute;inset:0;text-align:center;line-height:14px;font-weight:bold;font-size:11px;text-shadow:0 1px 2px #000'));
-    const ala = lisaa(h, tyyli(d('div'), 'display:flex;align-items:flex-end;gap:8px'));
+    const ala = lisaa(h, tyyli(d('div'), 'display:flex;align-items:stretch;gap:8px;width:334px'));   // kp 22:57 "toi gap" + 23:05 "tyhjä tila pistoolin ja miekan alla": aseruudut täyttävät korkeuden, alaosa palkkien levyinen
     const slotit = lisaa(ala, tyyli(d('div'), 'display:flex;gap:8px;padding:6px;background:rgba(14,24,40,.94);border:2px solid #283f5d;border-radius:12px;box-shadow:0 4px 14px rgba(0,0,0,.55)'));
     ASEJARJ_N().forEach((w, i) => {   // vain huoneen aseet, numerointi ilman aukkoa
       const A = aseOf(w), b = tyyli(d('button'), SLOT);
       const nro = lisaa(b, tyyli(d('b'), 'position:absolute;left:4px;top:2px;font-size:10px;color:#8ea3bf')); nro.textContent = String(i + 1);
-      const ik = lisaa(b, tyyli(d('em'), 'font-style:normal;font-size:26px;line-height:28px')); ik.textContent = A.ikoni || '';
+      const ik = lisaa(b, tyyli(d('em'), 'font-style:normal;font-size:38px;line-height:40px')); if (w === 'luoti') ik.innerHTML = PISTOOLI_SVG; else ik.textContent = A.ikoni || '';
       const ni = lisaa(b, tyyli(d('small'), 'font-size:10px;color:#8ea3bf;margin-top:2px')); ni.textContent = A.nimi || w;
       const seis = ev => { if (ev && ev.stopPropagation) ev.stopPropagation(); };
       for (const t of ['mousedown', 'mouseup', 'pointerdown', 'pointerup']) if (b.addEventListener) b.addEventListener(t, seis);   // L4K :2531
       b.onclick = ev => { seis(ev); valitseAse(w); try { b.blur(); } catch (x) {} };
       hudO.slotit[w] = b; lisaa(slotit, b);
     });
-    const kd = lisaa(ala, tyyli(d('div'), 'display:flex;flex-direction:column;gap:4px'));
+    const kd = lisaa(ala, tyyli(d('div'), 'display:flex;flex-direction:column;justify-content:space-between;gap:4px;flex:1'));
     hudO.k = lisaa(kd, tyyli(d('div'), SIRU));
     hudO.tila = lisaa(kd, tyyli(d('div'), SIRU));
     hudO.kamera = lisaa(kd, tyyli(d('div'), SIRU + ';font-weight:normal;font-size:10px'));
