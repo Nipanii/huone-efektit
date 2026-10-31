@@ -3611,7 +3611,7 @@ AMMUNTA = (() => {
         if (omaP.hp <= 0) { jctx.font = '16px sans-serif'; jctx.fillText('💀', sc.x - 8, sc.y - 4); } }
     }
     if (shP) {   // Safe House HP-palkki: rakennuksen yläpuolella (x 15, y 11, z 7) tai vuorolaatikon alla (kp: "ei näy mistään safe house health")
-      let sc = p(shP.x, shP.y, shP.z + 1.5);
+      let sc = p(shP.x, shP.y, shP.z + 1.5); if (sc) sc = { x: sc.x, y: sc.y + 40 };   // kp 20:38 "vähän alemmas"
       if (!sc && vEl && vEl.getBoundingClientRect) {
         const vr = vEl.getBoundingClientRect();
         if (vr && vr.width > 0) sc = { x: vr.left + vr.width / 2, y: vr.bottom + 12 };
