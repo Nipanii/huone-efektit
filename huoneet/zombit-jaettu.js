@@ -768,7 +768,7 @@ const valitseKohde = (z, dz, P, k, tMs, s0) => {
     if (onMaalissa(p.id, tMs)) continue;   // maalisuojan aikana ei jahdata; nykyinen kohde pudotetaan (-> toinen kohde tai vaellus)
     if (z.muuttunut && p.id === z.lahdeId) continue;   // muuttunut ei jahtaa omaa lähdepelaajaansa
     let et = etaisyysPelaajaan(dz, p);
-    if (et < 0 && ASETUS.ammuttava) et = Math.hypot(p.x - z.x, p.y - z.y);   // kp 19:46 "pitää jatkaa targettausta kun menee esteen taakse": jahtaa lähimpään ruutuun johon pääsee
+    if (et < 0 && ASETUS.ammuttava && !(ASETUS.aidat && z.x <= 13)) et = Math.hypot(p.x - z.x, p.y - z.y);   // kp 19:46 "pitää jatkaa targettausta kun menee esteen taakse": jahtaa lähimpään ruutuun johon pääsee
     if (et < 0) continue;   // yläkerroksessa tai muualla minne zombi ei pääse
     const raja = p.id === z.kohdeId ? meneta : huomaa;
     // kp 19:24 "heti kun on este välissä ei enää targettaa": ammuttavassa näköpiiri mitataan suoraan, ei kävelyreittiä. Kävely kiertää esteen.
@@ -2955,7 +2955,7 @@ AMMUNTA = (() => {
   // kohde 6 (kp 18:09-18:10 "tos pelin alotuksessa toi peli HUD pitäs tulla heti" · "ei oo vaa ammuttavaa ennen ku peli alkaa" · "HUD heti etee" · "ja ase kätee"):
   //   vuoron pelaajalla ase, HUD ja käsiesine (:handitem) ovat käytössä heti kun vuoro alkaa (vaihe 0: siirto + laskenta), eivät vasta vaiheessa 1. Ennen: vu.vaihe === 1.
   //   Zombeja ei vaiheessa 0 vielä ole (ASETUS.kohteet = [] kunnes peli alkaa, nollaaPeli), joten ammuttavaa ei ole; osuman auktoriteettitarkistus (vaihe === 1) ennallaan.
-  const vuoroSallii = () => { if (!VA()) return true; const vu = VT.vu; return !!vu && vu.id === omaId(); };
+  const vuoroSallii = () => { if (!VA()) return true; const vu = VT.vu; return !!vu && vu.id === omaId() && (vu.vaihe === 1 || VT.siirtynyt === vu.nro); };   // kp 19:51: ase ja HUD vasta kun pelaaja on siirtynyt
   const nollaaPeli = () => {   // zombit pois ja aallot alkuun (ei automaattista uutta aaltoa: seuraava vuoro aloittaa)
     if (Array.isArray(SAILO.zombit)) SAILO.zombit.length = 0;
     AM.zhp.clear(); AM.aalto = { n: 0, k: 0, sp: 0, ku: 0, tauko: 0, alku: 0, seur: 0, idx: 0 };
@@ -2986,6 +2986,7 @@ AMMUNTA = (() => {
   const kaskySallittu = (id) => { const l = (VA() || {}).kasky; return !Array.isArray(l) || l.includes(id); };
   const kasittelePyynto = (r, P, tMs) => {
     if (!kaskySallittu(r.id)) { lokiin({ vuoroPyynto: r.q, id: r.id, hylatty: 'ei kasky-listalla' }); return; }
+    if (r.q === 'reset') { if (!vuoroLopeta('reset', false, tMs)) nollaaPeli(); VT.viimeinen = null; VT.lepo = 0; lokiin({ vuoro: 'reset', id: r.id }); return; }   // kp 19:51 :resetpeli, ei tulosta
     if (r.q === 'lopeta') { vuoroLopeta('lopetettu', true, tMs); return; }
     if (r.q !== 'aloita') return;
     if (VT.vu) { lokiin({ vuoroPyynto: 'aloita', id: r.id, hylatty: 'peli käynnissä (' + VT.vu.id + ')' }); return; }
@@ -2998,7 +2999,7 @@ AMMUNTA = (() => {
     if (auktoriteetti()) { VT.pyynnot.push({ id, q, saapui: Date.now() }); return true; }
     return SYNK.lahetaVuoro({ t: 'vuoro', id, q });
   };
-  const vuoroVastaanota = (id, m) => { if (!VA() || (m.q !== 'aloita' && m.q !== 'lopeta')) return; VT.pyynnot.push({ id, q: m.q, saapui: Date.now() }); if (VT.pyynnot.length > 8) VT.pyynnot.shift(); };
+  const vuoroVastaanota = (id, m) => { if (!VA() || (m.q !== 'aloita' && m.q !== 'lopeta' && m.q !== 'reset')) return; VT.pyynnot.push({ id, q: m.q, saapui: Date.now() }); if (VT.pyynnot.length > 8) VT.pyynnot.shift(); };
   let viimeSallii = null;
   const vuoroTick = (P, k) => {
     const V = VA(); if (!V) return;
@@ -3051,6 +3052,8 @@ AMMUNTA = (() => {
     const V = VA(), vu = VT.vu, id = omaId(); if (!V || !vu || vu.id !== id) return;
     const o = (P || []).find(q => q && q.id === id); if (!o) return;
     const nyt = Date.now(), alku = V.alku || {};
+    if (o.x === alku.x && o.y === alku.y) VT.siirtynyt = vu.nro;
+    if (VT.hpNollattu !== vu.nro) { VT.hpNollattu = vu.nro; AM.hp = hpMax(); AM.hpMuutos = 0; }   // kp 19:50: täydet HP vuoron alussa myös jos edellinen ei päättynyt kuolemaan
     if (VT.sanottu !== vu.nro) {
       if (vu.tapa === 'jono' && V.jono && !(o.x === V.jono.x && o.y === V.jono.y)) { if (!VT.eiJonossa || VT.eiJonossa.nro !== vu.nro) { VT.eiJonossa = { nro: vu.nro }; lokiin({ vuoro: 'ei jonon etupäässä, aloitussanaa ei sanota', ruutu: o.x + ',' + o.y }); } }
       else if (o.x === alku.x && o.y === alku.y) { VT.sanottu = vu.nro; VT.sanottuMs = nyt; lokiin({ vuoro: 'jo aloitusruudussa, ei sanaa' }); }
@@ -3861,16 +3864,16 @@ const KENTTA = 'input.nitro-chat-input-control', KOMENTO = /^:(?:safe|kuolematon
 const kuule = ev => {
   if (ev.key !== 'Enter' && ev.key !== 'NumpadEnter') return;
   const el = ev.target; if (!(el instanceof HTMLInputElement) || !el.matches(KENTTA)) return;
-  const mv = AMMUNTA && ASETUS.vuoro && /^:(aloita ?peli|peli ?aloitus|lopeta ?peli)$/i.exec((el.value || '').trim());
+  const mv = AMMUNTA && ASETUS.vuoro && /^:(aloita ?peli|peli ?aloitus|lopeta ?peli|reset ?peli)$/i.exec((el.value || '').trim());
   if (mv) {   // 811 (kp 16:43): käsky aloittaa pelin kirjoittajalle / lopettaa käynnissä olevan. Sallittu ASETUS.vuoro.kasky-listalla; rivi ei lähde palvelimelle.
     ev.preventDefault(); ev.stopImmediatePropagation();
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, ''); el.dispatchEvent(new Event('input', { bubbles: true }));
-    const q = /^lopeta/i.test(mv[1]) ? 'lopeta' : 'aloita', l = ASETUS.vuoro.kasky;   // kp 18:56, 19:17 kirjoitti :pelialoitus ja :aloita peli
+    const q = /^lopeta/i.test(mv[1]) ? 'lopeta' : /^reset/i.test(mv[1]) ? 'reset' : 'aloita', l = ASETUS.vuoro.kasky;   // kp 18:56, 19:17 kirjoitti :pelialoitus ja :aloita peli
     if (Array.isArray(l) && !l.includes(omaId())) { ilmoita(':' + mv[1] + ' ei ole sallittu sinulle'); return; }
     const vu = AMMUNTA.vuoro();
     if (q === 'aloita' && vu) { ilmoita('Peli on jo käynnissä: ' + (vu.nimi || vu.id)); return; }
     if (q === 'lopeta' && !vu) { ilmoita('Peliä ei ole käynnissä'); return; }
-    ilmoita(AMMUNTA.vuoroPyyda(q) ? (q === 'aloita' ? 'Peli alkaa...' : 'Peli lopetetaan') : 'Pyyntö ei lähtenyt (ei kanavaa)'); return;
+    ilmoita(AMMUNTA.vuoroPyyda(q) ? (q === 'aloita' ? 'Peli alkaa...' : q === 'reset' ? 'Peli nollataan' : 'Peli lopetetaan') : 'Pyyntö ei lähtenyt (ei kanavaa)'); return;
   }
   const ma = AMMUNTA && /^:ase(?:\s+(pois|päälle|paalle|on|off))?$/i.exec((el.value || '').trim());
   if (ma) {   // 811: ase (WASD + hiiriammunta) päälle/pois tälle clientille, kaikille sallittu (katsoja voi kävellä klikkaamalla); rivi ei lähde palvelimelle
