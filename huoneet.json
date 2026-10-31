@@ -51,6 +51,12 @@
         "huoneet/hween-wired.js",
         "huoneet/685.js"
       ]
+    },
+    "811": {
+      "nimi": "Hallowen rata (6/6) (aulan kopio, sona)",
+      "skriptit": [
+        "huoneet/811.js"
+      ]
     }
   },
   "kaikki": {
