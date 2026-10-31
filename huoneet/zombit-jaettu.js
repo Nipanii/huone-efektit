@@ -194,6 +194,7 @@ HUONEET[817] = (() => { const DX = 12, DY = 12, h = JSON.parse(JSON.stringify(HU
   h.siemen = 817; h.synkka = { aihe: 'z817.synk', url: null };
   h.safeHouse.ruudut = h.safeHouse.ruudut.map(([x, y, ax, ay]) => [x + DX, y + DY, ax, ay]);
   h.aallot.puolet = ['ovi', h.aallot.puolet[1].map(([x, y]) => [x + DX, y + DY]), [[1, 25], [1, 26], [1, 27], [1, 28], [1, 29], [1, 30]]];
+  { const [, oik, vas] = h.aallot.puolet; h.aallot.puoletEka = [oik, oik, oik, vas]; }   // kp 19:54 ekassa aallossa enemmän oikealta
   const v = h.vuoro, siirra = (q, furni) => { q.x += DX; q.y += DY; q.furni = furni; };
   siirra(v.jono, 513063); siirra(v.alku, 512772); siirra(v.loppu, 513207);
   // Kohde 5 (kp 18:04, 18:12): aitamekaniikka 817. Palakohtainen HP (50), isku kuten safe house.
@@ -2902,7 +2903,7 @@ AMMUNTA = (() => {
     if (omat.length) { const a = AM.aalto, i = (a.idx || 0) % omat.length; a.idx = i + 1; return { x: omat[i][0], y: omat[i][1] }; }
     // kp 16:28 puolet (811): kierretään puolia synty synnyltä (a.idx, snapshotissa aa[7] -> sama kierto johtajan vaihtuessa). Puoli = 'ovi'
     //   (oviruutu tai vapaa naapuri) tai lista ruutuja (ensimmäinen kelvollinen). Ei kelvollista ruutua -> seuraava puoli.
-    const puolet = ASETUS.aallot && Array.isArray(ASETUS.aallot.puolet) ? ASETUS.aallot.puolet : null;
+    const puolet = ASETUS.aallot && Array.isArray(ASETUS.aallot.puolet) ? ((AM.aalto.n === 1 && ASETUS.aallot.puoletEka) || ASETUS.aallot.puolet) : null;
     if (puolet && puolet.length) {
       const a = AM.aalto, i0 = a.idx || 0;
       for (let j = 0; j < puolet.length; j++) {
