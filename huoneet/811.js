@@ -76,42 +76,30 @@ const piirra = () => {
     t.style.borderBottom = on ? '2px solid ' + V.korostus : '2px solid transparent'; });
   sisalto.textContent = '';
   if (valittu === 0) {
-    const sOts = document.createElement('div'); sOts.textContent = 'SUORITTANEET';   // sona 16:15
-    sOts.style.cssText = 'margin:0 0 4px;font-weight:bold;font-size:12px;letter-spacing:.5px;color:' + V.korostus;
-    sisalto.appendChild(sOts);
+    // sona 15:57 10 näkyvissä + vieritys · 16:15 otsikot "Suorittaneet ja epäonnistuneet" (<25p) · 16:15 "vaa yks scroll bar. NE jotka ei päässy läpi on alimmaisena"
     const tbl = document.createElement('table');
     tbl.style.cssText = 'width:100%;border-collapse:collapse;font:13px sans-serif';
     const otsRivi = document.createElement('tr');
     for (const [t, a] of [['#', 'left'], ['Pelaaja', 'left'], ['Pisteet', 'right']]) {   // sona 15:57 "otetaan aika pois"
       const th = document.createElement('th'); th.textContent = t;
-      th.style.cssText = 'text-align:' + a + ';padding:3px 6px;color:' + V.himmea + ';font-weight:normal;border-bottom:1px solid ' + V.reuna;
+      th.style.cssText = 'text-align:' + a + ';padding:3px 6px;color:' + V.himmea + ';font-weight:normal;border-bottom:1px solid ' + V.reuna + ';position:sticky;top:0;background:' + V.tausta;
       otsRivi.appendChild(th); }
     tbl.appendChild(otsRivi);
-    MALLI_TULOKSET.forEach(([nimi, p], i) => {
-      const tr = document.createElement('tr');
-      const solut = [[String(i + 1), 'left'], [nimi, 'left'], [String(p), 'right']];
-      for (const [t, a] of solut) { const td = document.createElement('td'); td.textContent = t;
-        td.style.cssText = 'text-align:' + a + ';padding:3px 6px;' + (i === 0 ? 'color:' + V.karki + ';font-weight:bold' : '');
-        tr.appendChild(td); }
-      tbl.appendChild(tr); });
-    // sona 15:57 "näkyy 10 pelaajaa, ja muuten pitää scrollata": korkeus mitataan otsikko + 10 riviä; otsikko pysyy ylhäällä; rulla ei mene pelille (zoom)
+    const osio = (teksti, vari, ylä) => { const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 3; td.textContent = teksti;
+      td.style.cssText = 'padding:' + ylä + 'px 6px 3px;font-weight:bold;font-size:12px;letter-spacing:.5px;color:' + vari; tr.appendChild(td); tbl.appendChild(tr); };
+    const rivi = (sija, nimi, p, tyyli) => { const tr = document.createElement('tr');
+      for (const [t, a] of [[sija, 'left'], [nimi, 'left'], [String(p), 'right']]) { const td = document.createElement('td'); td.textContent = t;
+        td.style.cssText = 'text-align:' + a + ';padding:3px 6px;' + tyyli; tr.appendChild(td); }
+      tbl.appendChild(tr); };
+    osio('SUORITTANEET', V.korostus, 6);
+    MALLI_TULOKSET.forEach(([nimi, p], i) => rivi(String(i + 1), nimi, p, i === 0 ? 'color:' + V.karki + ';font-weight:bold' : ''));
+    osio('EPÄONNISTUNEET (<' + LAPI_RAJA + 'p)', V.himmea, 12);
+    MALLI_EI_LAPI.forEach(([nimi, p]) => rivi('–', nimi, p, 'color:' + V.himmea));
     const rulla = document.createElement('div'); rulla.style.cssText = 'overflow-y:auto;overscroll-behavior:contain;scrollbar-color:rgba(255,255,255,.5) transparent';   // sona 16:03 valkoinen · 16:04 "opacity 50"
-    rulla.addEventListener('wheel', ev => ev.stopPropagation(), { passive: true });
-    for (const th of otsRivi.children) th.style.cssText += ';position:sticky;top:0;background:' + V.tausta;
+    rulla.addEventListener('wheel', ev => ev.stopPropagation(), { passive: true });   // rulla ei mene pelille (zoom)
     rulla.appendChild(tbl); sisalto.appendChild(rulla);
-    const r = tbl.rows; let h = 0; for (let i = 0; i <= NAKYVAT && i < r.length; i++) h += r[i].getBoundingClientRect().height;
-    rulla.style.maxHeight = Math.ceil(h || (NAKYVAT + 1) * 23) + 'px';
-    // sona 16:09 "alas sellanen kohta missä näkyy pelaajat jotka ei oo päässy läpi, eli ovat saaneet alle 25 pistettä"
-    const eiOts = document.createElement('div'); eiOts.textContent = 'EPÄONNISTUNEET (<' + LAPI_RAJA + 'p)';   // sona 16:15 "Suorittaneet ja epäonnistuneet ... esim <25p"
-    eiOts.style.cssText = 'margin:12px 0 4px;font-weight:bold;font-size:12px;letter-spacing:.5px;color:' + V.himmea;
-    sisalto.appendChild(eiOts);
-    const eiRulla = document.createElement('div'); eiRulla.style.cssText = 'max-height:110px;overflow-y:auto;overscroll-behavior:contain;scrollbar-color:rgba(255,255,255,.5) transparent';
-    eiRulla.addEventListener('wheel', ev => ev.stopPropagation(), { passive: true });
-    const eiTbl = document.createElement('table'); eiTbl.style.cssText = 'width:100%;border-collapse:collapse;font:13px sans-serif;color:' + V.himmea;
-    for (const [nimi, p] of MALLI_EI_LAPI) { const tr = document.createElement('tr');
-      for (const [t, a] of [[nimi, 'left'], [String(p), 'right']]) { const td = document.createElement('td'); td.textContent = t; td.style.cssText = 'text-align:' + a + ';padding:2px 6px'; tr.appendChild(td); }
-      eiTbl.appendChild(tr); }
-    eiRulla.appendChild(eiTbl); sisalto.appendChild(eiRulla);
+    const r = tbl.rows; let h = 0; for (let k = 0; k <= NAKYVAT + 1 && k < r.length; k++) h += r[k].getBoundingClientRect().height;   // otsikko + osio + 10 riviä
+    rulla.style.maxHeight = Math.ceil(h || (NAKYVAT + 2) * 23) + 'px';
     const huom = document.createElement('div'); huom.textContent = 'Vain paras tuloksesi tallennetaan. Voit yrittää rataa niin monta kertaa kuin haluat.';   // sona 16:10 (korvasi mockup-huomautuksen)
     huom.style.cssText = 'margin-top:8px;font-size:11px;color:' + V.himmea + ';font-style:italic';
     sisalto.appendChild(huom);
