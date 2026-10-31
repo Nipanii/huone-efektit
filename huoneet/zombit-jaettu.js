@@ -3235,6 +3235,7 @@ AMMUNTA = (() => {
       try { const ro = e.getRoomObject(huone, -1, 0), v = ro && ro.model.getValue('room_wall_visibility'); if (v === false || v === 0) out.seinat = false; } catch (x) {}
       if (g) { const Vk = g.direction.constructor, a = g.getScreenPoint(new Vk(0, 0, 0)), b = g.getScreenPoint(new Vk(0, 0, 1)), yks = (a.y - b.y) * (cv._scale || 1);
         if (yks > 0) for (const o of e.getRoomObjects(huone, 10) || []) {
+          if ((ASETUS.eiPeita || []).includes(String(o.type))) continue;   // kp 19:58 ammukset eivät osu valotolppiin
           const bb = e.getRoomObjectBoundingRectangle(huone, o.id, 10, 1), sp = e.getRoomObjectScreenLocation(huone, o.id, 10, 1); if (!bb || !sp || !(bb.height > 0)) continue; const nousu = (sp.y - bb.y) / yks; if (nousu <= 1) continue;
           { const ent = oc && oc.get(String(o.instanceId)), ss = ent && ent._sprites && ent._sprites._sprites; let ala = -1e9, yla = 1e9;   // shooter 1.11.4 zoom + 1.10.7 katosta roikkuva ei ulotu luodin korkeudelle
             if (ss) for (const q of ss) { const t = q._sprite; if (!t || !t._visible || !t._texture) continue; yla = Math.min(yla, q._y); if (/_sd_|shadow/i.test(t._libraryAssetName || '')) continue; ala = Math.max(ala, q._y + t._height); }
