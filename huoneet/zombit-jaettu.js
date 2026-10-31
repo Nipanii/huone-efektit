@@ -248,11 +248,12 @@ ASETUS.aseet = {
     aani: null, aggroSade: 14, nollaaKontakti: false, kontaktiKerroin: 1 },
   jousi: { ikoni: '🏹', nimi: 'Jousi', kasi: 1128, m: 'p', vari: '#c9c9c9', veto: true, nopeus: 15.12, lento: 14, cd: 1000, vahinko: 20, lataus: [10, 50, 1000], latausLento: [14, 24],
     aani: null, aggroSade: 6, nollaaKontakti: false, kontaktiKerroin: 1 },
-  miekka: { ikoni: '🗡️', nimi: 'Miekka', kasi: 1094, m: 'h', vari: '#e8eef7', kantama: 2.5, vahinko: 34, veto: true, hidasKavely: true, cd: 700, lapi: [3, 1000], lapiVahinko: 50, lapiLapi: 50,
+  miekka: { ikoni: '🗡️', nimi: 'Miekka', kasi: 1094, m: 'h', vari: '#e8eef7', kantama: 2.5, vahinko: 42, veto: true, hidasKavely: true, cd: 700, lapi: [3, 1000], lapiVahinko: 55, lapiLapi: 50,
     aani: null, aggroSade: 6, nollaaKontakti: true, kontaktiKerroin: 1 },   // nollaaKontakti true = kp:n suosima suunta B (16:01), kp päättää
 };
 ASETUS.ase = { valittu: 'luoti', jalkiMs: 450, ruumisMs: 1400 };
 ASETUS.esteKorkeus = 2;   // shooter 1.13.0 asetus.esteKorkeus (ESTE_KORKEUS :963): esine estää vain jos sen näkyvä korkeus > tämä   // jälki 450 ms = shooter :1727
+// kp 31.10. 22:08 "boostataa ihan pikkusen miekan dmg": 34 -> 42, täysi lataus 50 -> 55. Miekka yksin tappaa yhä kahdella (HP 60); isku + lähilaukaus (>= 18) riittää nyt.
 ASETUS.zombiHp = 60;
 // Kiinnijäänti 811:ssä (kp 16:01, kp päättää): 'kontakti' = 684-tyylinen kertyvä laskuri -> kuolema (vaihtoehto B, oletus) ·
 //   'hp' = kiinnijäänti vähentää omaa HP:ta ASETUS.hp.purema ja laskuri nollautuu; kuolema vasta kun HP 0 (vaihtoehto A).
@@ -2758,6 +2759,7 @@ AMMUNTA = (() => {
   // shooter :829 vahinkoPohja (asetus.vahinko = 1): täysi miekka lapiVahinko · jousen lataus lineaarisesti · pistoolin lineaari etäisyydestä
   const vahinkoOf = (A, c, d) => {
     if (A.lapiVahinko && c != null && +c >= 1) return A.lapiVahinko;
+    if (A.lapiVahinko && A.vahinko && c != null && isFinite(c) && +c > 0) return A.vahinko + (A.lapiVahinko - A.vahinko) * Math.min(1, +c);   // kp 31.10. 22:15: vajaakin lataus nostaa miekan vahinkoa latauksen mukaan
     if (A.lataus && c != null && isFinite(c)) { const q = Math.max(0, Math.min(1, +c)); if (q >= 1) return Math.max(A.lataus[1], zHpMax());   /* kp 19:30 täysi veto tappaa yhdellä */ return A.lataus[0] + (A.lataus[1] - A.lataus[0]) * q; }
     if (A.lineaari && d != null && isFinite(d)) { const [a0, L] = A.lineaari; return Math.max(0, a0 * (1 - Math.max(0, +d) / L)); }
     return Number(A.vahinko) || 12.5;
@@ -3940,6 +3942,13 @@ AMMUNTA = (() => {
   const SLOT = 'width:62px;height:62px;border-radius:9px;background:#1b2c45;border:2px solid #0b1320;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;color:#dce6f2;padding:0;font:inherit;pointer-events:auto';
   const SLOT_ON = SLOT + ';border-color:#8fb6ff;background:linear-gradient(180deg,#3d7be0,#2a5db5);box-shadow:0 0 12px rgba(61,123,224,.7)';
   const SIRU = 'background:rgba(14,24,40,.94);border:2px solid #283f5d;border-radius:8px;padding:3px 9px;font-weight:bold;font-size:12px;text-align:center;min-width:44px';
+  // kp 31.10. 22:17 "laitetaanko transparentiks · koskee vaa pelaajaa · 50% läpinäkyvyys": chat-kuplat puoliksi läpi vain vuorossa olevan omalla ruudulla. kp 22:20 "ei saa osuu chattii pelaajal": klikit menevät kuplien läpi.
+  let kuplaTyyli = null;
+  const kuplatLapi = (paalla) => { try {
+    if (paalla && !kuplaTyyli && (document.head || document.body)) { kuplaTyyli = document.createElement('style'); if (kuplaTyyli.setAttribute) kuplaTyyli.setAttribute('data-zombit-kuplat', '1'); kuplaTyyli.textContent = '.nitro-chat-widget .bubble-container{opacity:.5 !important;pointer-events:none !important}.nitro-chat-widget .bubble-container *{pointer-events:none !important}'; (document.head || document.body).appendChild(kuplaTyyli); }
+    else if (!paalla && kuplaTyyli) { if (kuplaTyyli.remove) kuplaTyyli.remove(); kuplaTyyli = null; }
+  } catch (x) {} };
+  try { if (document.querySelectorAll) for (const v of document.querySelectorAll('[data-zombit-kuplat]')) v.remove(); } catch (x) {}
   const luoHud = () => {
     if (typeof document === 'undefined' || !document.createElement || !document.body) return null;
     const d = t => document.createElement(t), lisaa = (a, b) => { if (a && a.appendChild) a.appendChild(b); return b; };
@@ -3971,10 +3980,10 @@ AMMUNTA = (() => {
     if (ASETUS.vuoro) { const v = lisaa(kd, tyyli(d('div'), SIRU + ';font-weight:normal;font-size:10px')); v.textContent = 'Q / rulla: vaihda ase'; }   // kp 20:44 "laitetaan se johonkin hudiin"
     return h;
   };
-  const hudTila = () => ({ nakyy: aseAktiivinen(), ase: ASETUS.ase.valittu, chat: chatTila, kamera: kameraAktiivinen(), k: omaTapot(), hp: hpTila() ? Math.round(AM.hp) : null, sh: safeHouseHpPalkki(),
+  const hudTila = () => ({ nakyy: aseAktiivinen(), ase: ASETUS.ase.valittu, chat: chatTila, kamera: kameraAktiivinen(), k: omaTapot(), hp: hpTila() ? Math.round(AM.hp) : null, sh: safeHouseHpPalkki(), kuplat: !!kuplaTyyli,
     tilaTeksti: chatTila ? '💬 CHAT · Esc = peli' : '🎮 PELI · Enter = chat' });
   const hudPaivita = () => {
-    const t = hudTila(); tila.hud = t;
+    const t = hudTila(); tila.hud = t; kuplatLapi(!!t.nakyy);
     if (!t.nakyy) { if (hudEl && hudEl.style) hudEl.style.display = 'none'; return t; }
     if (!hudEl) hudEl = luoHud(); if (!hudEl) return t;
     if (hudEl.parentNode !== document.body && document.body.appendChild) document.body.appendChild(hudEl);
@@ -4032,6 +4041,7 @@ AMMUNTA = (() => {
   const sulje = () => {
     kameraSuljettu = true; if (window.__zombitKameraFn === kameraLukitse) { window.__zombitKameraFn = null; window.__zombitKameraAkt = null; }   // kääre jää, mutta ei tee mitään
     if (hudEl && hudEl.remove) hudEl.remove();
+    kuplatLapi(false);
     clearInterval(wasdAjastin); clearInterval(katseAjastin); autoPois();
     removeEventListener('keydown', nappain, true); removeEventListener('keyup', nosto, true); removeEventListener('blur', blur);
     for (const t of HIIRI_T) removeEventListener(t, hiiri, true);
