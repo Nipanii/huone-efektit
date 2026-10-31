@@ -153,6 +153,7 @@ const HUONEET = {
     //   Ruutu kelpaa vain jos moottorin kävelyruudukko hyväksyy sen; jos yksikään ei kelpaa, zombi vaeltaa kuten ennen.
     //   HP-koukku: auktoriteetti vähentää AM.safe.hp (vahinko per isku, iskuMs per zombi), snapshot 'sh' vie muille, nollautuu vuoron alussa.
     //   VAIHE 2 (EI tehty): seinän välkyntä, safe housen HP-palkki näytölle, peli päättyy kun HP 0 (nyt vain loki + window.__zombi811.safeHouse).
+    kuljettavatKalusteet: ['cpunk_c15_road', 'val13_grass'],
     safeHouse: { hp: 100, vahinko: 1, iskuMs: 1000, etaisyys: 0, rakennus: 'nyc_c23_buildingblue', valahdysMs: 300,
       ruudut: [[15, 11, 0, -1], [14, 11, 0, -1], [16, 11, 0, -1], [13, 11, 0, -1], [17, 11, 0, -1], [12, 11, 0, -1], [18, 11, 0, -1], [11, 11, 0, -1], [19, 11, 0, -1],
         [10, 11, 0, -1], [20, 11, 0, -1], [9, 11, 0, -1], [8, 11, 0, -1], [7, 11, 0, -1], [6, 11, 0, -1], [5, 11, 0, -1], [4, 11, 0, -1], [3, 11, 0, -1], [2, 11, 0, -1],
@@ -194,10 +195,32 @@ HUONEET[817] = (() => { const DX = 12, DY = 12, h = JSON.parse(JSON.stringify(HU
   h.aallot.puolet = ['ovi', h.aallot.puolet[1].map(([x, y]) => [x + DX, y + DY]), [[1, 25], [1, 26], [1, 27], [1, 28], [1, 29], [1, 30]]];
   const v = h.vuoro, siirra = (q, furni) => { q.x += DX; q.y += DY; q.furni = furni; };
   siirra(v.jono, 513063); siirra(v.alku, 512772); siirra(v.loppu, 513207);
+  // Kohde 5 (kp 18:04, 18:12): aitamekaniikka 817. Palakohtainen HP (50), isku kuten safe house.
+  //   Kun pala tuhoutuu: piilotetaan paikallisesti, ruudukko aukeaa, kaikki zombit kulkevat aukosta.
+  h.aidat = {
+    hp: 50, vahinko: 1, iskuMs: 1000, valahdysMs: 300,
+    palat: [
+      { id: 513302, x: 12, y: 25, hp: 50 },
+      { id: 513182, x: 13, y: 26, hp: 50 },
+      { id: 512831, x: 13, y: 27, hp: 50 },
+      { id: 513048, x: 13, y: 27, hp: 50 },
+      { id: 513142, x: 13, y: 28, hp: 50 },
+      { id: 513140, x: 13, y: 29, hp: 50 },
+      { id: 513141, x: 13, y: 30, hp: 50 },
+    ],
+    hyokkaysRuudut: [
+      [11, 25, 1, 0],
+      [12, 26, 1, 0],
+      [12, 27, 1, 0],
+      [12, 28, 1, 0],
+      [12, 29, 1, 0],
+      [12, 30, 1, 0],
+    ]
+  };
   return h; })();
 ASETUS.aallot = null;   // 684: ei aaltoja (zombimäärä laskeMaara(P), tapettu syntyy uudelleen). 811: HUONEET[811].aallot
 ASETUS.ammuttava = false; ASETUS.teleKuolema = true; ASETUS.muuttunutKuolemasta = true; ASETUS.salaisetSanat = []; ASETUS.tappoRaja = 25;
-ASETUS.aloitusSana = ''; ASETUS.lopetusSana = ''; ASETUS.vuoro = null; ASETUS.safeHouse = null;   // 684: ei safe housea (811: HUONEET[811].safeHouse)   // 684: ei vuoroja eikä aloitussanaa (811: HUONEET[811])
+ASETUS.aloitusSana = ''; ASETUS.lopetusSana = ''; ASETUS.vuoro = null; ASETUS.safeHouse = null; ASETUS.aidat = null;   // 684: ei safe housea (811: HUONEET[811].safeHouse)   // 684: ei vuoroja eikä aloitussanaa (811: HUONEET[811])
 ASETUS.synkka.aihe = 'z684.synk';
 // Aseet 811:ssä = Left 4 Kuplan aseet SELLAISENAAN (kp 16:02 "otetaan vanha bow ja gun ampumis nopeus siten miten ne oli jo tehty" ·
 //   "sword voi kans pitää sellasenaan"): arvot shooter-1.15.2.user.js:505-509 (asetus.vahinko = 1). Zombin HP 60 = shooter :177 zHp.
@@ -336,10 +359,12 @@ const kitEsteet = (rid) => {
       const m = o && o.model, L = o && o.getLocation && o.getLocation();
       if (!m || !L) continue;
       // Kohde 3 lisäys 18:18: vartiotorni 513115 / army_c15_watchtwr @37,26 on este riippumatta tilasta
+      const AT = aitaTila();
+      if (AT && AT.tuhoutuneetIds && AT.tuhoutuneetIds.has(o.id)) continue;
       const isTower = (o.id === 513115) || (m.getValue && (m.getValue('furniture_type_id') === 8052 || String(o.type || '').includes('watchtwr')));
       let fd = null;
       try { fd = sd && sd.getFloorItemData && sd.getFloorItemData(m.getValue('furniture_type_id')); } catch (x) {}
-      if (fd && fd.canStandOn && !isTower) continue;
+      if ((fd && fd.canStandOn || (ASETUS.kuljettavatKalusteet || []).includes(String(o.type))) && !isTower) continue;   // kuljettavat: furnidata false mutta litteä (mitattu 817)
       const d = Math.round(((o.getDirection && o.getDirection() && o.getDirection().x) || 0) / 45) % 4;
       let sx = (m.getValue && m.getValue('furniture_size_x')) || 1, sy = (m.getValue && m.getValue('furniture_size_y')) || 1;
       if (d === 2) [sx, sy] = [sy, sx];
@@ -350,16 +375,22 @@ const kitEsteet = (rid) => {
   kitEsteMuisti = { rid, t: nyt, s }; return s;
 };
 
+const aukiRuudut = () => { const r = new Set(), A = ASETUS.aidat ? aitaTila() : null; if (!A) return r;
+  for (const p of A.palat) { if (!A.tuhoutuneetIds.has(p.id)) continue; let sx = 1, sy = 1; try { const o = e.getRoomObject(huone, p.id, 10), m = o.model, d = Math.round((o.getDirection().x || 0) / 45) % 4; sx = m.getValue('furniture_size_x') || 1; sy = m.getValue('furniture_size_y') || 1; if (d === 2) [sx, sy] = [sy, sx]; } catch (x) {}
+    for (let i = 0; i < sx; i++) for (let j = 0; j < sy; j++) r.add((p.x + i) + ',' + (p.y + j)); }
+  return r; };
 const rakenna = () => {   // zombien kävelyruudut: perustason lattia (|korkeus| < 0.5), matala pino; yhteys oveen tai suurin yhtenäinen lattia-alue
   const hm = e.getFurnitureStackingHeightMap(huone), wg = e.getLegacyWallGeometry(huone); if (!hm || !wg) return null;
   const W = hm.width, H = hm.height, ok = new Uint8Array(W * H), z = new Float32Array(W * H), ke = ASETUS.ammuttava ? kitEsteet(huone) : new Set();   // 684 ennallaan
+  const auki = aukiRuudut();
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const i = y * W + x; if (!wg.isRoomTile(x, y) || (hm._isRoomTile && !hm._isRoomTile[i])) continue;
     const lattia = wg.getHeight(x, y), pino = hm.getTileHeight(x, y); z[i] = pino;
-    if (Math.abs(lattia) < 0.5 && pino - lattia <= ASETUS.lattiaYli && !eiZombeja(x, y) && !ke.has(x + ',' + y)) ok[i] = 1;
+    if (Math.abs(lattia) < 0.5 && (pino - lattia <= ASETUS.lattiaYli || auki.has(x + ',' + y)) && !eiZombeja(x, y) && !ke.has(x + ',' + y)) ok[i] = 1;
   }
   const ovi = lueOvi(W, H); tila.ovi = ovi;
   const yht = new Uint8Array(W * H), jono = [];
+  if (ovi && ASETUS.aidat) for (const r of ASETUS.aidat.hyokkaysRuudut || []) { const i = r[1] * W + r[0]; if (ok[i] && !yht[i]) { yht[i] = 1; jono.push(i); } }
   if (ovi) {
     const d0 = ovi.y * W + ovi.x;
     if (ok[d0]) { yht[d0] = 1; jono.push(d0); }
@@ -876,15 +907,141 @@ const etsiAani = (z, dz, k, tMs) => {
 // Vaellus ilman kohdetta: liikkuu muutaman ruudun pätkiä (vaellusAskeleet 2..4, asento 'mv'),
 //   seisoo hetken paikallaan (vaellusTauko 2..5 s, asento 'std'), ja jatkaa uuteen suuntaan (mahdollinen ääniveto painottaa vinosti ääntä kohti).
 //   Kun äänen paino >= ASETUS.tutkiRaja (1.8), zombi tutkii ääntä ja kävelee BFS-reittiä suoraan äänen lähtöruutuun ilman vaellustaukoja.
+// Kohde 5 (kp 18:04, 18:12): aitamekaniikka 817. Palakohtainen HP, isku safe housen tavoin.
+const aitaTila = () => {
+  if (!ASETUS.aidat) return null;
+  const A = SAILO.aidat && typeof SAILO.aidat === 'object' ? SAILO.aidat : (SAILO.aidat = {});
+  if (!Array.isArray(A.palat)) {
+    A.palat = (ASETUS.aidat.palat || []).map(p => ({ ...p, max: p.hp || ASETUS.aidat.hp || 50 }));
+  }
+  if (!(A.tuhoutuneetIds instanceof Set)) A.tuhoutuneetIds = new Set();
+  if (!(A.tuhoutuneetRuudut instanceof Set)) A.tuhoutuneetRuudut = new Set();
+  if (!(A.iskut >= 0)) A.iskut = 0;
+  return A;
+};
+const nollaaAidat = () => {
+  const A = aitaTila(); if (!A) return;
+  A.palat = (ASETUS.aidat.palat || []).map(p => ({ ...p, max: p.hp || ASETUS.aidat.hp || 50 }));
+  A.tuhoutuneetIds.clear(); A.tuhoutuneetRuudut.clear(); A.iskut = 0; A.viime = 0;
+  // Palauta spritejen näkyvyys
+  try {
+    const ids = new Set((ASETUS.aidat.palat || []).map(p => p.id));
+    for (const o of e.getRoomObjects(huone, 10) || []) {
+      if (!o || !ids.has(o.id)) continue;
+      for (const q of (o.visualization && o.visualization.sprites) || []) {
+        if (q.alpha === 0) { q.alpha = 255; if (q.increaseUpdateCounter) q.increaseUpdateCounter(); }
+      }
+    }
+  } catch (x) {}
+  kitEsteMuisti = null;
+  if (ruudukko) { const r = rakenna(); if (r && r.ruudut.length) ruudukko = r; }
+};
+const paivitaAitaPiilotukset = () => {
+  const A = aitaTila(); if (!A || !A.tuhoutuneetIds.size) return;
+  try {
+    for (const o of e.getRoomObjects(huone, 10) || []) {
+      if (!o || !A.tuhoutuneetIds.has(o.id)) continue;
+      for (const q of (o.visualization && o.visualization.sprites) || []) {
+        if (q.alpha !== 0) { q.alpha = 0; if (q.increaseUpdateCounter) q.increaseUpdateCounter(); }
+      }
+    }
+  } catch (x) {}
+};
+let aitaIskut = null, aitaAsti = 0, aitaPaalla = false;
+const aitaSavy = (vari) => {
+  const A = aitaTila(); if (!A) return;
+  try {
+    const ids = new Set((ASETUS.aidat.palat || []).map(p => p.id));
+    for (const o of e.getRoomObjects(huone, 10) || []) {
+      if (!o || !ids.has(o.id) || A.tuhoutuneetIds.has(o.id)) continue;
+      for (const q of (o.visualization && o.visualization.sprites) || []) {
+        if (q.alpha !== 255 || q.blendMode === 'add') continue;
+        if (q.color !== vari) { q.color = vari; if (q.increaseUpdateCounter) q.increaseUpdateCounter(); }
+      }
+    }
+  } catch (x) {}
+};
+const aitaValahdys = (nyt) => {
+  const A = aitaTila(); if (!A) return;
+  if (aitaIskut != null && A.iskut > aitaIskut) aitaAsti = nyt + Math.max(50, Number(ASETUS.aidat.valahdysMs) || 300);
+  aitaIskut = A.iskut;
+  if (nyt < aitaAsti) { aitaPaalla = true; aitaSavy(Math.floor(nyt / 120) % 2 ? 0xff9090 : 0xff2a2a); }
+  else if (aitaPaalla) { aitaPaalla = false; aitaSavy(0xffffff); }
+};
+const kohtiAitaa = (k, tMs, tikki, z, varattu, s0, a, kentat) => {
+  const AI = ASETUS.aidat; if (!AI || !ruudukko || z.muuttunut) return false;
+  const AT = aitaTila(); if (!AT) return false;
+  // Jos aita on jo auki (yksikin pala tuhoutunut), zombit pääsevät kulkemaan läpi, ei tarvitse hakata lisää aitaa
+  if (AT.tuhoutuneetIds.size > 0) return false;
+  // Vain vasemmalta tulevat zombit hyökkäävät aitaan (x <= 13 tai puoli === 2)
+  if (z.x > 13) return false;
+
+  const { W, H, ok } = ruudukko;
+  const hr = (AI.hyokkaysRuudut || []).filter(r => Array.isArray(r) && ok[r[1] * W + r[0]]);
+  if (!hr.length) return false;
+
+  let da = kentat && kentat.get('aita');
+  if (!da) { da = bfsKentta(W, H, ok, hr.map(r => ({ x: r[0], y: r[1] }))).d; if (kentat) kentat.set('aita', da); }
+  const nyt = da[z.y * W + z.x]; if (nyt < 0) return false;
+
+  z.vAsk = 0; z.vTauko = 0; z.vTaukoMs = 0; z.vTaukoAsti = 0; z.vDx = 0; z.vDy = 0;
+  if (nyt > 0) {
+    let paras = null;
+    for (const [dx, dy] of NAAP) {
+      const x = z.x + dx, y = z.y + dy, j = y * W + x;
+      if (x < 0 || y < 0 || x >= W || y >= H || da[j] < 0 || varattu.has(j) || !(da[j] < nyt)) continue;
+      if (a && x === a.x && y === a.y) continue;
+      if (dx !== 0 && dy !== 0 && (!ok[z.y * W + x] || !ok[y * W + z.x])) continue;
+      if (!paras || da[j] < paras.d) paras = { x, y, d: da[j], dx, dy };
+    }
+    z.aita = 'kulkee';
+    if (paras) { z.x = paras.x; z.y = paras.y; z.suunta = suunnaksi(paras.dx, paras.dy); asetaAskelAika(z, s0, k, tMs, tikki); return true; }
+    z.seuraavaAskelMs = tMs + tikki; z.piirtoAskelMs = tikki; return true;
+  }
+
+  // perillä hyökkäysruudussa: etsi kohdepala ja iske
+  const r = hr.find(q => q[0] === z.x && q[1] === z.y);
+  if (r && (r[2] || r[3])) z.suunta = suunnaksi(Math.sign(r[2] || 0), Math.sign(r[3] || 0));
+  z.aita = 'iskee'; z.seuraavaAskelMs = tMs + tikki; z.piirtoAskelMs = tikki;
+
+  const iskuMs = Math.max(tikki, Number(AI.iskuMs) || 1000);
+  if (!SYNK.seuraa() && tMs - (z.aitaIsku ?? -1e15) >= iskuMs) {
+    z.aitaIsku = tMs;
+    // Etsi pala johon isketään (esim. ruudussa z.x+r[2], z.y+r[3] tai lähin ehjä pala)
+    const tx = z.x + (r ? r[2] : 1), ty = z.y + (r ? r[3] : 0);
+    const pala = AT.palat.find(p => (p.x === tx && p.y === ty && p.hp > 0)) || AT.palat.find(p => p.hp > 0);
+    if (pala) {
+      pala.hp = Math.max(0, pala.hp - Math.max(0, Number(AI.vahinko) || 1));
+      AT.iskut++; AT.viime = tMs;
+      if (pala.hp <= 0) {
+        AT.tuhoutuneetIds.add(pala.id);
+        AT.tuhoutuneetRuudut.add(pala.x + ',' + pala.y);
+        lokiin({ aitaTuhoutui: pala.id, x: pala.x, y: pala.y, iskut: AT.iskut });
+        kitEsteMuisti = null;
+        if (ruudukko) { const uusiR = rakenna(); if (uusiR && uusiR.ruudut.length) ruudukko = uusiR; }
+      }
+    }
+  }
+  return true;
+};
+
 // Vaihe 1c: safe house kohteettoman zombin oletustavoitteena (ASETUS.safeHouse; 684: null -> false heti, vaellus ennallaan).
 //   true = tämä tikki hoidettiin (askel kohti tai isku), false = ei safe housea / ei reittiä -> tavallinen vaellus.
 //   Deterministinen kuten jahti: sama BFS-kenttä, NAAP-järjestys ja varattu-joukko kaikilla. Isku (HP) vain auktoriteetilla (!SYNK.seuraa()).
 const safeHouseTila = () => { if (!ASETUS.safeHouse) return null; const S = SAILO.safeHouse && typeof SAILO.safeHouse === 'object' ? SAILO.safeHouse : (SAILO.safeHouse = {});
   const max = Math.max(1, Number(ASETUS.safeHouse.hp) || 100); if (!(S.max > 0)) S.max = max; if (!(S.hp >= 0)) S.hp = max; if (!(S.iskut >= 0)) S.iskut = 0; return S; };
+let shLohkoMuisti = null;
+const shLohkot = (SH) => { if (shLohkoMuisti && shLohkoMuisti.SH === SH) return shLohkoMuisti.l;   // kierrossa rakennuksen ympäri, noin 4 ruutua lohkossa
+  const r = SH.ruudut.filter(q => Array.isArray(q)).map(q => ({ x: q[0], y: q[1] })), n = r.length || 1, cx = r.reduce((a, q) => a + q.x, 0) / n, cy = r.reduce((a, q) => a + q.y, 0) / n;
+  r.sort((p, q) => Math.atan2(p.y - cy, p.x - cx) - Math.atan2(q.y - cy, q.x - cx));
+  const l = []; for (let i = 0; i < r.length; i += 4) l.push(r.slice(i, i + 4)); shLohkoMuisti = { SH, l }; return l; };
 const kohtiSafeHousea = (k, tMs, tikki, z, varattu, s0, a, kentat) => {
   const SH = ASETUS.safeHouse; if (!SH || !Array.isArray(SH.ruudut) || !SH.ruudut.length || !ruudukko || z.muuttunut) return false;
   const { W, H, ok } = ruudukko;
-  let ds = kentat && kentat.get('sh');
+  const lohkot = shLohkot(SH), li = lohkot.length ? z.n % lohkot.length : -1;
+  let ds = null;
+  if (li >= 0) { const avain = 'sh' + li; ds = kentat && kentat.get(avain); if (!ds) { ds = bfsKentta(W, H, ok, lohkot[li]).d; if (kentat) kentat.set(avain, ds); } if (ds[z.y * W + z.x] < 0) ds = null; }
+  if (!ds) ds = kentat && kentat.get('sh');
   if (!ds) { ds = bfsKentta(W, H, ok, SH.ruudut.filter(r => Array.isArray(r)).map(r => ({ x: r[0], y: r[1] }))).d; if (kentat) kentat.set('sh', ds); }
   const nyt = ds[z.y * W + z.x]; if (nyt < 0) { z.safe = null; return false; }   // ei reittiä / yksikään ruutu ei kelpaa
   z.vAsk = 0; z.vTauko = 0; z.vTaukoMs = 0; z.vTaukoAsti = 0; z.vDx = 0; z.vDy = 0;
@@ -921,7 +1078,10 @@ const vaella = (k, tMs, tikki, z, dz, varattu, s0, a, kentat) => {
   const tutkiRaja = Number(ASETUS.tutkiRaja ?? 1.8);
   const tutkiEtaisyys = Number(ASETUS.tutkiEtaisyys ?? 2);
   const onTutkinta = !!(aani && aani.paino >= tutkiRaja);
-  if (!onTutkinta && kohtiSafeHousea(k, tMs, tikki, z, varattu, s0, a, kentat)) return;   // vaihe 1c (811): oletustavoite, ks. HUONEET[811].safeHouse
+  if (!onTutkinta) {
+    if (kohtiAitaa(k, tMs, tikki, z, varattu, s0, a, kentat)) return;
+    if (kohtiSafeHousea(k, tMs, tikki, z, varattu, s0, a, kentat)) return;
+  }   // vaihe 1c (811): oletustavoite, ks. HUONEET[811].safeHouse
 
   if ((z.vTaukoAsti || 0) > tMs) {
     if (onTutkinta) {
@@ -2615,6 +2775,24 @@ AMMUNTA = (() => {
   const omaksu = (snap, P) => {
     vuoroOmaksu(snap);   // 811 vuoro: johtajan päätös voittaa
     if (ASETUS.safeHouse && Array.isArray(snap.sh)) { const S = safeHouseTila(); if (S) { S.hp = Math.max(0, Number(snap.sh[0]) || 0); S.max = Math.max(1, Number(snap.sh[1]) || S.max); S.iskut = snap.sh[2] | 0; S.ix = snap.sh[3]; S.iy = snap.sh[4]; } }   // vaihe 1c
+    if (ASETUS.aidat && Array.isArray(snap.ai)) {
+      const AT = aitaTila();
+      if (AT && Array.isArray(snap.ai[0])) {
+        const vanhaTuhCount = AT.tuhoutuneetIds.size;
+        for (let i = 0; i < snap.ai[0].length && i < AT.palat.length; i++) {
+          AT.palat[i].hp = Number(snap.ai[0][i]) || 0;
+          if (AT.palat[i].hp <= 0) {
+            AT.tuhoutuneetIds.add(AT.palat[i].id);
+            AT.tuhoutuneetRuudut.add(AT.palat[i].x + ',' + AT.palat[i].y);
+          }
+        }
+        AT.iskut = snap.ai[1] | 0;
+        if (AT.tuhoutuneetIds.size !== vanhaTuhCount) {
+          kitEsteMuisti = null;
+          if (ruudukko) { const uusiR = rakenna(); if (uusiR && uusiR.ruudut.length) ruudukko = uusiR; }
+        }
+      }
+    }   // vaihe 1c
     if (snap.ta && typeof snap.ta === 'object') {
       const uusi = {};
       for (const [k, a] of Object.entries(snap.ta)) { const id = Number(k); if (!(id > 0) || !Array.isArray(a)) continue;
@@ -2642,6 +2820,7 @@ AMMUNTA = (() => {
   const snapLisaa = (snap) => {
     vuoroSnap(snap);   // 811 vuoro (vu, vn, vv)
     if (ASETUS.safeHouse) { const S = safeHouseTila(); if (S) snap.sh = [Math.round(S.hp * 10) / 10, S.max, S.iskut | 0, S.ix, S.iy]; }   // vaihe 1c
+    if (ASETUS.aidat) { const AT = aitaTila(); if (AT) snap.ai = [AT.palat.map(p => Math.round(p.hp * 10) / 10), AT.iskut | 0]; }   // vaihe 1c
     const ta = {}, P = pelaajat(), lasna = new Set(P.map(p => p.id));
     for (const [k, p] of Object.entries(AM.pisteet)) { const id = Number(k); if (!lasna.has(id) && !(p.tapot > 0)) continue;
       ta[id] = [p.tapot | 0, p.lapi ? 1 : 0, p.run | 0, String(p.nimi || '').slice(0, 24)]; }
@@ -2735,7 +2914,8 @@ AMMUNTA = (() => {
   const nollaaPeli = () => {   // zombit pois ja aallot alkuun (ei automaattista uutta aaltoa: seuraava vuoro aloittaa)
     if (Array.isArray(SAILO.zombit)) SAILO.zombit.length = 0;
     AM.zhp.clear(); AM.aalto = { n: 0, k: 0, sp: 0, ku: 0, tauko: 0, alku: 0, seur: 0, idx: 0 };
-    if (ASETUS.safeHouse) { const S = safeHouseTila(); if (S) { S.hp = S.max; S.iskut = 0; S.viime = 0; } }   // vaihe 1c: safe house ehjäksi uuden pelin alussa
+    if (ASETUS.safeHouse) { const S = safeHouseTila(); if (S) { S.hp = S.max; S.iskut = 0; S.viime = 0; } }
+    if (ASETUS.aidat) nollaaAidat();   // vaihe 1c: safe house ehjäksi uuden pelin alussa
   };
   const vuoroAloita = (p, tapa, tMs) => {
     const V = VA(), laskenta = Math.max(0, Number(V.laskentaMs ?? 5000));
@@ -2942,6 +3122,8 @@ AMMUNTA = (() => {
     for (const [id, asti] of [...shPalat]) { if (nyt < asti) shSavy(id, Math.floor(nyt / 120) % 2 ? 0xff9090 : 0xff2a2a); else { shSavy(id, 0xffffff); shPalat.delete(id); } } };
   const piirto = () => {
     shValahdys(Date.now());
+    aitaValahdys(Date.now());
+    paivitaAitaPiilotukset();
     const nyt = Date.now();
     for (const [a, r] of [...ruumiit]) if (nyt >= r.asti) { try { e.removeRoomObjectUser(huone, r.g); } catch (x) {} SAILO.piirretytIdt.delete(r.g); ruumiit.delete(a); }
     for (const [n, p] of [...piilotetut]) if (nyt >= p.asti) piilotetut.delete(n);
@@ -3452,7 +3634,8 @@ AMMUNTA = (() => {
       pelaajat: pel, tulokset: AM.tulokset.map(t => Object.assign({}, t)), ase: aseAktiivinen(), aseNimi: ASETUS.ase.valittu,
       aalto: ASETUS.aallot ? { n: AM.aalto.n, zombeja: AM.aalto.k, jaljella: Math.max(0, AM.aalto.k - AM.aalto.ku), tauko: !!AM.aalto.tauko } : null,
       kiinnijaanti: ASETUS.kiinnijaanti, hp: Math.round(AM.hp), hpMax: hpMax(), rooli: auktoriteetti() ? 'auktoriteetti' : 'seuraaja',
-      safeHouse: ASETUS.safeHouse ? (() => { const S = safeHouseTila() || {}; return { hp: S.hp, max: S.max, iskut: S.iskut, iskee: (SAILO.zombit || []).filter(z => z && z.safe === 'iskee' && z.kuoli < 0 && z.kohdeId == null).length }; })() : null,   // vaihe 1c
+      safeHouse: ASETUS.safeHouse ? (() => { const S = safeHouseTila() || {}; return { hp: S.hp, max: S.max, iskut: S.iskut, iskee: (SAILO.zombit || []).filter(z => z && z.safe === 'iskee' && z.kuoli < 0 && z.kohdeId == null).length }; })() : null,
+      aidat: ASETUS.aidat ? (() => { const A = aitaTila() || {}; return { palat: (A.palat || []).map(p => ({ id: p.id, x: p.x, y: p.y, hp: p.hp })), iskut: A.iskut, tuhoutuneet: Array.from(A.tuhoutuneetIds || []) }; })() : null,   // vaihe 1c
       // 811 vuoro: kuka pelaa, vaihe, laskuri (5..1) ja pisteet; teksti = mitä kerros näyttää. null jos huoneessa ei ole vuoroja.
       vuoro: ASETUS.vuoro ? (VT.vu ? { pelaaja: VT.vu.id, nimi: VT.vu.nimi, vaihe: VT.vu.vaihe ? 'peli' : 'laskenta', laskuri: VT.vu.vaihe ? 0 : Math.max(1, Math.min(5, Math.ceil((VT.vu.alku - Date.now()) / 1000))),
         pisteet: VT.vu.id === id ? omaTapot() : ((AM.pisteet[VT.vu.id] || {}).tapot | 0), oma: VT.vu.id === id, nro: VT.vu.nro, tapa: VT.vu.tapa, teksti: VT.naytto || '' }
