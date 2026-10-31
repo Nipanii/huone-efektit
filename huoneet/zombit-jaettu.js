@@ -198,20 +198,14 @@ HUONEET[817] = (() => { const DX = 12, DY = 12, h = JSON.parse(JSON.stringify(HU
   // Kohde 5 (kp 18:04, 18:12): aitamekaniikka 817. Palakohtainen HP (50), isku kuten safe house.
   //   Kun pala tuhoutuu: piilotetaan paikallisesti, ruudukko aukeaa, kaikki zombit kulkevat aukosta.
   h.aidat = {
-    hp: 50, vahinko: 1, iskuMs: 1000, valahdysMs: 300,
+    hp: 20, vahinko: 1, iskuMs: 1000, valahdysMs: 300,
+    // kp 18:51-18:52 "targettaa vääriä esteitä" + osoitti Portti 513142: vain portit ovat kohteita.
     palat: [
-      { id: 513302, x: 12, y: 25, hp: 50 },
-      { id: 513182, x: 13, y: 26, hp: 50 },
-      { id: 512831, x: 13, y: 27, hp: 50 },
-      { id: 513048, x: 13, y: 27, hp: 50 },
-      { id: 513142, x: 13, y: 28, hp: 50 },
-      { id: 513140, x: 13, y: 29, hp: 50 },
-      { id: 513141, x: 13, y: 30, hp: 50 },
+      { id: 513142, x: 13, y: 28, hp: 20 },
+      { id: 513140, x: 13, y: 29, hp: 20 },
+      { id: 513141, x: 13, y: 30, hp: 20 },
     ],
     hyokkaysRuudut: [
-      [11, 25, 1, 0],
-      [12, 26, 1, 0],
-      [12, 27, 1, 0],
       [12, 28, 1, 0],
       [12, 29, 1, 0],
       [12, 30, 1, 0],
