@@ -18,7 +18,8 @@ const MALLI_TULOKSET = [   // [nimi, pisteet = tapetut zombit, aika] — keksitt
   ['Hilla', 28, '03:40'], ['Joonas', 27, '03:33'], ['Seela', 26, '03:28'], ['Oiva', 25, '03:15'], ['Minea', 25, '03:22'],
 ];
 const OHJEET = [   // sona 15:42 "yksi pelaaja kerrallaan pelaa zombie rataa yksin ja muut voivat katsoa ... 25 zombieta. 1 zombi = 1 piste."
-  'Yksi pelaaja kerrallaan pelaa zombirataa yksin, muut voivat katsoa.',
+  'Tervetuloa Halloween radan finaaliin.',   // sona 15:58
+  'Yksi pelaaja kerrallaan pelaa zombirataa yksin.',
   'Tavoite: tapa mahdollisimman monta zombia. 1 zombi = 1 piste.',
   'Rata on läpäisty, kun olet tappanut 25 zombia.',
 ];
