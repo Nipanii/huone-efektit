@@ -966,13 +966,10 @@ const aitaValahdys = (nyt) => {
 const kohtiAitaa = (k, tMs, tikki, z, varattu, s0, a, kentat) => {
   const AI = ASETUS.aidat; if (!AI || !ruudukko || z.muuttunut) return false;
   const AT = aitaTila(); if (!AT) return false;
-  // Jos aita on jo auki (yksikin pala tuhoutunut), zombit pääsevät kulkemaan läpi, ei tarvitse hakata lisää aitaa
-  if (AT.tuhoutuneetIds.size > 0) return false;
-  // Vain vasemmalta tulevat zombit hyökkäävät aitaan (x <= 13 tai puoli === 2)
-  if (z.x > 13) return false;
-
-  const { W, H, ok } = ruudukko;
-  const hr = (AI.hyokkaysRuudut || []).filter(r => Array.isArray(r) && ok[r[1] * W + r[0]]);
+  // kp 19:10 "jäi vasemmalle vaa seisoo": portin 13,28 takana on este, joten yhden palan tuho ei aina avaa reittiä. Hakataan niin kauan kuin safe houselle ei ole reittiä.
+  const { W, H, ok } = ruudukko, SH0 = ASETUS.safeHouse;
+  if (SH0 && Array.isArray(SH0.ruudut)) { let d0 = kentat && kentat.get('sh'); if (!d0) { d0 = bfsKentta(W, H, ok, SH0.ruudut.filter(r => Array.isArray(r)).map(r => ({ x: r[0], y: r[1] }))).d; if (kentat) kentat.set('sh', d0); } if (d0[z.y * W + z.x] >= 0) return false; }
+  const hr = (AI.hyokkaysRuudut || []).filter(r => Array.isArray(r) && ok[r[1] * W + r[0]] && AT.palat.some(p => p.hp > 0 && p.x === r[0] + r[2] && p.y === r[1] + r[3]));
   if (!hr.length) return false;
 
   let da = kentat && kentat.get('aita');
