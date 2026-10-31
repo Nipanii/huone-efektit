@@ -105,7 +105,7 @@ const piirra = () => {
     if (tavoite.length) { const p = document.createElement('div');
       p.style.cssText = 'margin-top:10px;padding:8px 10px;color:#fff;background:' + V.valittu + ';border:1px solid ' + V.korostus + ';border-left:4px solid ' + V.korostus + ';border-radius:5px';
       const o = document.createElement('div'); o.textContent = 'Tavoite'; o.style.cssText = 'font-weight:bold;font-size:14px;color:' + V.korostus + ';margin-bottom:3px'; p.appendChild(o);
-      for (const r of tavoite) { const t = document.createElement('div'); t.textContent = r.replace(/^Tavoite:\s*/, '').replace(/^./, c => c.toUpperCase()); t.style.cssText = 'font-weight:normal;font-size:13px;margin-top:2px'; p.appendChild(t); }
+      for (const r of tavoite) { const t = document.createElement('div'); t.textContent = r.replace(/^Tavoite:\s*/, '').replace(/^./, c => c.toUpperCase()); t.style.cssText = 'font-weight:normal;font-size:13px;margin-top:' + (p.childElementCount > 1 ? 8 : 2) + 'px'; p.appendChild(t); }   // sona 16:02 "lisää paddingiä näiden tekstien väliin"
       sisalto.appendChild(p); }
   }
 };
