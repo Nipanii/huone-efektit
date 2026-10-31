@@ -75,7 +75,7 @@ const ASETUS = {
   lattiaYli: 0.3,      // zombi kävelee ruudulla jonka pino on enintään näin paljon lattian yli
   kohteet: null,       // null = jahtaa ketä tahansa pelaajaa (ei SALLITUT-rajausta)
   eiKohteena: [245],   // Herra-Robotti (user id 245) ja botit eivät ole kohteita
-  turvassa: [],        // käyttäjä-id:t joille :safe-poikkeus on sallittu (oletus tyhjä)
+  turvassa: [1, 282, 281, 245],  // käyttäjä-id:t joille :safe / :kuolematon on sallittu (kp 31.10. 14:58 'samalla whitelistilla :kuolematon komennon · toggleable': Res, kp, sona, robo)
   salasana: 'zk684',   // salainen sana jonka skripti sanoo kiinnijäädessä (wired: wf_trg_says_something -> wf_act_teleport_to)
   kuolemaMakuu: 1500,  // ms (kp 19:25); kiinnijäädessä uhrin hahmo makaa maassa ('lay') tämän ajan ennen zk684-teleporttia
   kuolemaLukko: 5000,  // ms; lukko ettei sama kiinnijäänti lähetä sanaa monta kertaa
@@ -2249,7 +2249,7 @@ const uusiKartta = setInterval(() => { try { if (ruudukko) { const r = rakenna()
 SYNK.kaynnista();   // synkka: kanavan valinta (kuplaScripts / WebSocket-vara) + snapshot/hei-ajastin (purkautuu return-siivouksessa)
 
 // ---- :safe (vain ASETUS.turvassa-listalla oleville; rivi ei lähde palvelimelle)
-const KENTTA = 'input.nitro-chat-input-control', KOMENTO = /^:safe(?:\s+(pois|päälle|paalle|on|off))?$/i;
+const KENTTA = 'input.nitro-chat-input-control', KOMENTO = /^:(?:safe|kuolematon)(?:\s+(pois|päälle|paalle|on|off))?$/i;
 const kuule = ev => {
   if (ev.key !== 'Enter' && ev.key !== 'NumpadEnter') return;
   const el = ev.target; if (!(el instanceof HTMLInputElement) || !el.matches(KENTTA)) return;
@@ -2257,7 +2257,7 @@ const kuule = ev => {
   ev.preventDefault(); ev.stopImmediatePropagation();
   const s = (m[1] || '').toLowerCase(), uusi = s ? !(s === 'pois' || s === 'off') : !safe;
   tila.safe(uusi); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, ''); el.dispatchEvent(new Event('input', { bubbles: true }));
-  ilmoita(uusi ? ':safe päällä: zombit eivät tapa sinua' : ':safe pois: zombit tappavat');
+  ilmoita(uusi ? ':kuolematon päällä: zombit eivät tapa sinua' : ':kuolematon pois: zombit tappavat');
 };
 addEventListener('keydown', kuule, true); tila._kuule = kuule;
 lokiin({ alku: huone, safe: safe && saaSafe() });
