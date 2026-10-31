@@ -2686,6 +2686,7 @@ AMMUNTA = (() => {
   //   chattiin. EI asukanavaa (2730 / figure / datajako). VIP-komento: ilman VIP:tä ase ei näy kädessä, peli toimii (shooter :101).
   //   Ei toistoa: sama id ei lähde kahdesti (AM.kasiNyt säilyy live-päivityksen yli). Tyhjennys ':handitem 0' vain jos tämä skripti asetti käden.
   const kasiin = (id) => {
+    return false;   // kp 21:35 "älä laita pelaajia käyttää handitem oikeesti": ei :handitem-komentoa, käsiase piirretään clientissa
     id = Math.max(0, id | 0); if (AM.kasiNyt === id) return false;
     if (!id && !(AM.kasiNyt > 0)) return false;
     try { const s = istunto(); if (!s || typeof s.sendChatMessage !== 'function') return false; s.sendChatMessage(':handitem ' + id, 0); AM.kasiNyt = id; tilasto.kasi = (tilasto.kasi || 0) + 1; lokiin({ kasi: id }); return true; }
