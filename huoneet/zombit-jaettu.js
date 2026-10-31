@@ -3938,6 +3938,8 @@ AMMUNTA = (() => {
     if (tulostuva && onKentta(ev.target)) ev.preventDefault();   // välilyönti valittuun kenttään ei kirjoita peli-tilassa
   };
   const nosto = ev => { const k = String(ev.key || '').toLowerCase(); if (pidetyt.delete(k)) { ev.preventDefault(); ev.stopImmediatePropagation(); wasdTick(); } };
+  // kp 31.10. 23:25 oikean klikkauksen menu (SurfaceWalkMenuView) sulkeutuu vain document-mousedownista, jota ampuminen ei päästä perille -> vasen klikkaus painaa sen Peruuta-riviä ja ampuu silti
+  const suljeOikeaMenu = () => { try { for (const el of document.querySelectorAll('.nitro-context-menu .menu-item')) if ((el.textContent || '').trim() === 'Peruuta') { el.click(); return; } } catch (x) {} };
   const huoneeseen = ev => !!ev && ev.button === 0 && ev.target && ev.target.tagName === 'CANVAS' && !(ev.target.hasAttribute && ev.target.hasAttribute('data-zombit-ammunta'));
   // Hiiri (shooter :2133-2145, :2211): veto-ase (jousi, miekka) jännittyy painettaessa ja laukeaa irrotettaessa (c = lataus 0..1),
   //   auto-ase (pistooli) tulittaa cd:n tahtiin niin kauan kuin nappi on pohjassa, muut laukeavat painettaessa.
@@ -3955,6 +3957,7 @@ AMMUNTA = (() => {
     if (!aseAktiivinen() || !huoneeseen(ev)) return;
     ev.preventDefault(); ev.stopImmediatePropagation();   // vasen klikkaus huoneeseen ampuu eikä kävele (shooter :2211)
     if (ev.type !== 'pointerdown') return;
+    suljeOikeaMenu();
     if (chatTila) chatPois();
     hiiriX = ev.clientX; hiiriY = ev.clientY;
     const A = aseNyt();
