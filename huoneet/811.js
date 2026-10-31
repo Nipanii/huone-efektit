@@ -13,7 +13,7 @@ const huone = kupla.roomId();
 const OTSIKKO = 'Halloween rata 2026 FINAALI';   // sona 15:27 'vaihdetaan 6/6 sanaksi finaali'
 const VALILEHDET = ['Highscores', 'Ohjeet'];
 const KORISTEET = false;   // sona 16:00 lisätty, 16:04 poistettu ("Ei ne sovikkaan"); koodi jätetty
-const LAPI_RAJA = 25;   // sona 15:42 "pääsee radan läpi jos on tappanut 25 zombieta"
+const LAPI_RAJA = 100;   // kp 19:59 (oli 25, sona 15:42);   // sona 15:42 "pääsee radan läpi jos on tappanut 25 zombieta"
 const MALLI_EI_LAPI = [   // [nimi, pisteet < LAPI_RAJA, figure] — oikeita pelaajia, pisteet keksittyjä (sona 16:16)
   ["Izmo",23,"fa-8110-92.hr-11571-45.lg-10059-1408.hd-11209-3-14.ca-989999899-1285.sh-305-92.ch-3934-1408-1408.wa-39483458-92.cp-990000813-1408.cc-3838-1408.ha-6116-92\n"],
   ["subikka3",21,"hd-1000002009-10.he-3082-92.fa-11693-1408.lg-1000002981-1325-91.ch-1000001288-92.hr-1000001037-32.ea-9036-107556-92.wa-999999017-92.sh-3338-92.cp-1000001893-110.ca-999999364-1408.0"],
@@ -127,7 +127,7 @@ const yhdista = () => { const G = window['__zombi' + huone], lista = G && Array.
   ennatysAlustettu = true; if (muuttui) tallennaPaikallinen(); return muuttui; };
 const tulosRivit = () => { yhdista();
   const jarj = (a, b) => b.tapot - a.tapot || String(a.nimi).localeCompare(String(b.nimi)) || a.id - b.id, kaikki = [...paras.values()].map(r => ({ ...r, nimi: r.nimi || ('#' + r.id) }));
-  return { lapi: kaikki.filter(r => r.lapi || r.tapot >= LAPI_RAJA).sort(jarj), eiLapi: kaikki.filter(r => !(r.lapi || r.tapot >= LAPI_RAJA)).sort(jarj) }; };
+  return { lapi: kaikki.filter(r => r.tapot >= LAPI_RAJA).sort(jarj), eiLapi: kaikki.filter(r => r.tapot < LAPI_RAJA).sort(jarj) }; };
 luePaikallinen();
 const piirra = () => {
   if (!sisalto) return;

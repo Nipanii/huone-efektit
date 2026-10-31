@@ -141,7 +141,7 @@ const HUONEET = {
     lopetusSana: 'zl811',
     teleKuolema: false, muuttunutKuolemasta: false, ammuttava: true,
     maaraPohja: 4, maaraMin: 5, maaraMax: 8,   // OMA VALINTA (säädettävä): yksinpelaajalle 5 zombia kerrallaan (684:n kaavalla 3)
-    tappoRaja: 25,
+    tappoRaja: 100,   // kp 19:59 läpi 100 tapolla, keruu jatkuu sen jälkeen
     askelVali: [667, 1167],   // vaihe 1c, kp 17:14 "lisätään kans zombien base nopeutta vähän": +20 % nopeus (ms/ruutu / 1.2), oli ASETUS.askelVali [800, 1400]. Vain 811.
     // Vaihe 1c, kp 17:07-17:08 "zombien pitäs varmaa kulkee oletuksena kohti safehousee ja hyökätä siihen · nyt ne jää harhailee tonne tien alkuun ·
     //   kunnes targettaa pelaajaa" + 17:09 "se safehouse targettaus ei saa overridee ettei target pelaajaa": KOHTEETON zombi kävelee (ilman vaellustaukoja)
