@@ -3439,7 +3439,10 @@ AMMUNTA = (() => {
     return L < 0.35 ? null : { dx: u / L, dy: v / L };
   };
   // shooter :878 sateella (suora säde, osumasäde R; PYORAHDYS = kaikki suunnat säteellä K). Seinäeste: ruutu joka ei ole huoneen lattiaa.
+  // kp 31.10. 22:52 "jos zombi pääsee alle nii ase ei enää osu" · "pitäs pystyy ampuu ilman et liikkuu": kiinni oleva kohde osuu suunnasta riippumatta.
+  const PISTE_SADE = 0.6;
   const sateella = (x, y, dx, dy, mx, my, K, R) => { const l2 = dx * dx + dy * dy; if (!l2) return null;
+    { const lahella = Math.hypot(mx - x, my - y); if (lahella < PISTE_SADE) return lahella; }
     if (R === PYORAHDYS) { const m = Math.hypot(mx - x, my - y); return m >= 0.3 && m <= K ? m : null; }
     const s = ((mx - x) * dx + (my - y) * dy) / l2, matka = s * Math.sqrt(l2);
     if (matka < 0.3 || matka > K) return null; return Math.hypot(x + dx * s - mx, y + dy * s - my) < R ? matka : null; };
@@ -3573,7 +3576,7 @@ AMMUNTA = (() => {
       const b = luodit[i], A = aseOf(b.w), matka = (nyt - b.t0) / 1000 * (A.nopeus || 8);
       const m0 = b.pm == null ? 0.5 : b.pm; b.pm = matka; const m1 = Math.min(matka, b.LL, b.este);
       let paras = null;
-      if (matka > 0.5) for (const k of kohteet()) { const m = sateella(b.x, b.y, b.dx, b.dy, k.x, k.y, m1, OSUMA_SADE); if (m != null && m >= m0 - OSUMA_SADE && m > 0.5 && (!paras || m < paras.m)) paras = Object.assign({ m }, k); }
+      for (const k of kohteet()) { const m = sateella(b.x, b.y, b.dx, b.dy, k.x, k.y, m1, OSUMA_SADE); if (m != null && (m < PISTE_SADE || (matka > 0.5 && m >= m0 - OSUMA_SADE && m > 0.5)) && (!paras || m < paras.m)) paras = Object.assign({ m }, k); }
       if (paras) { luodit.splice(i, 1); if (!b.piirtoVain) osuma(paras, A, b.w, b.c, paras.m, 1); continue; }
       if (matka > b.LL || matka > b.este) luodit.splice(i, 1);
     }
