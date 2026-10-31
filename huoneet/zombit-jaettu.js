@@ -151,6 +151,7 @@ const HUONEET = {
       alku: { x: 15, y: 11, furni: 454246 },  // aloitusruutu, wiredin teleport-kohde
       jonostaAloitus: true,   // johtaja aloittaa vuoron jonon etupäässä seisovalle (false = vain :aloitapeli)
       laskentaMs: 5000,       // "Peli alkaa" 5 -> 1 (sona 16:28-16:29)
+      siirtoMs: 2000,         // sona 16:59 "Ensin siirto ja sitten PELI ALKAA 5-1": aloitusSana + teleport ennen laskentaa
       lepoMs: 4000,           // edellisen pelin loputtua näin kauan ennen seuraavaa (tulos näkyy)
       poissaMs: 4000,         // vuoron pelaaja poissa huoneesta näin kauan -> vuoro päättyy
       kavelyVaraMs: 3000,     // jos aloitusSanan jälkeen näin kauan ei olla aloitusruudussa: OMA kävely sinne (sendWalkUpdate, kuin lattiaklikkaus). null = pois
@@ -2594,7 +2595,7 @@ AMMUNTA = (() => {
     const pp = piste(p.id, p.nimi);
     if (pp.tapot > 0) runLoppu(p.id, p.nimi, 'keskeytyi'); else { pp.tapot = 0; pp.lapi = 0; }
     nollaaPeli();
-    const alku = tMs + laskenta;
+    const alku = tMs + Math.max(0, Number(V.siirtoMs ?? 0)) + laskenta;   // siirto ensin, sitten laskenta (sona 16:59)
     AM.aalto.alku = alku;   // aalto 1 heti kun peli alkaa (aaltoTick: kohde olemassa ja tMs >= alku)
     VT.vu = { id: p.id, nimi: p.nimi || null, vaihe: laskenta > 0 ? 0 : 1, alku, nro: ++VT.nro, tapa };
     VT.poissa = 0;
@@ -2686,6 +2687,7 @@ AMMUNTA = (() => {
   try { if (document.querySelectorAll) for (const v of document.querySelectorAll('[data-zombit-vuoro]')) v.remove(); } catch (x) {}
   const vuoroTeksti = () => {
     const vu = VT.vu, nyt = Date.now();
+    if (vu && vu.vaihe === 0 && vu.alku - nyt > Math.max(0, Number((VA() || {}).laskentaMs ?? 5000))) return { rivi1: 'Pelaaja ' + (vu.nimi || nimiId(vu.id) || vu.id), rivi2: '' };   // siirtovaihe
     if (vu && vu.vaihe === 0) return { rivi1: 'Peli alkaa', rivi2: String(Math.max(1, Math.min(5, Math.ceil((vu.alku - nyt) / 1000)))) };
     if (vu) { const n = vu.id === omaId() ? omaTapot() : ((AM.pisteet[vu.id] || {}).tapot | 0); return { rivi1: 'Pelaaja ' + (vu.nimi || nimiId(vu.id) || vu.id) + ' pisteet ' + n, rivi2: '' }; }
     const vv = VT.viimeinen;
