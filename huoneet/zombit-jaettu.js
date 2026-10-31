@@ -136,7 +136,7 @@ const HUONEET = {
     // Vaihe 1c (sona 17:01-17:02 "kun pelaaja kuolee niin hän menee takaisin ylös" · "Siihen se teleportataan kun peli loppuu"): kun OMA vuoro päättyy
     //   (kuolema / :lopetapeli / mikä tahansa loppu), pelaajan oma client sanoo lopetusSanan kerran -> wired wf_trg_says_something "zl811"
     //   + wf_act_teleport_to furni 511793 (Matto habbox_couture_grand_tapis @2,2 z 7.2). Sama piilotus kuin za811.
-    huomaaVali: [10, 16], luovutusVali: [6, 10], reaktioVali: [0, 1],   // kp 18:43 "pitää targettaa enemmän pelaajaa" (684: 5..9, 3..5, 0..3)
+    huomaaVali: [10, 16], luovutusVali: [14, 22], reaktioVali: [0, 1],   // kp 18:43 "pitää targettaa enemmän pelaajaa" (684: 5..9, 3..5, 0..3)
     veriKalusteet: true, kiinnijaanti: 'hp',   // kp 18:32 "Vaihdetaan hp tilaan", health packit myöhemmin
     lopetusSana: 'zl811',
     teleKuolema: false, muuttunutKuolemasta: false, ammuttava: true,
