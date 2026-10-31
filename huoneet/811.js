@@ -52,7 +52,7 @@ const OHJEET = [   // sona 15:42 "yksi pelaaja kerrallaan pelaa zombie rataa yks
   'Yksi pelaaja kerrallaan pelaa zombirataa yksin.',
   'Tavoite: tapa mahdollisimman monta zombia.',
   '1 zombi = 1 piste.',   // sona 16:08 omalle rivilleen
-  'Rata on läpäisty, kun olet tappanut 25 zombia.',
+  'Rata on läpäisty, kun olet tappanut 100 zombia.',
 ];
 // Ohjaus kuvina (sona 15:43 "WASD-liikutaan ja hiirellä ammutaan" · 15:45 "divit joissa on wasd kirjaimet jotka kuvastaa suuntaa ja hiiren kuva ja pyssy")
 const OHJAUS_LIIKE = 'Liiku', OHJAUS_AMMU = 'Ammu (vasen nappi)', OHJAUS_HUOM = '';   // sona 16:00 poisti 'Kuten Kupla Shooterissa.'
