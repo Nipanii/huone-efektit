@@ -55,7 +55,8 @@
     "811": {
       "nimi": "Hallowen rata (6/6) (aulan kopio, sona)",
       "skriptit": [
-        "huoneet/811.js"
+        "huoneet/811.js",
+        "huoneet/zombit-jaettu.js"
       ]
     }
   },
