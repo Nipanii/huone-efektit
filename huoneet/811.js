@@ -222,12 +222,22 @@ rakenna();
 //   huoneen takana. Mitattu robon clientissa 16:47 (tint 657930, punainen CSS näkyi). useRoom luo spriten uudelleen huoneen
 //   alustuksessa/uudelleenyhteydessä -> tarkistus 2 s välein.
 const TYHJIO_TINT = 0x0A0A0A;
+// sona 17:04-17:05 "veri kuvio ei ookkaan kiva. Lisää siihen kurpitsa pattern. Ja tee siitä opcity 5% ettei tausta ole liian harhauttava"
+//   -> pikselikurpitsa (12x12) kahdesti 30x30-ruudussa (lomitettu), koko kuvio opacity .05. Veri (VERI_TAUSTA) jää käyttämättä.
+const TAUSTA_VERSIO = 'kurpitsa-1';
+const KURPITSA_TAUSTA = (() => {
+  const K = ['....gg......', '.....g......', '..oooooooo..', '.oooooooooo.', 'oo.oo..oo.oo', 'oo..o..o..oo', 'oooooooooooo', 'oo.o.oo.o.oo', 'ooo......ooo', '.oooooooooo.', '..oooooooo..', '............'];
+  const V = { o: '#ff7a1a', g: '#3f8f2a' }, px = [];
+  const piirra = (ox, oy) => K.forEach((r, y) => [...r].forEach((m, x) => { if (V[m]) px.push('<rect x="' + (ox + x) + '" y="' + (oy + y) + '" width="1" height="1" fill="' + V[m] + '"/>'); }));
+  piirra(1, 1); piirra(16, 16);
+  return 'url("data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 30" width="120" height="120" shape-rendering="crispEdges"><g opacity="0.05">' + px.join('') + '</g></svg>') + '")';
+})();
 const tyhjio = () => { try { const e = window.NitroDevTools && window.NitroDevTools.roomEngine, cv = e && e.getRoomInstanceRenderingCanvas(e.activeRoomId, 1);
   const bg = cv && cv.master && cv.master.children[0]; return bg && bg.tint === TYHJIO_TINT ? bg : null; } catch (e) { return null; } };
 const taustaCanvas = () => document.querySelector('.roomView-background > canvas');
 const veriTaakse = () => { const bg = tyhjio(), c = taustaCanvas(); if (!bg || !c) return;
   if (bg.alpha !== 0) bg.alpha = 0;
-  if (!c.dataset.h811veri) { c.dataset.h811veri = '1'; c.style.background = VERI_TAUSTA + ' top left/300px auto repeat,#0a0a0a'; } };
+  if (c.dataset.h811veri !== TAUSTA_VERSIO) { c.dataset.h811veri = TAUSTA_VERSIO; c.style.background = KURPITSA_TAUSTA + ' top left/120px 120px repeat,#0a0a0a'; } };
 veriTaakse(); const veriAjastin = setInterval(veriTaakse, 2000);
 
 window.__h811 = { huone, pienenna, versio: 'mockup-3' };
