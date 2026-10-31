@@ -154,10 +154,25 @@ const pienenna = (on) => { pienennetty = on;
   if (rivi) rivi.style.display = on ? 'none' : 'flex'; if (sisalto) sisalto.style.display = on ? 'none' : '';
   if (pieni) { pieni.textContent = on ? '+' : '–'; pieni.title = on ? 'Suurenna' : 'Pienennä'; } };
 
+// sona 16:38 "taustalle kuva jossa on verta pikselitaiteena. Ei mikää kuva esine. Vaa käyttöliittymää" -> SVG-pikselit (4 px ruutu),
+//   valumat yläreunasta + roiskeet, siemennetty ettei kuva vaihdu latauksesta toiseen. Läpikuultava, teksti pysyy luettavana.
+const VERI_TAUSTA = (() => {
+  let s = 811; const r = () => (s = (s * 1103515245 + 12345) % 2147483648) / 2147483648;
+  const W = 75, H = 160, sav = ['#8a0f14', '#6d0b10', '#a5161c', '#4f070b'], px = [];
+  const p = (x, y, c, a) => { if (x >= 0 && x < W && y >= 0 && y < H) px.push('<rect x="' + x + '" y="' + y + '" width="1" height="1" fill="' + c + '" opacity="' + a + '"/>'); };
+  for (let x = 0; x < W; x++) { const h = 2 + Math.floor(r() * 3); for (let y = 0; y < h; y++) p(x, y, sav[1], .55); }   // yläreunan verinauha
+  for (let i = 0; i < 16; i++) { const x = Math.floor(r() * (W - 2)), len = 6 + Math.floor(r() * (r() < .3 ? 60 : 24)), lev = r() < .4 ? 2 : 1, c = sav[Math.floor(r() * 3)];
+    for (let y = 2; y < len; y++) for (let k = 0; k < lev; k++) p(x + k, y, c, .5);
+    p(x - 1 + lev, len, c, .5); p(x, len, c, .55); p(x + lev - 1, len + 1, c, .45); p(x, len + 1, c, .45); }   // pisara valuman päässä
+  for (let i = 0; i < 9; i++) { const cx = Math.floor(r() * W), cy = 20 + Math.floor(r() * (H - 25)), rr = 1 + r() * 2.5, c = sav[Math.floor(r() * 4)];   // roiskeet
+    for (let y = -4; y <= 4; y++) for (let x = -4; x <= 4; x++) { const d = Math.hypot(x, y); if (d <= rr || (d <= rr + 2 && r() < .18)) p(cx + x, cy + y, c, d <= rr ? .32 : .26); } }
+  return 'url("data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + W + ' ' + H + '" width="' + W * 4 + '" height="' + H * 4 + '" shape-rendering="crispEdges">' + px.join('') + '</svg>') + '")';
+})();
+
 const rakenna = () => {
   ikkuna = document.createElement('div'); ikkuna.className = 'h811-tulostaulu';
   ikkuna.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:' + Z + ';width:300px;max-width:92vw;box-sizing:border-box;'
-    + 'background:' + V.tausta + ';border:1px solid ' + V.reuna + ';border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.6);font:13px sans-serif;color:' + V.teksti + ';user-select:none';
+    + 'background:' + VERI_TAUSTA + ' top left/300px auto no-repeat,' + V.tausta + ';border:1px solid ' + V.reuna + ';border-radius:8px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.6);font:13px sans-serif;color:' + V.teksti + ';user-select:none';
   const ots = document.createElement('div');
   ots.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:7px 10px;font-weight:bold;letter-spacing:.5px;color:' + V.korostus + ';cursor:move;touch-action:none';
   const ot = document.createElement('span'); ot.textContent = OTSIKKO;   // sona 16:04 poisti koristeet ("Ei ne sovikkaan")
