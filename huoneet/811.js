@@ -109,14 +109,22 @@ const huoneenFiguurit = () => { const m = new Map(); try {   // webID -> figure 
   const sm = d(e, '_roomSessionManager'), s = sm && sm.getSession && sm.getSession(huone), ud = s && s.userDataManager;
   for (const o of (e && e.getRoomObjects(huone, 100)) || []) { if (!o || o.id < 0 || String(o.type) !== 'user') continue; const u = ud && ud.getUserDataByIndex && ud.getUserDataByIndex(o.id);
     if (u && Number(u.webID) > 0 && u.figure) m.set(Number(u.webID), String(u.figure)); } } catch (x) {} return m; };
+// kp 19:57: ilmoitus omasta ja kaikkien pelaajien ennätyksestä. Ensimmäinen yhdistäminen on hiljainen (vanhat tulokset). Vertailu = tämän selaimen tuntemat tulokset.
+let ennatysAlustettu = false, ennatysRivi = 0;
+const ennatysIlmoitus = (teksti) => { const d = document.createElement('div'), rivi = ennatysRivi++ % 2; d.textContent = teksti; d.className = 'h811-ennatys';
+  d.style.cssText = 'position:fixed;left:50%;top:' + (20 + rivi * 7) + '%;transform:translateX(-50%);z-index:99999;pointer-events:none;padding:8px 16px;background:rgba(20,70,20,.9);color:#fff;font:bold 15px sans-serif;border-radius:6px;transition:opacity .4s';
+  document.body.appendChild(d); setTimeout(() => { d.style.opacity = '0'; }, 4000); setTimeout(() => d.remove(), 4500); };
 // Yhdistää julkaistut tulokset paikalliseen kokoelmaan. Palauttaa true jos jokin rivi muuttui.
 const yhdista = () => { const G = window['__zombi' + huone], lista = G && Array.isArray(G.tulokset) ? G.tulokset : []; let muuttui = false, figut = null;
   for (const t of lista) { if (!t || !(Number(t.id) > 0)) continue; const id = Number(t.id), tapot = Math.max(0, Number(t.tapot) | 0), av = id + ':' + (Number(t.run) | 0) + ':' + tapot;
     if (nahty.has(av)) continue; nahty.add(av);
+    if (ennatysAlustettu && tapot > 0) { const ed = paras.get(id), huippu = Math.max(0, ...[...paras.values()].map(q => q.tapot));
+      if (id === Number(G.pelaaja) && ed && tapot > ed.tapot) ennatysIlmoitus('Uusi oma ennätys: ' + tapot);
+      if (tapot > huippu) ennatysIlmoitus((String(t.nimi || '').trim() || ('#' + id)) + ' teki uuden ennätyksen: ' + tapot); }
     const cur = paras.get(id), nimi = String(t.nimi || '').trim(); if (!figut) figut = huoneenFiguurit(); const fig = figut.get(id) || '';
     if (!cur || tapot > cur.tapot) { paras.set(id, { id, nimi: nimi || (cur && cur.nimi) || '', tapot, lapi: !!t.lapi || tapot >= LAPI_RAJA, run: Number(t.run) | 0, fig: fig || (cur && cur.fig) || '', aalto: Number(t.aalto) | 0 }); muuttui = true; }
     else { let m = false; if (nimi && nimi !== cur.nimi) { cur.nimi = nimi; m = true; } if (fig && fig !== cur.fig) { cur.fig = fig; m = true; } if (m) muuttui = true; } }
-  if (muuttui) tallennaPaikallinen(); return muuttui; };
+  ennatysAlustettu = true; if (muuttui) tallennaPaikallinen(); return muuttui; };
 const tulosRivit = () => { yhdista();
   const jarj = (a, b) => b.tapot - a.tapot || String(a.nimi).localeCompare(String(b.nimi)) || a.id - b.id, kaikki = [...paras.values()].map(r => ({ ...r, nimi: r.nimi || ('#' + r.id) }));
   return { lapi: kaikki.filter(r => r.lapi || r.tapot >= LAPI_RAJA).sort(jarj), eiLapi: kaikki.filter(r => !(r.lapi || r.tapot >= LAPI_RAJA)).sort(jarj) }; };
