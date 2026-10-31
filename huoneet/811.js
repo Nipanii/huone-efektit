@@ -151,8 +151,21 @@ const vayla = (() => { try { const e = window.NitroDevTools && window.NitroDevTo
 if (vayla && vayla.addEventListener) vayla.addEventListener('RSCE_CHAT_EVENT', kuuleLapi);
 let ennatysAlustettu = false, ennatysRivi = 0;
 const ennatysIlmoitus = (teksti) => { const rivi = ennatysRivi++ % 2; banneri(teksti, 8000, 34, 18 + rivi * 9); juhla(); };   // kp: sama banneri + konfetti kuin läpäisyssä
+// kp 20:45 "hiscores must be stored somewhere other than the browser": huoneen 817 paras-per-pelaaja -lista haetaan julkaistusta JSON-tiedostosta (GitHub Pages, ulkoinen prosessi kirjoittaa).
+//   Rivit { id, nimi, tapot, lapi, run, fig, aalto } yhdistetään samalla max-yhdistyksellä kuin muut tulokset, HILJAA (ei ennätysilmoitusta) ja ne ovat ennätysvertailun lähtötaso.
+//   Haku käynnistyessä + 60 s välein, vain huone 817; virhe (verkko / CSP / ei JSONia) on hiljainen. Ei uutta kanavaa.
+const ULKO_URL = huone === 817 ? 'https://nipanii.github.io/kupla-kuvat/kuvat/hiscore-' + huone + '.json' : '';
+let ulkoRivit = [], ulkoPysaytetty = false;
+const haeUlko = () => { if (!ULKO_URL || ulkoPysaytetty || typeof fetch !== 'function') return;
+  try { fetch(ULKO_URL + '?t=' + Date.now(), { cache: 'no-store' }).then(r => (r && r.ok ? r.json() : null)).then(a => { if (!ulkoPysaytetty && Array.isArray(a)) ulkoRivit = a.slice(0, 500); }).catch(() => {}); } catch (x) {} };
+const yhdistaUlko = () => { let muuttui = false;
+  for (const r of ulkoRivit) { if (!r || !(Number(r.id) > 0)) continue; const id = Number(r.id), tapot = Math.max(0, Number(r.tapot) | 0), cur = paras.get(id), nimi = String(r.nimi || '').trim(), fig = typeof r.fig === 'string' ? r.fig : '';
+    if (!cur || tapot > cur.tapot) { paras.set(id, { id, nimi: nimi || (cur && cur.nimi) || '', tapot, lapi: !!r.lapi || tapot >= LAPI_RAJA, run: Number(r.run) | 0, fig: fig || (cur && cur.fig) || '', aalto: Number(r.aalto) | 0 }); muuttui = true; }
+    else { let m = false; if (nimi && !cur.nimi) { cur.nimi = nimi; m = true; } if (fig && !cur.fig) { cur.fig = fig; m = true; } if (m) muuttui = true; } }
+  return muuttui; };
 // Yhdistää julkaistut tulokset paikalliseen kokoelmaan. Palauttaa true jos jokin rivi muuttui.
 const yhdista = () => { const G = window['__zombi' + huone], lista = G && Array.isArray(G.tulokset) ? G.tulokset : []; let muuttui = false, figut = null;
+  if (yhdistaUlko()) muuttui = true;   // ulkoinen lista ensin ja hiljaa: lähtötaso, jota vasten alla olevat uudet tulokset verrataan
   for (const t of lista) { if (!t || !(Number(t.id) > 0)) continue; const id = Number(t.id), tapot = Math.max(0, Number(t.tapot) | 0), av = id + ':' + (Number(t.run) | 0) + ':' + tapot;
     if (nahty.has(av)) continue; nahty.add(av);
     if (ennatysAlustettu && tapot > 0) { const ed = paras.get(id), huippu = Math.max(0, ...[...paras.values()].map(q => q.tapot));
@@ -325,10 +338,11 @@ const paivita = () => { if (!sisalto) return; const R = tulosRivit(), sig = JSON
   if (valittu !== 0 || pienennetty) return; viimeSig = sig;   // kp 'avoin tulostaulu ei päivittynyt': viimeSig vasta piirron yhteydessä, muuten pienennetyn/Ohjeet-välilehden aikana tullut tulos jäi piirtämättä suurennettaessa
   const rt = sisalto.firstElementChild, y = rt ? rt.scrollTop : 0; piirra(); const uusi = sisalto.firstElementChild; if (uusi) uusi.scrollTop = y; };
 const tulosAjastin = setInterval(paivita, 1000);
+haeUlko(); const ulkoAjastin = setInterval(haeUlko, 60000);
 window.__h811 = { huone, pienenna, versio: 'tulokset-2', tulosRivit, paivita, kuuleLapi, ennatysIlmoitus };
 
 return () => {
-  clearInterval(veriAjastin); clearInterval(tulosAjastin);
+  clearInterval(veriAjastin); clearInterval(tulosAjastin); clearInterval(ulkoAjastin); ulkoPysaytetty = true;
   try { if (vayla && vayla.removeEventListener) vayla.removeEventListener('RSCE_CHAT_EVENT', kuuleLapi); } catch (x) {} for (const d of laput) d.remove(); laput.clear(); juhlaCanvas = null;
   { const bg = tyhjio(), c = taustaCanvas(); if (bg) bg.alpha = 1; if (c && c.dataset.h811veri) { c.style.background = ''; delete c.dataset.h811veri; } }
   if (ikkuna) ikkuna.remove();
