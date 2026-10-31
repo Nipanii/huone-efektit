@@ -132,10 +132,15 @@ const HUONEET = {
     teleKuolema: false, muuttunutKuolemasta: false, ammuttava: true,
     maaraPohja: 4, maaraMin: 5, maaraMax: 8,   // OMA VALINTA (säädettävä): yksinpelaajalle 5 zombia kerrallaan (684:n kaavalla 3)
     tappoRaja: 25,
+    // kp 16:03 "ei keksitä uudelleen niitä kun ne toimi jo hyvin": aallot ja syntypaikat Left 4 Kuplasta sellaisinaan (shooter-1.15.2.user.js:177-179
+    //   zAloitus 6, zKasvu 3, zTaukoMs 6000; :1530-1546 zSynnyta/zAloitaAalto; :1507 zSyntyRuutu: valitut ruudut kiertäen, muuten oviruutu, muuten reunat).
+    //   katto = samanaikaisten yläraja (L4K zKatto on johdettu SEN kanavan kaistasta; tässä maaraMax, koska snapshot kantaa kaikki zombit).
+    aallot: { aloitus: 6, kasvu: 3, taukoMs: 6000, alkuMs: 1500, katto: 8, syntyRuudut: [] },
     // url null: VPS-varakanavan polku /r/z684 on 684:n; 811:lle ei arvata polkua. Ilman kuplaScriptsiä 811 = paikallinen simulaatio.
     synkka: { aihe: 'z811.synk', url: null },
   },
 };
+ASETUS.aallot = null;   // 684: ei aaltoja (zombimäärä laskeMaara(P), tapettu syntyy uudelleen). 811: HUONEET[811].aallot
 ASETUS.ammuttava = false; ASETUS.teleKuolema = true; ASETUS.muuttunutKuolemasta = true; ASETUS.salaisetSanat = []; ASETUS.tappoRaja = 25;
 ASETUS.synkka.aihe = 'z684.synk';
 // Aseet 811:ssä = Left 4 Kuplan aseet SELLAISENAAN (kp 16:02 "otetaan vanha bow ja gun ampumis nopeus siten miten ne oli jo tehty" ·
@@ -1089,6 +1094,7 @@ const synkkaaPimeatZombit = (Z, P, k) => {
 };
 const sopeutaMaara = (Z, P, k) => {
   if (!ruudukko || !Array.isArray(Z)) return;
+  if (ASETUS.aallot) { if (AMMUNTA) AMMUNTA.aaltoTick(Z, P, k); return; }   // 811: L4K-aallot määräävät zombit
   // synkka: seuraaja noudattaa johtajan zombimäärää (muuten oma laskeMaara(P) voisi poiketa ja zombeja vilkkuisi sisään/ulos)
   const tavoite = (SYNK.seuraa() && SY.maara >= 1) ? SY.maara : laskeMaara(P);
   ASETUS.maara = tavoite;
@@ -1130,6 +1136,7 @@ const sopeutaMaara = (Z, P, k) => {
   }
 };
 const synny = (e1, P, k0) => {
+  if (ASETUS.aallot) return [];   // 811: aallot synnyttävät (AMMUNTA.aaltoTick)
   const s0 = perusSiemen(), varattu = new Set(), z = [];
   const tikki = Math.max(50, Number(ASETUS.tikki) || 250), tMs = (k0 ?? 0) * tikki;
   const maara = laskeMaara(P);
@@ -1250,6 +1257,10 @@ const askel = (k, Z, P) => {
       continue;
     }
     if (z.muuttunut && z.syo) { z.syo = false; z.syoId = null; z.syoAstiMs = 0; z.seuraavaAskelMs = tMs; }
+    if (!z.muuttunut && z.kuoli >= 0 && ASETUS.aallot && z.ammuttu) {   // 811 aallot: ammuttu zombi poistuu (L4K: aallon zombi ei synny uudelleen)
+      const iz = Z.indexOf(z); if (iz >= 0) Z.splice(iz, 1);
+      continue;
+    }
     if (!z.muuttunut && z.kuoli >= 0) {
       const r = kaukainen(P, arpa(s0 * 31 + Math.floor(k / 16) * 101 + z.n), varattu);
       z.x = z.px = r.x; z.y = z.py = r.y; z.kuoli = -1; z.syo = false; z.syoId = null; z.syoAstiMs = 0; z.synty = k; z.syntyMs = tMs; z.odottaaSynkkaa = null;
@@ -1861,7 +1872,7 @@ const SYNK = (() => {
   const num = (v, d) => (typeof v === 'number' && isFinite(v)) ? v : d;
   const ksSaatavilla = () => { const ks = window.kuplaScripts; return (ks && typeof ks.subscribe === 'function' && typeof ks.send === 'function' && typeof ks.on === 'function') ? ks : null; };
   const auki = () => kanava === 'kuplaScripts' ? !!ksYht : !!(ws && ws.readyState === 1);
-  const kelvollinenSim = () => !!ruudukko && Array.isArray(SAILO.zombit) && SAILO.zombit.length > 0 && SAILO.K >= 0;
+  const kelvollinenSim = () => !!ruudukko && Array.isArray(SAILO.zombit) && (SAILO.zombit.length > 0 || !!ASETUS.aallot) && SAILO.K >= 0;
   // Valmis johtajaksi: yhteys auki >= valmisMs (on ehtinyt kuulla kuka on paikalla ja omaksua johtajan snapshotit) ja oma simulaatio olemassa.
   const valmis = (nyt) => auki() && SY.liittynyt > 0 && nyt - SY.liittynyt >= Math.max(0, num(S().valmisMs, 3000)) && kelvollinenSim();
   const kelpaa = (id) => id > 0 && !(Array.isArray(S().eiJohtajaksi) && S().eiJohtajaksi.includes(id));
@@ -2004,7 +2015,7 @@ const SYNK = (() => {
       if (paikallinenSyo(z, s, tB)) tilasto.ohitettu++; else omaksuLiike(z, s, tB, tikki, s0);
       uusi.push(z);
     }
-    if (!uusi.length) return;
+    if (!uusi.length && !ASETUS.aallot) return;
     for (const z of vanhat.values()) if (z.syo && tB < (z.syoAstiMs || 0)) uusi.push(z);   // paikallinen syöminen saa loppua
     Z.length = 0; for (const z of uusi) Z.push(z);
     SY.maara = snap.z.length;
@@ -2044,7 +2055,7 @@ const SYNK = (() => {
   };
   const kasitteleSnap = (P, K) => {
     const m = SY.odottava; if (!m) return;
-    if (!ruudukko || !Array.isArray(SAILO.zombit) || !SAILO.zombit.length) return;   // odottaa kunnes oma ruudukko on valmis
+    if (!ruudukko || !Array.isArray(SAILO.zombit) || (!SAILO.zombit.length && !ASETUS.aallot)) return;   // odottaa kunnes oma ruudukko on valmis
     SY.odottava = null;
     const nyt = Date.now();
     if (m.id === omaId() || m.id !== johtajaId(nyt)) return;
@@ -2363,6 +2374,7 @@ AMMUNTA = (() => {
     aggro(aseOf(o.w), z, o.id, P);   // vaihe 2 -koukku
     if (hp > 0) { AM.zhp.set(avain, Math.round(hp * 10) / 10); return true; }
     AM.zhp.delete(avain);
+    z.ammuttu = true; if (AM.aalto && AM.aalto.n) AM.aalto.ku++;
     z.kuoli = K; z.syo = false; z.syoId = null; z.syoAstiMs = 0; z.kohdeId = null; z.kohde = null; z.reaktio = 0; z.reaktioMs = 0; z.reaktioAsti = 0;
     z.kontaktit = {}; z.kontaktiId = null; z.kontakti = 0; z.kontaktiRaja = 0; z.kontaktiMs = 0; z.kontaktiRajaMs = 0;
     const p = piste(o.id, nimiId(o.id, P)); p.tapot++; tilasto.tapettu++;
@@ -2380,6 +2392,8 @@ AMMUNTA = (() => {
     while (AM.tulokset.length > 20) AM.tulokset.shift();
     lokiin({ runLoppu: id, tapot: p.tapot, lapi: p.lapi, syy });
     p.tapot = 0; p.lapi = 0; p.run++;
+    // L4K: kaikki kaatuneet = peli ohi. 811:ssä kuolema päättää runin -> aallot alusta zTaukoMs:n jälkeen (kaikki zombit pois)
+    if (ASETUS.aallot && auktoriteetti()) { const tMs = SAILO.K * tikkiMs(); AM.aalto = { n: 0, k: 0, sp: 0, ku: 0, tauko: 0, alku: tMs + Math.max(0, Number(ASETUS.aallot.taukoMs) || 6000), seur: 0, idx: 0 }; if (Array.isArray(SAILO.zombit)) SAILO.zombit.length = 0; }
   };
   // tiki(): omat ja vastaanotetut osumat. Auktoriteetti hyväksyy; seuraaja tekee vain OMAN tappavan osumansa paikallisesti (optimistinen) ja
   //   lähettää jokaisen oman osumansa johtajalle.
@@ -2398,7 +2412,7 @@ AMMUNTA = (() => {
       if (!o.oma) continue;   // seuraaja ei päätä muiden osumia (johtaja päättää)
       if (o.tappava) {
         const z = (SAILO.zombit || []).find(q => q && !q.muuttunut && q.n === o.zn);
-        if (z && z.synty === o.sn && z.kuoli < 0) { z.kuoli = K; z.kohdeId = null; z.kohde = null; z.kontaktit = {}; }
+        if (z && z.synty === o.sn && z.kuoli < 0) { z.kuoli = K; z.ammuttu = true; z.kohdeId = null; z.kohde = null; z.kontaktit = {}; }
         AM.odottavat.set(o.zn, { sn: o.sn, asti: nyt + 2500 });
         AM.ennuste.set(o.zn + ':' + o.sn, nyt + 2500);
       }
@@ -2427,6 +2441,11 @@ AMMUNTA = (() => {
       AM.pisteet = uusi;
       if (vanhaOma && !uusi[omaId()]) AM.pisteet[omaId()] = vanhaOma;   // oma rivi ei katoa vaikka johtaja ei sitä vielä tunne
     }
+    if (ASETUS.aallot && Array.isArray(snap.aa)) {
+      const tB = SAILO.K * tikkiMs(), ab = v => v ? tB + v : 0, [n, k, sp, ku, ta, al, se, idx] = snap.aa, vanha = AM.aalto.n;
+      AM.aalto = { n: n | 0, k: k | 0, sp: sp | 0, ku: ku | 0, tauko: ab(ta), alku: ab(al), seur: ab(se), idx: idx | 0 };
+      if (AM.aalto.n > vanha) aaltoIlmoitus(AM.aalto);
+    }
     if (Array.isArray(snap.zh)) { AM.zhp = new Map(); for (const a of snap.zh) if (Array.isArray(a)) AM.zhp.set(a[0] + ':' + a[1], Number(a[2]) || 0); }
     if (Array.isArray(snap.tu)) AM.tulokset = snap.tu.filter(Array.isArray).map(a => ({ id: a[0] | 0, nimi: (typeof a[4] === 'string' && a[4]) || nimiId(a[0] | 0, P), tapot: a[1] | 0, lapi: a[2] ? 1 : 0, run: a[3] | 0, syy: 'kuoli', t: null }));
     if (Array.isArray(snap.kz)) for (const a of snap.kz) {
@@ -2448,12 +2467,57 @@ AMMUNTA = (() => {
     snap.tu = AM.tulokset.slice(-10).map(t => [t.id, t.tapot, t.lapi, t.run, String(t.nimi || '').slice(0, 24)]);
     const elossa = new Set((SAILO.zombit || []).filter(z => z && z.kuoli < 0).map(z => z.n + ':' + z.synty));
     for (const a of [...AM.zhp.keys()]) if (!elossa.has(a)) AM.zhp.delete(a);
+    if (ASETUS.aallot) { const a = AM.aalto, tB = SAILO.K * tikkiMs(), rel = v => v ? Math.round(v - tB) : 0; snap.aa = [a.n, a.k, a.sp, a.ku, rel(a.tauko), rel(a.alku), rel(a.seur), a.idx]; }
     snap.zh = [...AM.zhp].slice(0, 16).map(([a, hp]) => { const [n, sn] = a.split(':').map(Number); return [n, sn, hp]; });
   };
   const pelaajaKuoli = (id, nimi) => { if (auktoriteetti()) runLoppu(id, nimi, 'kuoli'); };
   const omaKuolema = () => { if (auktoriteetti()) runLoppu(omaId(), null, 'kuoli'); AM.ennuste.clear(); AM.hp = hpMax(); AM.hpMuutos = 0; veto = null; autoPois(); };
   const omaTapot = () => { const p = AM.pisteet[omaId()]; return (p ? p.tapot : 0) + AM.ennuste.size; };
   const ilmoitaTappo = (t) => { try { ilmoita(t === raja() ? 'LÄPI! ' + t + ' zombia' : t > raja() ? 'Kaadoit zombin (' + t + ')' : 'Kaadoit zombin (' + t + '/' + raja() + ')'); } catch (x) {} };
+
+  // ---- AALLOT (kp 16:03: Left 4 Kuplasta sellaisinaan; shooter-1.15.2.user.js zIsantaTick :1573-1582, zSynnyta :1529, zAloitaAalto :1544,
+  //   zSyntyRuutu :1507, zOvenTila :1491, zReunaRuudut :1203). Vain auktoriteetti synnyttää; seuraaja ottaa zombit ja aaltotilan snapshotista (aa).
+  //   aalto n = aloitus + kasvu * (n - 1) zombia (6, 9, 12, ...), yksi kerrallaan max(300 ms, zombin askelaika) välein, enintään katto elossa;
+  //   aalto selvä kun kaikki synnytetty ja kaikki kuolleet -> tauko taukoMs -> seuraava. Ensimmäinen alkaa alkuMs kun huoneessa on kohde.
+  //   Syntyruutu: aallot.syntyRuudut kiertäen (ensimmäinen vapaa), muuten oviruutu (varattu -> vapaa naapuri; L4K odottaa 3 s, tässä heti),
+  //   muuten kävelyalueen reunaruutu arvottuna (deterministinen siemenestä).
+  if (!AM.aalto || typeof AM.aalto !== 'object') AM.aalto = { n: 0, k: 0, sp: 0, ku: 0, tauko: 0, alku: 0, seur: 0, idx: 0 };
+  const aaltoK = (n) => { const A = ASETUS.aallot || {}; return Math.max(1, Math.min(999, Math.round((Number(A.aloitus) || 6) + (Number(A.kasvu) || 0) * (n - 1)))); };
+  const aaltoIlmoitus = (a) => { lokiin({ aalto: a.n, zombeja: a.k }); try { ilmoita('🧟 Aalto ' + a.n + ': ' + a.k + (a.k === 1 ? ' zombi' : ' zombia')); } catch (x) {} };
+  const aloitaAalto = (n, tMs) => { AM.aalto = { n, k: aaltoK(n), sp: 0, ku: 0, tauko: 0, alku: 0, seur: tMs + 800, idx: AM.aalto.idx || 0 }; aaltoIlmoitus(AM.aalto); };
+  const syntyRuutu = (Z, k) => {
+    const { W, H, ok, ovi } = ruudukko, varattu = new Set(Z.filter(z => z && z.kuoli < 0).map(z => z.y * W + z.x));
+    const kelpaa = (x, y) => x >= 0 && y >= 0 && x < W && y < H && ok[y * W + x] && !varattu.has(y * W + x) && !eiSpawnia(x, y);
+    const omat = ((ASETUS.aallot && ASETUS.aallot.syntyRuudut) || []).filter(p => Array.isArray(p) && kelpaa(p[0], p[1]));
+    if (omat.length) { const a = AM.aalto, i = (a.idx || 0) % omat.length; a.idx = i + 1; return { x: omat[i][0], y: omat[i][1] }; }
+    if (ovi) {
+      if (kelpaa(ovi.x, ovi.y)) return { x: ovi.x, y: ovi.y };
+      for (const [dx, dy] of NAAP) if (kelpaa(ovi.x + dx, ovi.y + dy)) return { x: ovi.x + dx, y: ovi.y + dy };
+      return null;
+    }
+    const reunat = [];
+    for (const i of ruudukko.ruudut) { const x = i % W, y = (i - x) / W; if (!kelpaa(x, y)) continue;
+      if (!(x + 1 < W && ok[i + 1]) || !(x > 0 && ok[i - 1]) || !(y + 1 < H && ok[i + W]) || !(y > 0 && ok[i - W])) reunat.push({ x, y }); }
+    if (!reunat.length) return null;
+    return reunat[Math.floor(arpa(perusSiemen() * 7577 + k * 131 + AM.aalto.sp * 17)() * reunat.length)];
+  };
+  const aaltoTick = (Z, P, k) => {
+    if (SYNK.seuraa() || !ruudukko) return;   // seuraaja: johtajan snapshot
+    const A = ASETUS.aallot || {}, tikki = tikkiMs(), tMs = (k ?? 0) * tikki, a = AM.aalto;
+    const kohteet = (P || []).filter(p => onKohde(p) && tavoitettava(p) && !onMakaava(p.id, tMs));
+    if (!a.n) { if (!kohteet.length) return; if (!a.alku) a.alku = tMs + Math.max(0, Number(A.alkuMs) || 1500); else if (tMs >= a.alku) aloitaAalto(1, tMs); return; }
+    if (a.sp >= a.k && !Z.length) { if (!a.tauko) a.tauko = tMs + Math.max(0, Number(A.taukoMs) || 6000); else if (tMs >= a.tauko) aloitaAalto(a.n + 1, tMs); return; }
+    a.tauko = 0;
+    const katto = Math.max(1, Number(A.katto) || Number(ASETUS.maaraMax) || 8);
+    if (a.sp >= a.k || tMs < a.seur || Z.length >= katto) return;
+    const r = syntyRuutu(Z, k); if (!r) return;
+    const kaytossa = new Set(Z.map(z => z.n)); let n = 0; while (kaytossa.has(n)) n++;
+    const z = rakennaPerusZombi(n, k, r, tMs, tikki, perusSiemen());
+    z.vTauko = 0; z.vTaukoMs = 0; z.vTaukoAsti = 0;
+    Z.push(z); a.sp++;
+    a.seur = tMs + Math.max(300, Number(z.perusAskelMs) || 1000);
+    lokiin({ aaltoSynty: n, aalto: a.n, ruutu: r.x + ',' + r.y, sp: a.sp + '/' + a.k });
+  };
 
   // ---- piirto: ruumis (tapettu zombi makaa ASETUS.ase.ruumisMs), piilotus (ampujan tappama zombi katoaa heti), välähdys osumasta
   const ruumiit = new Map();     // avain -> { g, asti }
@@ -2704,6 +2768,7 @@ AMMUNTA = (() => {
     window[GLOBAALI] = {
       versio: 1, huone, raja: raja(), pelaaja: id, tapot: omaTapot(), vahvistetut: p.tapot, lapi: !!p.lapi || omaTapot() >= raja(), run: p.run,
       pelaajat: pel, tulokset: AM.tulokset.map(t => Object.assign({}, t)), ase: aseOn, aseNimi: ASETUS.ase.valittu,
+      aalto: ASETUS.aallot ? { n: AM.aalto.n, zombeja: AM.aalto.k, jaljella: Math.max(0, AM.aalto.k - AM.aalto.ku), tauko: !!AM.aalto.tauko } : null,
       kiinnijaanti: ASETUS.kiinnijaanti, hp: Math.round(AM.hp), hpMax: hpMax(), rooli: auktoriteetti() ? 'auktoriteetti' : 'seuraaja',
     };
   };
@@ -2717,7 +2782,7 @@ AMMUNTA = (() => {
     if (jkanvas && jkanvas.remove) jkanvas.remove();
     if (window[GLOBAALI] && window[GLOBAALI].huone === huone) delete window[GLOBAALI];
   };
-  return { kasittele, vastaanota, pidaPaikallinen, omaksu, snapLisaa, pelaajaKuoli, omaKuolema, piirto, piilossa, piirtoPaikat, julkaise, sulje,
+  return { aaltoTick, aalto: () => AM.aalto, kasittele, vastaanota, pidaPaikallinen, omaksu, snapLisaa, pelaajaKuoli, omaKuolema, piirto, piilossa, piirtoPaikat, julkaise, sulje,
     ammu, ammuSuuntaan, asetaAse, ase: () => aseOn, valitseAse, aseNyt, runLoppu, tilasto, AM, auktoriteetti, luodit: () => luodit.length,
     purema, paranna, kontaktiKerroin, nollaaKontakti, hp: () => AM.hp, wasd: { pidetyt, tick: wasdTick, nappain, nosto }, hiiri };
 })();
@@ -2742,7 +2807,7 @@ const tiki = () => {
   const P = pelaajat();
   paivitaLammikot(P);
   const maxKirittava = Math.max(30, Math.round(30000 / tikki));
-  if (!Array.isArray(SAILO.zombit) || !SAILO.zombit.length || SAILO.E < 0) {
+  if (!Array.isArray(SAILO.zombit) || (!SAILO.zombit.length && !ASETUS.aallot) || SAILO.E < 0) {   // 811 aallot: tyhjä lista on laillinen tila (aaltojen välissä)
     SAILO.E = e1;
     tila.zombit = SAILO.zombit = synny(e1, P, k);
     paivitaLammikot(P);
@@ -2771,7 +2836,7 @@ const tiki = () => {
     }
     if (SAILO.E !== e1) {
       SAILO.E = e1;
-      if (!SYNK.seuraa()) for (const z of SAILO.zombit) if (z && !z.muuttunut) z.odottaaSynkkaa = e1;   // synkka: seuraaja ei aloita omaa epookkisynkkaa
+      if (!SYNK.seuraa() && !ASETUS.aallot) for (const z of SAILO.zombit) if (z && !z.muuttunut) z.odottaaSynkkaa = e1;   // synkka: seuraaja ei aloita omaa epookkisynkkaa
       synkkaaPimeatZombit(SAILO.zombit, P, Math.max(k, SAILO.K));
       lokiin({
         epookki: e1,
