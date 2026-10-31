@@ -351,7 +351,7 @@ const kitEsteet = (rid) => {
 
 const rakenna = () => {   // zombien kävelyruudut: perustason lattia (|korkeus| < 0.5), matala pino; yhteys oveen tai suurin yhtenäinen lattia-alue
   const hm = e.getFurnitureStackingHeightMap(huone), wg = e.getLegacyWallGeometry(huone); if (!hm || !wg) return null;
-  const W = hm.width, H = hm.height, ok = new Uint8Array(W * H), z = new Float32Array(W * H), ke = kitEsteet(huone);
+  const W = hm.width, H = hm.height, ok = new Uint8Array(W * H), z = new Float32Array(W * H), ke = ASETUS.ammuttava ? kitEsteet(huone) : new Set();   // 684 ennallaan
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const i = y * W + x; if (!wg.isRoomTile(x, y) || (hm._isRoomTile && !hm._isRoomTile[i])) continue;
     const lattia = wg.getHeight(x, y), pino = hm.getTileHeight(x, y); z[i] = pino;
