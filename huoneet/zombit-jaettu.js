@@ -191,7 +191,7 @@ const HUONEET = {
     // kp "tarvitaan ne health kit random spawnit tänne": ensiapukitit pelin aikana (vuoron vaihe 1). Arvot sellaisenaan shooter-1.15.2.user.js:153-154
     //   (ASETUS_OLETUS kitValiMs 20000, kitMax 2, kitIkaMs 60000, kitHp 50); logiikka :930-955 (spawn/poiminta), piirto :1876-1902. Vaatii kiinnijaanti 'hp'.
     //   Puuttuva kitit = ei ensiapuja (684: null, ASETUS.kitit alempana).
-    kitit: { valiMs: 20000, max: 2, ikaMs: 60000, hp: 50 },
+    kitit: { valiMs: 40000, max: 2, ikaMs: 60000, hp: 50 },
     // kp 20:31 "täs on vähän liian vaikee ottaa dmg" (+ "joo": liian harvoin): purema tulee kun kontaktilaskuri (sama ruutu, kontaktiSama) ylittää arvotun rajan; raja lyhenee 1.5-kertaisesti
     //   (base 0.8..1.5 s -> 0.53..1.0 s, 811/817). 684 käyttää base-arvoja. Purema 15 (ASETUS.hp.purema) ja HP 100 ennallaan; viereinen ruutu ei kerrytä (kontaktiViereinen 0, kp 20:11) ennallaan.
     kontaktiMin: 0.53, kontaktiMax: 1.0,
