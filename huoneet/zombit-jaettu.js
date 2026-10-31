@@ -767,7 +767,8 @@ const valitseKohde = (z, dz, P, k, tMs, s0) => {
     if (onMakaava(p.id, tMs)) continue;   // kuolemamakuun aikana uhria ei jahdata
     if (onMaalissa(p.id, tMs)) continue;   // maalisuojan aikana ei jahdata; nykyinen kohde pudotetaan (-> toinen kohde tai vaellus)
     if (z.muuttunut && p.id === z.lahdeId) continue;   // muuttunut ei jahtaa omaa lähdepelaajaansa
-    const et = etaisyysPelaajaan(dz, p);
+    let et = etaisyysPelaajaan(dz, p);
+    if (et < 0 && ASETUS.ammuttava) et = Math.hypot(p.x - z.x, p.y - z.y);   // kp 19:46 "pitää jatkaa targettausta kun menee esteen taakse": jahtaa lähimpään ruutuun johon pääsee
     if (et < 0) continue;   // yläkerroksessa tai muualla minne zombi ei pääse
     const raja = p.id === z.kohdeId ? meneta : huomaa;
     // kp 19:24 "heti kun on este välissä ei enää targettaa": ammuttavassa näköpiiri mitataan suoraan, ei kävelyreittiä. Kävely kiertää esteen.
@@ -1579,6 +1580,9 @@ const askel = (k, Z, P) => {
         } else {
           let d = kentat.get(kohde.id);
           if (!d) { d = kentta(kohde.x, kohde.y); kentat.set(kohde.id, d); }
+          if (ASETUS.ammuttava && d[z.y * W + z.x] < 0) { let pr = null, pm = Infinity;   // ei reittiä: lähin ruutu pelaajaa johon tältä zombilta pääsee
+            for (let yy = Math.max(0, kohde.y - 10); yy <= Math.min(H - 1, kohde.y + 10); yy++) for (let xx = Math.max(0, kohde.x - 10); xx <= Math.min(W - 1, kohde.x + 10); xx++) { if (dz[yy * W + xx] < 0) continue; const m = Math.hypot(xx - kohde.x, yy - kohde.y); if (m < pm) { pm = m; pr = { x: xx, y: yy }; } }
+            if (pr) d = kentta(pr.x, pr.y); }
           let paras = null; const nyt = d[z.y * W + z.x];
           for (const [dx, dy] of NAAP) {
             const x = z.x + dx, y = z.y + dy, j = y * W + x;
@@ -3406,7 +3410,8 @@ AMMUNTA = (() => {
   const gateZ = new Map();   // palan id -> { t, z }: ruudun korkeus object-haulla korkeintaan 2 s välein
   const gateHpPalkit = () => {
     const out = []; if (!ASETUS.aidat || (VA() && !VT.vu)) return out;
-    const AT = aitaTila(); if (AT && AT.tuhoutuneetIds && AT.tuhoutuneetIds.size > 0) return [];   // kp 19:45: kun yksi on tuhottu, muille ei palkkia if (!AT) return out; const nyt = Date.now();
+    const AT = aitaTila(); if (AT && AT.tuhoutuneetIds && AT.tuhoutuneetIds.size > 0) return [];   // kp 19:45: kun yksi on tuhottu, muille ei palkkia
+    if (!AT) return out; const nyt = Date.now();
     for (const pa of AT.palat || []) {
       if (!(pa.hp > 0) || (AT.tuhoutuneetIds && AT.tuhoutuneetIds.has(pa.id))) continue;
       let c = gateZ.get(pa.id); if (!c || nyt - c.t > 2000) { let z = c ? c.z : 0; try { z = Number(e.getRoomObject(huone, pa.id, 10).getLocation().z) || 0; } catch (x) {} c = { t: nyt, z }; gateZ.set(pa.id, c); }
