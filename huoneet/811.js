@@ -21,7 +21,8 @@ const MALLI_TULOKSET = [   // [nimi, pisteet = tapetut zombit, aika] — keksitt
 const OHJEET = [   // sona 15:42 "yksi pelaaja kerrallaan pelaa zombie rataa yksin ja muut voivat katsoa ... 25 zombieta. 1 zombi = 1 piste."
   'Tervetuloa Halloween radan finaaliin.',   // sona 15:58
   'Yksi pelaaja kerrallaan pelaa zombirataa yksin.',
-  'Tavoite: tapa mahdollisimman monta zombia. 1 zombi = 1 piste.',
+  'Tavoite: tapa mahdollisimman monta zombia.',
+  '1 zombi = 1 piste.',   // sona 16:08 omalle rivilleen
   'Rata on läpäisty, kun olet tappanut 25 zombia.',
 ];
 // Ohjaus kuvina (sona 15:43 "WASD-liikutaan ja hiirellä ammutaan" · 15:45 "divit joissa on wasd kirjaimet jotka kuvastaa suuntaa ja hiiren kuva ja pyssy")
@@ -98,7 +99,7 @@ const piirra = () => {
     sisalto.appendChild(huom);
   } else {
     // sona 15:50 "korostaa tota tavoite kohtaa" · 15:51 "vaikka se laatikkona alimmaiseksi"
-    const tavoite = OHJEET.filter(r => /^(Tavoite|Rata on läpäisty)/.test(r));   // sona 15:59 'Siirrä tavoite laatikkoon teksti "Rata on läpäisty..."'
+    const tavoite = OHJEET.filter(r => /^(Tavoite|1 zombi|Rata on läpäisty)/.test(r));   // sona 15:59 'Siirrä tavoite laatikkoon teksti "Rata on läpäisty..."'
     for (const r of OHJEET) { if (tavoite.includes(r)) continue;
       const p = document.createElement('p'); p.textContent = r; p.style.cssText = 'margin:0 0 6px'; sisalto.appendChild(p); }
     sisalto.appendChild(ohjausKuva());
