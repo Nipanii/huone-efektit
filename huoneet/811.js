@@ -151,12 +151,17 @@ const vayla = (() => { try { const e = window.NitroDevTools && window.NitroDevTo
 if (vayla && vayla.addEventListener) vayla.addEventListener('RSCE_CHAT_EVENT', kuuleLapi);
 let ennatysAlustettu = false, ennatysRivi = 0;
 const ennatysIlmoitus = (teksti) => { const rivi = ennatysRivi++ % 2; banneri(teksti, 8000, 34, 18 + rivi * 9); juhla(); };   // kp: sama banneri + konfetti kuin läpäisyssä
-// kp 20:45 "hiscores must be stored somewhere other than the browser": huoneen 817 paras-per-pelaaja -lista haetaan julkaistusta JSON-tiedostosta (GitHub Pages, ulkoinen prosessi kirjoittaa).
-//   Rivit { id, nimi, tapot, lapi, run, fig, aalto } yhdistetään samalla max-yhdistyksellä kuin muut tulokset, HILJAA (ei ennätysilmoitusta) ja ne ovat ennätysvertailun lähtötaso.
-//   Haku käynnistyessä + 60 s välein, vain huone 817; virhe (verkko / CSP / ei JSONia) on hiljainen. Ei uutta kanavaa.
-const ULKO_URL = huone === 817 ? 'https://nipanii.github.io/kupla-kuvat/kuvat/hiscore-' + huone + '.json' : '';
-let ulkoRivit = [], ulkoPysaytetty = false;
-const haeUlko = () => { if (!ULKO_URL || ulkoPysaytetty || typeof fetch !== 'function') return;
+// kp 20:47 "players upload themselves": huoneen 811/817 paras-per-pelaaja -lista on palvelimella (GET/POST ULKO_URL, CORS kupla.cc). Rivit { id, nimi, tapot, lapi, aalto, fig, t }.
+//   GET käynnistyessä + 30 s välein -> sama max-yhdistys kuin muilla tuloksilla, HILJAA (ei ennätysilmoitusta), ja rivit ovat ennätysvertailun (oma + kaikkien) lähtötaso.
+//   POST kun OMAN pelaajan (G.pelaaja) tulos saapuu: kerran / tulosavain, vain jos ylittää sen mitä tämä client tietää tai ensimmäistä kertaa. Virhe hiljainen; epäonnistunut POST uusitaan seuraavalla 30 s tikillä.
+const ULKO_URL = (huone === 811 || huone === 817) ? 'https://49-12-45-218.sslip.io/hiscore/' + huone : '';
+let ulkoRivit = [], ulkoPysaytetty = false, postOdottaa = null, postKaynnissa = false;
+const lahetaPost = () => { if (!ULKO_URL || ulkoPysaytetty || !postOdottaa || postKaynnissa || typeof fetch !== 'function') return;
+  const rivi = postOdottaa; postKaynnissa = true;
+  try { fetch(ULKO_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(rivi) })
+    .then(r => { postKaynnissa = false; if (r && r.ok && postOdottaa === rivi) postOdottaa = null; }).catch(() => { postKaynnissa = false; }); } catch (x) { postKaynnissa = false; } };
+const haeUlko = () => { if (!ULKO_URL || ulkoPysaytetty) return; lahetaPost();
+  if (typeof fetch !== 'function') return;
   try { fetch(ULKO_URL + '?t=' + Date.now(), { cache: 'no-store' }).then(r => (r && r.ok ? r.json() : null)).then(a => { if (!ulkoPysaytetty && Array.isArray(a)) ulkoRivit = a.slice(0, 500); }).catch(() => {}); } catch (x) {} };
 const yhdistaUlko = () => { let muuttui = false;
   for (const r of ulkoRivit) { if (!r || !(Number(r.id) > 0)) continue; const id = Number(r.id), tapot = Math.max(0, Number(r.tapot) | 0), cur = paras.get(id), nimi = String(r.nimi || '').trim(), fig = typeof r.fig === 'string' ? r.fig : '';
@@ -168,6 +173,12 @@ const yhdista = () => { const G = window['__zombi' + huone], lista = G && Array.
   if (yhdistaUlko()) muuttui = true;   // ulkoinen lista ensin ja hiljaa: lähtötaso, jota vasten alla olevat uudet tulokset verrataan
   for (const t of lista) { if (!t || !(Number(t.id) > 0)) continue; const id = Number(t.id), tapot = Math.max(0, Number(t.tapot) | 0), av = id + ':' + (Number(t.run) | 0) + ':' + tapot;
     if (nahty.has(av)) continue; nahty.add(av);
+    if (ennatysAlustettu && tapot < LAPI_RAJA && id === Number(G.pelaaja) && (Number(t.run) | 0) >= (Number(G.run) | 0) - 1)   // kp 20:49: oma ajo päättyi alle rajan -> vain tälle pelaajalle banneri, ei konfettia; ei vanhoille riveille latauksessa (ensimmäinen yhdistäminen hiljainen, run-tuoreus)
+      banneri('Tuloksesi: ' + tapot + '. Läpäisyyn tarvitaan ' + LAPI_RAJA + '.', 8000, 30, 36);
+    if (ULKO_URL && tapot > 0 && id === Number(G.pelaaja)) { const e0 = paras.get(id);   // oma tulos: lähetä palvelimelle jos ylittää tunnetun (tai ensimmäinen)
+      if (!e0 || tapot > e0.tapot) { if (!figut) figut = huoneenFiguurit(); const fg = String(figut.get(id) || (e0 && e0.fig) || '').slice(0, 400);
+        postOdottaa = { id, nimi: (String(t.nimi || '').trim().replace(/[<>]/g, '').slice(0, 32)) || ('#' + id), tapot, lapi: !!t.lapi || tapot >= LAPI_RAJA, aalto: Number(t.aalto) | 0, fig: /[<>"]/.test(fg) ? '' : fg };
+        lahetaPost(); } }
     if (ennatysAlustettu && tapot > 0) { const ed = paras.get(id), huippu = Math.max(0, ...[...paras.values()].map(q => q.tapot));
       if (id === Number(G.pelaaja) && ed && tapot > ed.tapot) ennatysIlmoitus('Uusi oma ennätys: ' + tapot);
       if (tapot > huippu) ennatysIlmoitus((String(t.nimi || '').trim() || ('#' + id)) + ' teki uuden ennätyksen: ' + tapot); }
@@ -338,7 +349,7 @@ const paivita = () => { if (!sisalto) return; const R = tulosRivit(), sig = JSON
   if (valittu !== 0 || pienennetty) return; viimeSig = sig;   // kp 'avoin tulostaulu ei päivittynyt': viimeSig vasta piirron yhteydessä, muuten pienennetyn/Ohjeet-välilehden aikana tullut tulos jäi piirtämättä suurennettaessa
   const rt = sisalto.firstElementChild, y = rt ? rt.scrollTop : 0; piirra(); const uusi = sisalto.firstElementChild; if (uusi) uusi.scrollTop = y; };
 const tulosAjastin = setInterval(paivita, 1000);
-haeUlko(); const ulkoAjastin = setInterval(haeUlko, 60000);
+haeUlko(); const ulkoAjastin = setInterval(haeUlko, 30000);
 window.__h811 = { huone, pienenna, versio: 'tulokset-2', tulosRivit, paivita, kuuleLapi, ennatysIlmoitus };
 
 return () => {
