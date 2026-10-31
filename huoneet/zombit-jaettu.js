@@ -3754,6 +3754,19 @@ AMMUNTA = (() => {
     ammu(ev.clientX, ev.clientY);
     if (A.auto && !autoT) autoT = setInterval(() => { if (!aseAktiivinen() || !aseNyt().auto) return autoPois(); ammu(); }, 40);
   };
+  // kp 20:40 "laita et scrollilla voi vaihtaa asetta": hiiren rulla vaihtaa asetta (vain huoneen ASEJARJ_N). Kopio shooter-1.15.2.user.js:2280-2286 (rullaHuoneessa + wheel-kuuntelija,
+  //   capture + passive:false, 150 ms kuristus, deltaY > 0 = seuraava). Estää pelin oman zoomin VAIN kun ase on käytössä (aseAktiivinen = oma vuoro) eikä chat-tilassa.
+  let rullaViime = 0;
+  const rullaHuoneessa = el => { for (let d = 0; el && el !== document.body && d < 12; el = el.parentElement, d++) {
+    if (/nitro-card|draggable-window/.test(String(el.className || ''))) return false;   // shooter :2281 (ikkunat vierittävät itse)
+    let o = ''; try { o = getComputedStyle(el).overflowY; } catch (x) {}
+    if ((o === 'auto' || o === 'scroll') && el.scrollHeight > el.clientHeight) return false; } return true; };   // shooter :2282
+  const rulla = ev => {
+    if (!ev || !aseAktiivinen() || chatTila || !ev.deltaY || !rullaHuoneessa(ev.target)) return;   // shooter :2284
+    if (ev.preventDefault) ev.preventDefault(); if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+    const nyt = Date.now(); if (nyt - rullaViime < 150) return; rullaViime = nyt; vaihdaAse(ev.deltaY > 0 ? 1 : -1);   // shooter :2285
+  };
+  addEventListener('wheel', rulla, { capture: true, passive: false });
   const HIIRI_T = ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click', 'pointermove'];
   addEventListener('keydown', nappain, true); addEventListener('keyup', nosto, true);
   for (const t of HIIRI_T) addEventListener(t, hiiri, true);
@@ -3901,6 +3914,7 @@ AMMUNTA = (() => {
     clearInterval(wasdAjastin); clearInterval(katseAjastin); autoPois();
     removeEventListener('keydown', nappain, true); removeEventListener('keyup', nosto, true); removeEventListener('blur', blur);
     for (const t of HIIRI_T) removeEventListener(t, hiiri, true);
+    removeEventListener('wheel', rulla, { capture: true });
     for (const r of ruumiit.values()) { try { e.removeRoomObjectUser(huone, r.g); } catch (x) {} SAILO.piirretytIdt.delete(r.g); }
     ruumiit.clear();
     for (const n of valahdys.keys()) { const g = piirretyt.get(n); if (g != null) savyta(g, 0xffffff); }
@@ -3914,7 +3928,7 @@ AMMUNTA = (() => {
     purema, paranna, kontaktiKerroin, nollaaKontakti, hp: () => AM.hp, wasd: { pidetyt, tick: wasdTick, nappain, nosto }, hiiri,
     vuoroTick, vuoroPyyda, vuoroVastaanota, vuoro: () => VT.vu, VT, vuoroSallii, aseKaytossa: aseAktiivinen, vuoroTeksti,
     omaHpPalkki, safeHouseHpPalkki, gateHpPalkit,
-    aseJarj: () => ASEJARJ_N(), kitit: () => AM.kitit, kitTick, kittiVastaanota, kitPeli, kitPiirrettavat,   // ensiapukitit (testausta varten)
+    aseJarj: () => ASEJARJ_N(), rulla, kitit: () => AM.kitit, kitTick, kittiVastaanota, kitPeli, kitPiirrettavat,   // ensiapukitit (testausta varten)
     katse: { tick: katseTick, kulma: hiirenKulma },
     este: { esteMatka, esteKartta, peitossa, peittoLaatikot, lentoZ, kamera },   // kohde 1 (testausta varten, kuten shooter :1018 __kshEste)
     // vaihe 1c
