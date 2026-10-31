@@ -97,7 +97,7 @@ const ohjausKuva = () => {
 // ---- OIKEAT TULOKSET (sona 19:25). Lähteet: (1) window['__zombi' + huone].tulokset = { id, nimi, tapot, lapi, run, syy, t }[] (t voi olla null, seuraajalla kentät vähemmän -> ei luoteta t:hen),
 //   (2) tämän selaimen localStorage. Yksi rivi / pelaaja: suurin tapot. Avain (id, run, tapot) ohittaa jo käsitellyn tuloksen; max-yhdistys on idempotentti, joten run-numeroiden
 //   törmäys (johtajan vaihtuessa run alkaa alusta) ei tuplaa eikä hävitä: pienempi tulos ei koskaan korvaa suurempaa. Jaettua tilaa EI kirjoiteta mihinkään (ei 2730, ei Datajakoa).
-const MUISTI = 'h811.tulokset.' + huone;
+const MUISTI = 'h811.t2.' + huone;   // kp 20:52 "nollaa hiscoret": uusi avain, vanhat selainrivit eivät palaa
 const paras = new Map();   // id -> { id, nimi, tapot, lapi, run, fig }
 const nahty = new Set();   // 'id:run:tapot'
 const luePaikallinen = () => { try { const a = JSON.parse(localStorage.getItem(MUISTI) || '[]');
