@@ -156,6 +156,7 @@ const pienenna = (on) => { pienennetty = on;
 
 // sona 16:38 "taustalle kuva jossa on verta pikselitaiteena. Ei mikää kuva esine. Vaa käyttöliittymää" -> SVG-pikselit (4 px ruutu),
 //   valumat yläreunasta + roiskeet, siemennetty ettei kuva vaihdu latauksesta toiseen. Läpikuultava, teksti pysyy luettavana.
+const VERI_IKKUNASSA = false;   // sona 16:41 "Poista se ikkunasta. Tarkoitin että huoneen taustalle. Tuonne mustalle alueelle."
 const VERI_TAUSTA = (() => {
   let s = 811; const r = () => (s = (s * 1103515245 + 12345) % 2147483648) / 2147483648;
   const W = 75, H = 160, sav = ['#8a0f14', '#6d0b10', '#a5161c', '#4f070b'], px = [];
@@ -172,7 +173,7 @@ const VERI_TAUSTA = (() => {
 const rakenna = () => {
   ikkuna = document.createElement('div'); ikkuna.className = 'h811-tulostaulu';
   ikkuna.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:' + Z + ';width:300px;max-width:92vw;box-sizing:border-box;'
-    + 'background:' + VERI_TAUSTA + ' top left/300px auto no-repeat,' + V.tausta + ';border:1px solid ' + V.reuna + ';border-radius:8px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.6);font:13px sans-serif;color:' + V.teksti + ';user-select:none';
+    + 'background:' + (VERI_IKKUNASSA ? VERI_TAUSTA + ' top left/300px auto no-repeat,' : '') + V.tausta + ';border:1px solid ' + V.reuna + ';border-radius:8px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.6);font:13px sans-serif;color:' + V.teksti + ';user-select:none';
   const ots = document.createElement('div');
   ots.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:7px 10px;font-weight:bold;letter-spacing:.5px;color:' + V.korostus + ';cursor:move;touch-action:none';
   const ot = document.createElement('span'); ot.textContent = OTSIKKO;   // sona 16:04 poisti koristeet ("Ei ne sovikkaan")
