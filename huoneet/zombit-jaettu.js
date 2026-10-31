@@ -3402,7 +3402,7 @@ AMMUNTA = (() => {
   //   (z+2.9, leveys 40, tausta #000a 42x7, väri >0.5 #3ddc5a / >0.25 #f5c542 / muuten #e5484d, arvo <= 0 -> 💀; osuus = HP / max kuten shooter 1.12.0). HP = AM.hp.
   //   Piirretään kun oma pelaaja on pelissä (vuoroSallii); shooter piirtää omankin palkin aina (:1909). Huom: kiinnijaanti 'kontakti' -tilassa AM.hp ei muutu (täynnä).
   const safeHouseHpPalkki = () => {
-    if (!ASETUS.safeHouse) return null;
+    if (!ASETUS.safeHouse || (VA() && !VT.vu)) return null;   // kp 19:50: vain pelin aikana
     const S = safeHouseTila(); if (!S || !(S.max > 0)) return null;
     const r = (ASETUS.safeHouse.ruudut && ASETUS.safeHouse.ruudut[0]) || [15, 11];
     return { x: r[0], y: r[1], z: 7, hp: Math.max(0, S.hp), max: S.max, os: Math.min(1, Math.max(0, S.hp) / S.max) };
@@ -3471,7 +3471,7 @@ AMMUNTA = (() => {
         if (vr && vr.width > 0) sc = { x: vr.left + vr.width / 2, y: vr.bottom + 12 };
       }
       if (sc) {
-        const w = 40;
+        const w = 120;   // kp 19:50 leveämpi
         jctx.fillStyle = '#000a'; jctx.fillRect(sc.x - w / 2 - 1, sc.y - 1, w + 2, 7);
         const os = shP.os;
         jctx.fillStyle = os > 0.5 ? '#3ddc5a' : os > 0.25 ? '#f5c542' : '#e5484d'; jctx.fillRect(sc.x - w / 2, sc.y, w * os, 5);
