@@ -249,12 +249,12 @@ ASETUS.aseet = {
     aani: null, aggroSade: 14, nollaaKontakti: false, kontaktiKerroin: 1 },
   jousi: { ikoni: '🏹', nimi: 'Jousi', kasi: 1128, m: 'p', vari: '#c9c9c9', veto: true, nopeus: 15.12, lento: 14, cd: 1000, vahinko: 20, lataus: [10, 50, 1000], latausLento: [14, 24],
     aani: null, aggroSade: 6, nollaaKontakti: false, kontaktiKerroin: 1 },
-  miekka: { ikoni: '🗡️', nimi: 'Miekka', kasi: 1094, m: 'h', vari: '#e8eef7', kantama: 2.5, vahinko: 42, veto: true, hidasKavely: true, cd: 700, lapi: [3, 1000], lapiVahinko: 55, lapiLapi: 50,
+  miekka: { ikoni: '🗡️', nimi: 'Miekka', kasi: 1094, m: 'h', vari: '#e8eef7', kantama: 2.5, vahinko: 42, veto: true, hidasKavely: true, cd: 700, lapi: [3, 1000], lapiVahinko: 60, lapiLapi: 50,
     aani: null, aggroSade: 6, nollaaKontakti: true, kontaktiKerroin: 1 },   // nollaaKontakti true = kp:n suosima suunta B (16:01), kp päättää
 };
 ASETUS.ase = { valittu: 'luoti', jalkiMs: 450, ruumisMs: 1400 };
 ASETUS.esteKorkeus = 2;   // shooter 1.13.0 asetus.esteKorkeus (ESTE_KORKEUS :963): esine estää vain jos sen näkyvä korkeus > tämä   // jälki 450 ms = shooter :1727
-// kp 31.10. 22:08 "boostataa ihan pikkusen miekan dmg": 34 -> 42, täysi lataus 50 -> 55. Miekka yksin tappaa yhä kahdella (HP 60); isku + lähilaukaus (>= 18) riittää nyt.
+// kp 31.10. 22:08 "boostataa ihan pikkusen miekan dmg": 34 -> 42, täysi lataus 50 -> 55, 22:56 "full charge 1 hit": täysi lataus 60 (HP 60).
 ASETUS.zombiHp = 60;
 // Kiinnijäänti 811:ssä (kp 16:01, kp päättää): 'kontakti' = 684-tyylinen kertyvä laskuri -> kuolema (vaihtoehto B, oletus) ·
 //   'hp' = kiinnijäänti vähentää omaa HP:ta ASETUS.hp.purema ja laskuri nollautuu; kuolema vasta kun HP 0 (vaihtoehto A).
