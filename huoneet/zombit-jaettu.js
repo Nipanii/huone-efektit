@@ -157,7 +157,7 @@ const HUONEET = {
     //   HP-koukku: auktoriteetti vähentää AM.safe.hp (vahinko per isku, iskuMs per zombi), snapshot 'sh' vie muille, nollautuu vuoron alussa.
     //   VAIHE 2 (EI tehty): seinän välkyntä, safe housen HP-palkki näytölle, peli päättyy kun HP 0 (nyt vain loki + window.__zombi811.safeHouse).
     kuljettavatKalusteet: ['cpunk_c15_road', 'val13_grass'],
-    eiPeita: ['urban_lamp'],
+    eiPeita: ['urban_lamp', 'army_c15_medictent'],   // kp 31.10. 22:46 lääkintäteltta ei saa estää ampumista
     safeHouse: { hp: 150, vahinko: 1, iskuMs: 1000, etaisyys: 0, rakennus: 'nyc_c23_buildingblue', valahdysMs: 300,
       ruudut: [[15, 11, 0, -1], [14, 11, 0, -1], [16, 11, 0, -1], [13, 11, 0, -1], [17, 11, 0, -1], [12, 11, 0, -1], [18, 11, 0, -1], [11, 11, 0, -1], [19, 11, 0, -1],
         [10, 11, 0, -1], [20, 11, 0, -1], [9, 11, 0, -1], [8, 11, 0, -1], [7, 11, 0, -1], [6, 11, 0, -1], [5, 11, 0, -1], [4, 11, 0, -1], [3, 11, 0, -1], [2, 11, 0, -1],
