@@ -7,7 +7,7 @@
 // Ikkuna on aina näkyvissä; otsikon –/+ pienentää otsikkoriviksi ja palauttaa. Raahattavissa otsikosta (683.js-malli).
 const huone = kupla.roomId();
 
-const OTSIKKO = 'Hallowen rata finaali';   // sona 15:27 'vaihdetaan 6/6 sanaksi finaali'
+const OTSIKKO = 'Halloween rata 2026 FINAALI';   // sona 15:27 'vaihdetaan 6/6 sanaksi finaali'
 const VALILEHDET = ['Highscores', 'Ohjeet'];
 const KORISTEET = false;   // sona 16:00 lisätty, 16:04 poistettu ("Ei ne sovikkaan"); koodi jätetty
 const LAPI_RAJA = 25;   // sona 15:42 "pääsee radan läpi jos on tappanut 25 zombieta"
