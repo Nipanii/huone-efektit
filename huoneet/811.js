@@ -321,8 +321,9 @@ veriTaakse(); const veriAjastin = setInterval(veriTaakse, 2000);
 
 // Päivitys ikkunan ollessa auki: 1 s välein; piirretään uudelleen vain kun rivit muuttuivat (kuvat eivät välky), vierityskohta säilyy.
 let viimeSig = '';
-const paivita = () => { if (!sisalto) return; const R = tulosRivit(), sig = JSON.stringify(R); if (sig === viimeSig) return; viimeSig = sig;
-  if (valittu !== 0 || pienennetty) return; const rt = sisalto.firstElementChild, y = rt ? rt.scrollTop : 0; piirra(); const uusi = sisalto.firstElementChild; if (uusi) uusi.scrollTop = y; };
+const paivita = () => { if (!sisalto) return; const R = tulosRivit(), sig = JSON.stringify(R); if (sig === viimeSig) return;
+  if (valittu !== 0 || pienennetty) return; viimeSig = sig;   // kp 'avoin tulostaulu ei päivittynyt': viimeSig vasta piirron yhteydessä, muuten pienennetyn/Ohjeet-välilehden aikana tullut tulos jäi piirtämättä suurennettaessa
+  const rt = sisalto.firstElementChild, y = rt ? rt.scrollTop : 0; piirra(); const uusi = sisalto.firstElementChild; if (uusi) uusi.scrollTop = y; };
 const tulosAjastin = setInterval(paivita, 1000);
 window.__h811 = { huone, pienenna, versio: 'tulokset-2', tulosRivit, paivita, kuuleLapi, ennatysIlmoitus };
 
