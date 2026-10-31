@@ -100,9 +100,12 @@ const piirra = () => {
     for (const r of OHJEET) { if (tavoite.includes(r)) continue;
       const p = document.createElement('p'); p.textContent = r; p.style.cssText = 'margin:0 0 6px'; sisalto.appendChild(p); }
     sisalto.appendChild(ohjausKuva());
-    for (const r of tavoite) { const p = document.createElement('div'); p.textContent = r;
-      p.style.cssText = 'margin-top:10px;padding:8px 10px;font-weight:bold;font-size:14px;color:#fff;background:' + V.valittu + ';border:1px solid ' + V.korostus + ';border-left:4px solid ' + V.korostus + ';border-radius:5px';
-      sisalto.appendChild(p); }
+    // sona 15:57 '"Tavoite" otsikko ja siirrä leipäteksti sen alapuolelle. Ei boldia leipätekstillä.'
+    for (const r of tavoite) { const p = document.createElement('div');
+      p.style.cssText = 'margin-top:10px;padding:8px 10px;color:#fff;background:' + V.valittu + ';border:1px solid ' + V.korostus + ';border-left:4px solid ' + V.korostus + ';border-radius:5px';
+      const o = document.createElement('div'); o.textContent = 'Tavoite'; o.style.cssText = 'font-weight:bold;font-size:14px;color:' + V.korostus + ';margin-bottom:3px';
+      const t = document.createElement('div'); t.textContent = r.replace(/^Tavoite:\s*/, ''); t.style.cssText = 'font-weight:normal;font-size:13px';
+      p.appendChild(o); p.appendChild(t); sisalto.appendChild(p); }
   }
 };
 
