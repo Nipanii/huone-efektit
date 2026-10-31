@@ -3072,7 +3072,7 @@ AMMUNTA = (() => {
     const sis = t.rivi1 + (t.rivi2 ? '\n' + t.rivi2 : '') + (t.pelaaja ? '|' + t.pelaaja.fig : '');
     if (vEl.dataset ? vEl.dataset.sis !== sis : vEl.textContent !== sis) {
       if (vEl.dataset) vEl.dataset.sis = sis;
-      if (t.pelaaja && vEl.appendChild) { vEl.textContent = ''; const P = t.pelaaja, PAKSU = 'font:500 30px/1.15 "Arial",sans-serif;letter-spacing:1px;color:#ffb347';
+      if (t.pelaaja && vEl.appendChild) { vEl.textContent = ''; const P = t.pelaaja, PAKSU = 'font:700 30px/1.15 "Arial",sans-serif;letter-spacing:1px;color:#ffb347';
         const sp = (teksti, css) => { const x = document.createElement('span'); x.textContent = teksti; if (css && x.style) x.style.cssText = css; return x; };
         const rivi = document.createElement('div'); if (rivi.style) rivi.style.cssText = 'display:flex;align-items:center;justify-content:center';
         rivi.appendChild(sp('Pelaaja')); if (P.fig) rivi.appendChild(vuoroNaama(P.fig)); else rivi.appendChild(sp(' ')); rivi.appendChild(sp(P.nimi, PAKSU));
@@ -3081,10 +3081,10 @@ AMMUNTA = (() => {
         vEl.appendChild(rivi); }
       else if (t.osat && vEl.appendChild) { vEl.textContent = '';   // sona 17:01: nimi ja pisteet paksummalla, muu teksti ohuempi
         for (const [teksti, paksu] of t.osat) { const sp = document.createElement('span'); sp.textContent = teksti;
-          if (paksu && sp.style) sp.style.cssText = 'font:500 30px/1.15 "Arial",sans-serif;letter-spacing:1px;color:#ffb347'; vEl.appendChild(sp); }
+          if (paksu && sp.style) sp.style.cssText = 'font:700 30px/1.15 "Arial",sans-serif;letter-spacing:1px;color:#ffb347'; vEl.appendChild(sp); }
         if (t.kuoli && t.rivi2) {   // sona 17:06-17:07: pisteet ISOLLA omalla rivillään (sama oranssi kuin nimi)
           const br = document.createElement('div'); br.textContent = t.rivi2;
-          if (br.style) br.style.cssText = 'display:block;font:500 72px/1 "Arial",sans-serif;letter-spacing:1px;color:#ffb347;margin-top:4px'; vEl.appendChild(br); } }
+          if (br.style) br.style.cssText = 'display:block;font:700 72px/1 "Arial",sans-serif;letter-spacing:1px;color:#ffb347;margin-top:4px'; vEl.appendChild(br); } }
       else vEl.textContent = sis;
       if (vEl.style) { vEl.style.whiteSpace = 'pre'; vEl.style.fontSize = t.rivi2 ? '34px' : '26px'; vEl.style.fontWeight = t.osat ? '600' : '900'; } }
     if (vEl.style) vEl.style.display = '';
