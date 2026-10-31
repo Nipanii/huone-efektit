@@ -151,7 +151,7 @@ const HUONEET = {
     //   Ruutu kelpaa vain jos moottorin kävelyruudukko hyväksyy sen; jos yksikään ei kelpaa, zombi vaeltaa kuten ennen.
     //   HP-koukku: auktoriteetti vähentää AM.safe.hp (vahinko per isku, iskuMs per zombi), snapshot 'sh' vie muille, nollautuu vuoron alussa.
     //   VAIHE 2 (EI tehty): seinän välkyntä, safe housen HP-palkki näytölle, peli päättyy kun HP 0 (nyt vain loki + window.__zombi811.safeHouse).
-    safeHouse: { hp: 100, vahinko: 1, iskuMs: 1000, etaisyys: 0,
+    safeHouse: { hp: 100, vahinko: 1, iskuMs: 1000, etaisyys: 0, rakennus: 'nyc_c23_buildingblue', valahdysMs: 300,
       ruudut: [[15, 11, 0, -1], [14, 11, 0, -1], [16, 11, 0, -1], [13, 11, 0, -1], [17, 11, 0, -1], [12, 11, 0, -1], [18, 11, 0, -1], [11, 11, 0, -1], [19, 11, 0, -1],
         [10, 11, 0, -1], [20, 11, 0, -1], [9, 11, 0, -1], [8, 11, 0, -1], [7, 11, 0, -1], [6, 11, 0, -1], [5, 11, 0, -1], [4, 11, 0, -1], [3, 11, 0, -1], [2, 11, 0, -1],
         [22, 9, -1, 0], [22, 8, -1, 0], [22, 7, -1, 0], [22, 6, -1, 0], [22, 5, -1, 0], [22, 4, -1, 0], [22, 3, -1, 0], [22, 2, -1, 0], [22, 1, -1, 0]] },
@@ -2868,7 +2868,19 @@ AMMUNTA = (() => {
   };
   // tapettu (kuoli >= 0, ei syö) piilotetaan kunnes se syntyy uudelleen seuraavassa tikissä (<= ~350 ms): ruumis-olio näyttää kuoleman
   const piilossa = (z) => { if (!z.muuttunut && z.kuoli >= 0 && !z.syo) return true; const p = piilotetut.get(z.n); return !!p && p.sn === z.synty && Date.now() < p.asti; };
+  // kp 17:59 "laita et vilkkuu punasena samanlail ku pelaaja ku ottaa dmg": S.iskut kasvaa -> rakennuksen spritet vuorottelevat kuten paivitaValahdys.
+  //   Seuraajakin näkee, koska iskut tulevat snapshotista.
+  let shIskut = null, shAsti = 0, shPaalla = false;
+  const shSavy = (vari) => { const nimi = ASETUS.safeHouse && ASETUS.safeHouse.rakennus; if (!nimi) return;
+    try { for (const o of e.getRoomObjects(huone, 10) || []) { if (!o || String(o.type) !== nimi) continue; for (const q of (o.visualization && o.visualization.sprites) || []) {
+      if (q.alpha !== 255 || q.blendMode === 'add') continue; if (q.color !== vari) { q.color = vari; if (q.increaseUpdateCounter) q.increaseUpdateCounter(); } } } } catch (x) {} };
+  const shValahdys = (nyt) => { const S = safeHouseTila(); if (!S) return;
+    if (shIskut != null && S.iskut > shIskut) shAsti = nyt + Math.max(50, Number(ASETUS.safeHouse.valahdysMs) || 300);
+    shIskut = S.iskut;
+    if (nyt < shAsti) { shPaalla = true; shSavy(Math.floor(nyt / 120) % 2 ? 0xff9090 : 0xff2a2a); }
+    else if (shPaalla) { shPaalla = false; shSavy(0xffffff); } };
   const piirto = () => {
+    shValahdys(Date.now());
     const nyt = Date.now();
     for (const [a, r] of [...ruumiit]) if (nyt >= r.asti) { try { e.removeRoomObjectUser(huone, r.g); } catch (x) {} SAILO.piirretytIdt.delete(r.g); ruumiit.delete(a); }
     for (const [n, p] of [...piilotetut]) if (nyt >= p.asti) piilotetut.delete(n);
@@ -3314,6 +3326,7 @@ AMMUNTA = (() => {
     for (const r of ruumiit.values()) { try { e.removeRoomObjectUser(huone, r.g); } catch (x) {} SAILO.piirretytIdt.delete(r.g); }
     ruumiit.clear();
     for (const n of valahdys.keys()) { const g = piirretyt.get(n); if (g != null) savyta(g, 0xffffff); }
+    if (shPaalla) { shPaalla = false; shSavy(0xffffff); }
     if (jkanvas && jkanvas.remove) jkanvas.remove();
     if (vEl && vEl.remove) vEl.remove();
     if (window[GLOBAALI] && window[GLOBAALI].huone === huone) delete window[GLOBAALI];
