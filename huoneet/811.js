@@ -76,6 +76,9 @@ const piirra = () => {
     t.style.borderBottom = on ? '2px solid ' + V.korostus : '2px solid transparent'; });
   sisalto.textContent = '';
   if (valittu === 0) {
+    const sOts = document.createElement('div'); sOts.textContent = 'SUORITTANEET';   // sona 16:15
+    sOts.style.cssText = 'margin:0 0 4px;font-weight:bold;font-size:12px;letter-spacing:.5px;color:' + V.korostus;
+    sisalto.appendChild(sOts);
     const tbl = document.createElement('table');
     tbl.style.cssText = 'width:100%;border-collapse:collapse;font:13px sans-serif';
     const otsRivi = document.createElement('tr');
@@ -99,7 +102,7 @@ const piirra = () => {
     const r = tbl.rows; let h = 0; for (let i = 0; i <= NAKYVAT && i < r.length; i++) h += r[i].getBoundingClientRect().height;
     rulla.style.maxHeight = Math.ceil(h || (NAKYVAT + 1) * 23) + 'px';
     // sona 16:09 "alas sellanen kohta missä näkyy pelaajat jotka ei oo päässy läpi, eli ovat saaneet alle 25 pistettä"
-    const eiOts = document.createElement('div'); eiOts.textContent = 'EI VIELÄ LÄPI (alle ' + LAPI_RAJA + ' pistettä)';
+    const eiOts = document.createElement('div'); eiOts.textContent = 'EPÄONNISTUNEET (<' + LAPI_RAJA + 'p)';   // sona 16:15 "Suorittaneet ja epäonnistuneet ... esim <25p"
     eiOts.style.cssText = 'margin:12px 0 4px;font-weight:bold;font-size:12px;letter-spacing:.5px;color:' + V.himmea;
     sisalto.appendChild(eiOts);
     const eiRulla = document.createElement('div'); eiRulla.style.cssText = 'max-height:110px;overflow-y:auto;overscroll-behavior:contain;scrollbar-color:rgba(255,255,255,.5) transparent';
