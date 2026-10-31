@@ -3280,7 +3280,7 @@ AMMUNTA = (() => {
     const minä = omaPaikka(); if (!minä || !(Math.hypot(dx, dy) > 0)) return { syy: 'ei paikkaa' };
     const l = Math.hypot(dx, dy); dx /= l; dy /= l;
     // shooter 0.9.1: WASD-kävelyn aikana yli 120° kävelysuunnasta = ei laukausta (ei jännittäessä / latausaseella)
-    if (pidetyt.size && !A.lataus && cIn == null) { const [mx, my] = wasdSuunta, ml = Math.hypot(mx, my); if (ml && (mx * dx + my * dy) / ml < -0.5) return { syy: 'taaksepäin' }; }
+    // kp 19:20 "ei voi ampuu taakseppäin, sallitaan se": shooterin 0.9.1 rajoitus pois
     viimeLaukaus = nyt; tilasto.ammuttu++;
     const c = (A.lataus || A.lapi) ? (cIn != null ? Math.max(0, Math.min(1, +cIn)) : 0) : undefined;
     if (A.nollaaKontakti) AM.jono.push({ nollaa: true, id: omaId(), saapui: nyt });
