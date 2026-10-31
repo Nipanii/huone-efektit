@@ -2735,7 +2735,7 @@ AMMUNTA = (() => {
   };
   const runLoppu = (id, nimi, syy) => {
     const p = piste(id, nimi);
-    AM.tulokset.push({ id, nimi: p.nimi, tapot: p.tapot, lapi: p.lapi, run: p.run, syy, t: Date.now() });
+    AM.tulokset.push({ id, nimi: p.nimi, tapot: p.tapot, lapi: p.lapi, run: p.run, syy, t: Date.now(), aalto: (AM.aalto && AM.aalto.n) | 0 });
     while (AM.tulokset.length > 20) AM.tulokset.shift();
     lokiin({ runLoppu: id, tapot: p.tapot, lapi: p.lapi, syy });
     p.tapot = 0; p.lapi = 0; p.run++;
@@ -2848,7 +2848,7 @@ AMMUNTA = (() => {
       if (AM.aalto.n > vanha) aaltoIlmoitus(AM.aalto);
     }
     if (Array.isArray(snap.zh)) { AM.zhp = new Map(); for (const a of snap.zh) if (Array.isArray(a)) AM.zhp.set(a[0] + ':' + a[1], Number(a[2]) || 0); }
-    if (Array.isArray(snap.tu)) AM.tulokset = snap.tu.filter(Array.isArray).map(a => ({ id: a[0] | 0, nimi: (typeof a[4] === 'string' && a[4]) || nimiId(a[0] | 0, P), tapot: a[1] | 0, lapi: a[2] ? 1 : 0, run: a[3] | 0, syy: 'kuoli', t: null }));
+    if (Array.isArray(snap.tu)) AM.tulokset = snap.tu.filter(Array.isArray).map(a => ({ id: a[0] | 0, nimi: (typeof a[4] === 'string' && a[4]) || nimiId(a[0] | 0, P), tapot: a[1] | 0, lapi: a[2] ? 1 : 0, run: a[3] | 0, syy: 'kuoli', t: null, aalto: a[5] | 0 }));
     if (Array.isArray(snap.kz)) for (const a of snap.kz) {
       if (!Array.isArray(a)) continue;
       const [n, sn, ampuja, x, y] = a, avain = n + ':' + sn;
@@ -2868,7 +2868,7 @@ AMMUNTA = (() => {
     snap.ta = ta;
     const rajaMs = SAILO.K * tikkiMs() - 3000;
     snap.kz = AM.kz.filter(t => t.ms >= rajaMs).slice(-8).map(t => [t.n, t.sn, t.a, t.x, t.y]);
-    snap.tu = AM.tulokset.slice(-10).map(t => [t.id, t.tapot, t.lapi, t.run, String(t.nimi || '').slice(0, 24)]);
+    snap.tu = AM.tulokset.slice(-10).map(t => [t.id, t.tapot, t.lapi, t.run, String(t.nimi || '').slice(0, 24), t.aalto | 0]);
     const elossa = new Set((SAILO.zombit || []).filter(z => z && z.kuoli < 0).map(z => z.n + ':' + z.synty));
     for (const a of [...AM.zhp.keys()]) if (!elossa.has(a)) AM.zhp.delete(a);
     if (ASETUS.aallot) { const a = AM.aalto, tB = SAILO.K * tikkiMs(), rel = v => v ? Math.round(v - tB) : 0; snap.aa = [a.n, a.k, a.sp, a.ku, rel(a.tauko), rel(a.alku), rel(a.seur), a.idx]; }

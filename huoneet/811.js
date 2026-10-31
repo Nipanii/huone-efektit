@@ -102,7 +102,7 @@ const paras = new Map();   // id -> { id, nimi, tapot, lapi, run, fig }
 const nahty = new Set();   // 'id:run:tapot'
 const luePaikallinen = () => { try { const a = JSON.parse(localStorage.getItem(MUISTI) || '[]');
   for (const r of Array.isArray(a) ? a : []) { if (!r || !(Number(r.id) > 0)) continue; const id = Number(r.id), tapot = Math.max(0, Number(r.tapot) | 0), cur = paras.get(id);
-    if (!cur || tapot > cur.tapot) paras.set(id, { id, nimi: String(r.nimi || ''), tapot, lapi: !!r.lapi, run: Number(r.run) | 0, fig: String(r.fig || '') }); } } catch (x) {} };
+    if (!cur || tapot > cur.tapot) paras.set(id, { id, nimi: String(r.nimi || ''), tapot, lapi: !!r.lapi, run: Number(r.run) | 0, fig: String(r.fig || ''), aalto: Number(r.aalto) | 0 }); } } catch (x) {} };
 const tallennaPaikallinen = () => { try { localStorage.setItem(MUISTI, JSON.stringify([...paras.values()])); } catch (x) {} };
 const huoneenFiguurit = () => { const m = new Map(); try {   // webID -> figure (kuten zombit-jaettu.js pelaajat()); vain nyt huoneessa olevat
   const e = window.NitroDevTools && window.NitroDevTools.roomEngine, d = (o, k) => { const q = o && Object.getOwnPropertyDescriptor(o, k); return q && !q.get ? q.value : undefined; };
@@ -114,7 +114,7 @@ const yhdista = () => { const G = window['__zombi' + huone], lista = G && Array.
   for (const t of lista) { if (!t || !(Number(t.id) > 0)) continue; const id = Number(t.id), tapot = Math.max(0, Number(t.tapot) | 0), av = id + ':' + (Number(t.run) | 0) + ':' + tapot;
     if (nahty.has(av)) continue; nahty.add(av);
     const cur = paras.get(id), nimi = String(t.nimi || '').trim(); if (!figut) figut = huoneenFiguurit(); const fig = figut.get(id) || '';
-    if (!cur || tapot > cur.tapot) { paras.set(id, { id, nimi: nimi || (cur && cur.nimi) || '', tapot, lapi: !!t.lapi || tapot >= LAPI_RAJA, run: Number(t.run) | 0, fig: fig || (cur && cur.fig) || '' }); muuttui = true; }
+    if (!cur || tapot > cur.tapot) { paras.set(id, { id, nimi: nimi || (cur && cur.nimi) || '', tapot, lapi: !!t.lapi || tapot >= LAPI_RAJA, run: Number(t.run) | 0, fig: fig || (cur && cur.fig) || '', aalto: Number(t.aalto) | 0 }); muuttui = true; }
     else { let m = false; if (nimi && nimi !== cur.nimi) { cur.nimi = nimi; m = true; } if (fig && fig !== cur.fig) { cur.fig = fig; m = true; } if (m) muuttui = true; } }
   if (muuttui) tallennaPaikallinen(); return muuttui; };
 const tulosRivit = () => { yhdista();
@@ -132,12 +132,12 @@ const piirra = () => {
     const tbl = document.createElement('table');
     tbl.style.cssText = 'width:100%;border-collapse:collapse;font:13px sans-serif';
     const otsRivi = document.createElement('tr');
-    for (const [t, a] of [['#', 'left'], ['Pelaaja', 'left'], ['Pisteet', 'right']]) {   // sona 15:57 "otetaan aika pois"
+    for (const [t, a] of [['#', 'left'], ['Pelaaja', 'left'], ['Aalto', 'right'], ['Pisteet', 'right']]) {   // sona 15:57 "otetaan aika pois"
       const th = document.createElement('th'); th.textContent = t;
       th.style.cssText = 'text-align:' + a + ';padding:3px 6px;color:' + V.himmea + ';font-weight:normal;border-bottom:1px solid ' + V.reuna + ';position:sticky;top:0;background:' + V.tausta;
       otsRivi.appendChild(th); }
     tbl.appendChild(otsRivi);
-    const osio = (teksti, vari, ylä) => { const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 3; td.textContent = teksti;
+    const osio = (teksti, vari, ylä) => { const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 4; td.textContent = teksti;
       td.style.cssText = 'padding:' + ylä + 'px 6px 3px;font-weight:bold;font-size:12px;letter-spacing:.5px;color:' + vari; tr.appendChild(td); tbl.appendChild(tr); };
     // sona 16:16 "heidän hahmonsa naamakuva siihen nimen viereen" -> hotellin oma imager, headonly
     const naama = (fig) => { const im = document.createElement('img'); im.alt = '';
@@ -146,8 +146,8 @@ const piirra = () => {
       let yritys = 0; im.onerror = () => { if (yritys++ < 3) setTimeout(() => { im.src = im.src.replace(/&r=\d+$|$/, '&r=' + yritys); }, 600 * yritys); };   // imager hylkää osan rinnakkaisista latauksista
       return im; };
     const tyhjaNaama = () => { const d = document.createElement('div'); d.style.cssText = 'width:28px;height:32px;flex:none'; return d; };
-    const rivi = (sija, nimi, p, tyyli, fig) => { const tr = document.createElement('tr');
-      for (const [t, a] of [[sija, 'left'], [nimi, 'left'], [String(p), 'right']]) { const td = document.createElement('td');
+    const rivi = (sija, nimi, p, tyyli, fig, aalto) => { const tr = document.createElement('tr');
+      for (const [t, a] of [[sija, 'left'], [nimi, 'left'], [aalto > 0 ? String(aalto) : '–', 'right'], [String(p), 'right']]) { const td = document.createElement('td');
         td.style.cssText = 'text-align:' + a + ';padding:3px 6px;vertical-align:middle;' + tyyli;
         if (t === nimi && sija !== '') { const d = document.createElement('div'); d.style.cssText = 'display:flex;align-items:center;gap:6px';
           d.appendChild(fig ? naama(fig) : tyhjaNaama()); const s = document.createElement('span'); s.textContent = t; d.appendChild(s); td.appendChild(d); }
@@ -157,10 +157,10 @@ const piirra = () => {
     osio('SUORITTANEET', V.korostus, 6);
     const R = tulosRivit();   // oikeat tulokset (sona 19:25); tyhjä osio -> yksi himmeä rivi
     if (!R.lapi.length) rivi('', 'Ei vielä tuloksia', '', 'color:' + V.himmea, '');
-    R.lapi.forEach((r, i) => rivi(String(i + 1), r.nimi, r.tapot, i === 0 ? 'color:' + V.karki + ';font-weight:bold' : '', r.fig));
+    R.lapi.forEach((r, i) => rivi(String(i + 1), r.nimi, r.tapot, i === 0 ? 'color:' + V.karki + ';font-weight:bold' : '', r.fig, r.aalto));
     osio('EPÄONNISTUNEET (<' + LAPI_RAJA + 'p)', V.himmea, 12);
     if (!R.eiLapi.length) rivi('', 'Ei vielä tuloksia', '', 'color:' + V.himmea, '');
-    R.eiLapi.forEach(r => rivi('–', r.nimi, r.tapot, 'color:' + V.himmea, r.fig));
+    R.eiLapi.forEach(r => rivi('–', r.nimi, r.tapot, 'color:' + V.himmea, r.fig, r.aalto));
     const rulla = document.createElement('div'); rulla.style.cssText = 'overflow-y:auto;overscroll-behavior:contain;scrollbar-color:rgba(255,255,255,.5) transparent';   // sona 16:03 valkoinen · 16:04 "opacity 50"
     rulla.addEventListener('wheel', ev => ev.stopPropagation(), { passive: true });   // rulla ei mene pelille (zoom)
     rulla.appendChild(tbl); sisalto.appendChild(rulla);
