@@ -390,7 +390,7 @@ const rakenna = () => {   // zombien kävelyruudut: perustason lattia (|korkeus|
   }
   const ovi = lueOvi(W, H); tila.ovi = ovi;
   const yht = new Uint8Array(W * H), jono = [];
-  if (ovi && ASETUS.aidat) for (const r of ASETUS.aidat.hyokkaysRuudut || []) { const i = r[1] * W + r[0]; if (ok[i] && !yht[i]) { yht[i] = 1; jono.push(i); } }
+  if (ASETUS.aidat) for (const r of [...(ASETUS.aidat.hyokkaysRuudut || []), ...((ASETUS.safeHouse && ASETUS.safeHouse.ruudut) || [])]) { const i = r[1] * W + r[0]; if (ok[i] && !yht[i]) { yht[i] = 1; jono.push(i); } }
   if (ovi) {
     const d0 = ovi.y * W + ovi.x;
     if (ok[d0]) { yht[d0] = 1; jono.push(d0); }
