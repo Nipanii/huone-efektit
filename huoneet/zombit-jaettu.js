@@ -2222,20 +2222,23 @@ const SYNK = (() => {
   // Lähetys ei koskaan heitä. kuplaScripts: palvelin rajoittaa 3 lähetystä / 1000 ms / käyttäjä -> oma raja maxLahetysS (3) ja 1004-virheen jälkeen hitaampi snapshot-väli (hidasMs).
   // kp 18:37 "miksi ei lähde samassa viestissä osumat ja suunta": viimeisin suunta (ka) lähtee minkä tahansa viestin mukana. Oma viesti vain jos 3/s rajassa on tilaa,
   //   ja yksi paikka jää osumille. Kanavan raja on silti 3 viestiä/s, joten suunta päivittyy muilla enintään sitä tahtia.
-  let katseOdottaa = null, laukauksetOdottaa = [];
+  //   kp 21:07 "en näe kans jerbanin healttia": vuoron pelaajan HP (hp: [hp, vuoronro]) kulkee samoin kuin ka: lähtee minkä tahansa viestin mukana, vain muuttuessa (hpOdottaa tyhjenee kun viesti lähti).
+  //   Shooter-1.15.2 jViesti :554 (hp lähtee muutoksessa :634/:849/:942/:1735, vastaanotto :1076-1080, piirto :1909).
+  let katseOdottaa = null, laukauksetOdottaa = [], hpOdottaa = null;
   const laheta = (o) => {
     if (!auki()) return false;
     try {
       const nyt = Date.now(), ks = kanava === 'kuplaScripts';
       const ext = {};
       if (katseOdottaa != null) ext.ka = katseOdottaa;
+      if (hpOdottaa != null) ext.hp = hpOdottaa;
       if (laukauksetOdottaa.length) { ext.la = laukauksetOdottaa.slice(); laukauksetOdottaa.length = 0; }
       const s = JSON.stringify(Object.keys(ext).length ? Object.assign({}, o, ext) : o);
       if (s.length > num(S().maxTavuja, 7500)) { tilasto.hylattyKoko++; return false; }
       while (lahetysAjat.length && nyt - lahetysAjat[0] >= 1000) lahetysAjat.shift();
       if (lahetysAjat.length >= (ks ? Math.max(1, num(S().maxLahetysS, 3)) : 15)) { tilasto.hylattyRaja++; return false; }
       if (ks) ksYht.ks.send(AIHE, s); else ws.send(s);
-      lahetysAjat.push(nyt); tilasto.viimeKoko = s.length; katseOdottaa = null; return true;
+      lahetysAjat.push(nyt); tilasto.viimeKoko = s.length; katseOdottaa = null; hpOdottaa = null; return true;
     } catch (x) { tilasto.virhe = String(x); return false; }
   };
   const heiLaheta = (kysy) => {
@@ -2423,6 +2426,10 @@ const SYNK = (() => {
   const lahetaKatse = (k) => { katseOdottaa = k; const nyt = Date.now(); while (lahetysAjat.length && nyt - lahetysAjat[0] >= 1000) lahetysAjat.shift();
     if (kanava === 'kuplaScripts' && lahetysAjat.length >= Math.max(1, num(S().maxLahetysS, 3)) - 1) return false;
     return laheta({ t: 'katse', id: omaId() }); };
+  // kp 21:07: vuoron pelaajan HP muille. a = [hp, vuoronro]. Oma viesti vain jos 3/s rajassa on tilaa (yksi paikka jää osumille), muuten a lähtee seuraavan viestin (snapshot / katse / hei) mukana.
+  const lahetaHp = (a) => { hpOdottaa = a; const nyt = Date.now(); while (lahetysAjat.length && nyt - lahetysAjat[0] >= 1000) lahetysAjat.shift();
+    if (kanava === 'kuplaScripts' && lahetysAjat.length >= Math.max(1, num(S().maxLahetysS, 3)) - 1) return false;
+    return laheta({ t: 'hp', id: omaId() }); };
   const lahetaLaukaus = (l) => {
     if (l) laukauksetOdottaa.push(l);
     const nyt = Date.now(); while (lahetysAjat.length && nyt - lahetysAjat[0] >= 1000) lahetysAjat.shift();
@@ -2488,6 +2495,7 @@ const SYNK = (() => {
     const id = Number(m.id); if (!(id > 0) || id === omaId()) return;
     if (lahettaja > 0 && id !== lahettaja) { tilasto.vaaraLahettaja = (tilasto.vaaraLahettaja || 0) + 1; return; }   // payloadin id on lähettäjän oma väite; kanavan senderId ratkaisee (kp 20:24: komento ei saa kulkea toisen id:llä)
     if (m.ka != null && AMMUNTA) AMMUNTA.katseSaapui(id, Number(m.ka));
+    if (m.hp != null && AMMUNTA) AMMUNTA.hpSaapui(id, m.hp);   // kp 21:07: vuoron pelaajan HP-palkki muille
     if (m.la && Array.isArray(m.la) && AMMUNTA) AMMUNTA.laukauksetSaapui(id, m.la);
     const nyt = Date.now(), raja = Math.max(1000, num(S().hiljaisuusMs, 10000));
     // Yksin oltuaan (kukaan muu ei kuulunut raja-ajan sisällä: verkkokatko / kanavalla ei katkeamisilmoitusta) ensimmäinen kontakti VALMIISEEN vertaiseen
@@ -2631,7 +2639,7 @@ const SYNK = (() => {
       sykkeet: [...SY.sykkeet].map(([id, h]) => ({ id, ikaMs: nyt - h.t, valmisIkaMs: h.tv ? nyt - h.tv : null })), ...tilasto,
     };
   };
-  return { seuraa, johtajaId, kasitteleSnap, kasitteleKuolemat, lahetaKuolema, lahetaOsuma, lahetaVuoro, lahetaKitti, lahetaKatse, lahetaLaukaus, kaynnista, sulje, tiedot, snapLaheta, omaksuSnap, rakennaSnap };
+  return { seuraa, johtajaId, kasitteleSnap, kasitteleKuolemat, lahetaKuolema, lahetaOsuma, lahetaVuoro, lahetaKitti, lahetaKatse, lahetaHp, lahetaLaukaus, kaynnista, sulje, tiedot, snapLaheta, omaksuSnap, rakennaSnap };
 })();
 tila.synkka = SYNK.tiedot; tila._synk = SYNK;
 
@@ -2782,6 +2790,7 @@ AMMUNTA = (() => {
   const kasittele = (P, K) => {
     const nyt = Date.now();
     healTick(nyt);
+    hpLahetaTick();   // kp 21:07: vuoron pelaajan HP muille
     kitTick(nyt, P);   // ensiapukitit (811/817)
     for (const [n, v] of [...AM.odottavat]) if (nyt > v.asti) AM.odottavat.delete(n);
     for (const [a, asti] of [...AM.ennuste]) if (nyt > asti) { AM.ennuste.delete(a); tilasto.ennusteVanheni++; }
@@ -3567,12 +3576,39 @@ AMMUNTA = (() => {
     return out;
   };
   const omaHpPalkki = () => { if (!vuoroSallii()) return null; const m = omaPaikka(); return m ? { x: m.x, y: m.y, z: m.z, hp: AM.hp } : null; };
+  // kp 21:07 "en näe kans jerbanin healttia · se pitäs näkyy muille pelaajille": vuoron pelaajan HP (AM.hp on hänen OMALLA clientillään, purema vaatii pid === omaId())
+  //   lähtee muille hp: [hp, vuoronro] -viestissä (SYNK.lahetaHp, vain muuttuessa) ja piirretään muilla saman palkkina kuin omaP. Vuoronro suojaa vanhentuneelta arvolta:
+  //   palkki näkyy vain jos viestin nro = VT.vu.nro ja id = VT.vu.id (viesti voi saapua ennen vuoron snapshotia tai sen jälkeen). Vuoron päättyessä muisti tyhjenee. 684: ei vuoroa/hp-tilaa -> ei lähetystä eikä palkkia.
+  if (!(AM.muHp instanceof Map)) AM.muHp = new Map();
+  let hpLahetetty = '';
+  const hpSaapui = (id, a) => {
+    if (id === omaId() || !Array.isArray(a)) return;
+    const hp = Number(a[0]), nro = Number(a[1]); if (!isFinite(hp) || !isFinite(nro)) return;
+    AM.muHp.set(id, { hp: Math.min(hpMax(), Math.max(0, hp)), nro, t: Date.now() });
+    while (AM.muHp.size > 8) AM.muHp.delete(AM.muHp.keys().next().value);
+  };
+  const hpLahetaTick = () => {
+    const vu = VT.vu;
+    if (!hpTila() || !VA() || !vu || vu.id !== omaId() || vu.vaihe !== 1) { hpLahetetty = ''; return; }
+    const avain = Math.round(AM.hp) + ':' + vu.nro;
+    if (avain === hpLahetetty) return;
+    hpLahetetty = avain;
+    try { SYNK.lahetaHp([Math.round(AM.hp), vu.nro]); } catch (x) {}
+  };
+  const muHpPalkki = () => {
+    const vu = VT.vu;
+    if (!hpTila() || !VA() || !vu || vu.vaihe !== 1 || vu.id === omaId() || vu.i == null) { if (AM.muHp.size && (!vu || vu.vaihe !== 1)) AM.muHp.clear(); return null; }
+    for (const [id, r] of [...AM.muHp]) if (r.nro < vu.nro) AM.muHp.delete(id);
+    const r = AM.muHp.get(vu.id); if (!r || r.nro !== vu.nro) return null;
+    let L = null; try { const o = e.getRoomObject(huone, vu.i, 100); L = o && o.getLocation(); } catch (x) {}
+    return L ? { x: Number(L.x), y: Number(L.y), z: Number(L.z) || 0, hp: r.hp } : null;
+  };
   const piirraJaljet = (nyt) => {
     const kesto = Math.max(50, Number(ASETUS.ase.jalkiMs) || 450);
     while (jaljet.length && nyt - jaljet[0].t0 > (jaljet[0].lapi ? 750 : kesto)) jaljet.shift();
     if (!jkanvas || !jctx || !document.body) return;
     const W = window.innerWidth || 0, H = window.innerHeight || 0;
-    const palkit = hpPalkit(nyt), omaP = omaHpPalkki(), shP = safeHouseHpPalkki(), gP = gateHpPalkit(), kitL = kitPiirrettavat();
+    const palkit = hpPalkit(nyt), omaP = omaHpPalkki() || muHpPalkki(), shP = safeHouseHpPalkki(), gP = gateHpPalkit(), kitL = kitPiirrettavat();
     if (!jaljet.length && !luodit.length && !palkit.length && !veto && !omaP && !shP && !gP.length && !kitL.length) { if (jkanvas.width) jctx.clearRect(0, 0, jkanvas.width, jkanvas.height); return; }
     if (jkanvas.parentNode !== document.body) document.body.appendChild(jkanvas);
     if (jkanvas.width !== W || jkanvas.height !== H) { jkanvas.width = W; jkanvas.height = H; jkanvas.style.width = W + 'px'; jkanvas.style.height = H + 'px'; }
@@ -3928,7 +3964,7 @@ AMMUNTA = (() => {
     ammu, ammuSuuntaan, asetaAse, ase: () => aseOn, valitseAse, aseNyt, runLoppu, tilasto, AM, auktoriteetti, luodit: () => luodit.length, jaljet: () => jaljet.length,
     purema, paranna, kontaktiKerroin, nollaaKontakti, hp: () => AM.hp, wasd: { pidetyt, tick: wasdTick, nappain, nosto }, hiiri,
     vuoroTick, vuoroPyyda, vuoroVastaanota, vuoro: () => VT.vu, VT, vuoroSallii, aseKaytossa: aseAktiivinen, vuoroTeksti,
-    omaHpPalkki, safeHouseHpPalkki, gateHpPalkit,
+    omaHpPalkki, muHpPalkki, hpSaapui, hpLahetaTick, safeHouseHpPalkki, gateHpPalkit,
     aseJarj: () => ASEJARJ_N(), rulla, kitit: () => AM.kitit, kitTick, kittiVastaanota, kitPeli, kitPiirrettavat,   // ensiapukitit (testausta varten)
     katse: { tick: katseTick, kulma: hiirenKulma },
     este: { esteMatka, esteKartta, peitossa, peittoLaatikot, lentoZ, kamera },   // kohde 1 (testausta varten, kuten shooter :1018 __kshEste)
