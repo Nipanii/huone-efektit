@@ -11,16 +11,38 @@ const OTSIKKO = 'Hallowen rata finaali';   // sona 15:27 'vaihdetaan 6/6 sanaksi
 const VALILEHDET = ['Highscores', 'Ohjeet'];
 const KORISTEET = false;   // sona 16:00 lisätty, 16:04 poistettu ("Ei ne sovikkaan"); koodi jätetty
 const LAPI_RAJA = 25;   // sona 15:42 "pääsee radan läpi jos on tappanut 25 zombieta"
-const MALLI_EI_LAPI = [   // [nimi, pisteet < LAPI_RAJA] — keksittyjä (sona 16:09)
-  ['Ilmari', 23], ['Sofia', 21], ['Juho', 19], ['Ellen', 17], ['Matias', 14], ['Nelli', 11], ['Arttu', 8], ['Vilma', 5],
+const MALLI_EI_LAPI = [   // [nimi, pisteet < LAPI_RAJA, figure] — oikeita pelaajia, pisteet keksittyjä (sona 16:16)
+  ["Izmo",23,"fa-8110-92.hr-11571-45.lg-10059-1408.hd-11209-3-14.ca-989999899-1285.sh-305-92.ch-3934-1408-1408.wa-39483458-92.cp-990000813-1408.cc-3838-1408.ha-6116-92\n"],
+  ["subikka3",21,"hd-1000002009-10.he-3082-92.fa-11693-1408.lg-1000002981-1325-91.ch-1000001288-92.hr-1000001037-32.ea-9036-107556-92.wa-999999017-92.sh-3338-92.cp-1000001893-110.ca-999999364-1408.0"],
+  ["Karita",19,"hd-11397-1359.hr-500003-61.ch-990000872-1409.sh-11754-110-1408.fa-8110-1408.lg-10059-1425.he-61156490-1320.ca-11297-1325-1408.0\n"],
+  ["sedimenttisielu",17,"hr-1000002956-42-40.hd-990000912-19.ch-1000002748-82.lg-1000002982-76.fa-1201-0.ca-1804-64.0\n"],
+  ["PlumberJack",14,"hd-190-19.ch-10934-82.lg-285-81.ca-11655-1408.sh-290-1408.ha-1004-110"],
+  ["Nicszerg",11,"fa-3344-1000024.ch-215-110.cp-9032-1308.lg-275-110.hd-3091-1.ea-3484-1408.he-3560-1408.ha-1000002933-1408.hr-125-32.0"],
+  ["Aido",8,"fa-201407-1324.hr-3322-34.ch-800001467-1408-1408.sh-3068-92-1408.cp-9032-1308.lg-10059-1408.hd-209-1024.cc-2935-1408-1408"],
 ];
 const NAKYVAT = 10;   // highscore-rivejä näkyvissä ilman vieritystä (sona 15:57)
-const MALLI_TULOKSET = [   // [nimi, pisteet = tapetut zombit, aika] — keksittyjä (sona 15:56 "25 pelaajaa ... keksittyjä suomalaisia etunimiä")
-  ['Aino', 78, '06:41'], ['Eetu', 72, '06:12'], ['Helmi', 69, '07:03'], ['Onni', 65, '05:58'], ['Venla', 61, '06:30'],
-  ['Leevi', 58, '05:44'], ['Siiri', 55, '06:05'], ['Elias', 52, '05:21'], ['Iida', 49, '05:50'], ['Väinö', 47, '04:58'],
-  ['Kerttu', 44, '05:12'], ['Niilo', 42, '04:47'], ['Lilja', 40, '04:39'], ['Topias', 38, '04:55'], ['Aada', 36, '04:20'],
-  ['Eino', 34, '04:08'], ['Pihla', 33, '04:31'], ['Veeti', 31, '03:57'], ['Emilia', 30, '03:49'], ['Aatos', 29, '04:02'],
-  ['Hilla', 28, '03:40'], ['Joonas', 27, '03:33'], ['Seela', 26, '03:28'], ['Oiva', 25, '03:15'], ['Minea', 25, '03:22'],
+const MALLI_TULOKSET = [   // [nimi, pisteet, figure] — oikeita pelaajia satunnaisesti, sona #1, pisteet keksittyjä (sona 16:16)
+  ["sona",78,"hr-1000002941-61.hd-11626-18-18.ch-1000001712-110.lg-10464-110-110.sh-1000002987-110-110.ea-999999641-110-110.fa-999999498-110.cc-1000001547-110.he-10419-110.ca-999999837-110.0"],
+  ["T1R0M1",72,"fa-1209-1408.hr-990000606-1394.ch-990000871-1408.sh-10043-92-1408.cp-9032-1308.lg-11333-1408.hd-209-3.wa-11314-1408.ha-11031-1408"],
+  ["dog",69,"fa-8110-1331.hr-115-1035.ch-267-1261.sh-290-92.lg-3078-1281.hd-205-97554.he-1610-62.ea-1404-110.cc-3867-1408-64.0\n"],
+  ["Morso",65,"hr-828-1035.ch-255-66.sh-8305-92.lg-285-81.hd-1000001108-1-14.ha-1001-1408.ea-3107-1321-1408.wa-3072-84-1315.pt-5826-1408.fa-8119-1408.he-1000002892-107573.0"],
+  ["Laatikko",61,"hd-180-1021.lg-275-92.hr-802-59.ch-255-110.ha-1013-92.fa-1209-92.sh-295-92.cc-1000000841-91.0\n"],
+  ["parsa",58,"hr-1000002718-40.hd-11510-1021.ch-800001419-1408-1408.lg-1000001474-110.he-1000000444-173638.sh-10584-92.ha-1000002079-110.ha-10785-92.ea-1000002051-64.cp-11715-110.cc-1000002874-110.wa-11707-1409-106\n"],
+  ["Kessu",55,"fa-1203-1324.hr-3090-1033.ch-255-98.lg-281-1205.hd-195-19.ha-1002-1205.sh-295-92"],
+  ["bibble",52,"hr-999999559-61-61.hd-1000002010-11.ch-5030-71-1329.lg-1000002328-92-92.sh-3206-91.fa-1000002534-85.cc-4184-110-110.0"],
+  ["mohammed_king04",49,"hd-3094-1373.lg-3078-110.hr-125-1407.fa-1201-0.sh-1000001979-110-1408.wa-2011-1408.ca-1816-64.cc-3152-110.ha-8560-110.he-1608-1408\n"],
+  ["Grandi",47,"hr-1000002824-34.hd-1000002010-19.ch-1000002997-75-1408.lg-275-1408.fa-1201-0.ca-1000002913-64.ha-1000002930-1408"],
+  ["jukuhomma",44,"hd-11010-18.hr-3665-1829.ha-1000001043-110.he-3805-110.ch-1000001801-110-110.lg-9930-110.sh-3354-110-110.ca-11412-110-110.cc-11065-110-110.wa-10676-110.ea-990000041-110"],
+  ["nennuh07",42,"hr-1000001037-1520.hd-9835-1392.ch-7089-110.lg-1000002880-110.sh-1000002808-110.he-999999750-110.fa-3276-1414.wa-990000857-1414.mc-5461-1414-110\n"],
+  ["hihi",40,"hr-678-42.hd-1000002493-19.ch-1000002748-1320.lg-3078-110.ca-1804-64.sh-1000002985-1408-1408.wa-2005-1408.ea-6152-1408.fa-10989-0.he-1000002663-1592-76\n"],
+  ["Siili",38,"hr-115-42.hd-185-1386.ch-3030-1419.lg-275-94.fa-1202-64.ca-1804-64.ea-11323-1408-1408.he-999999506-1408\n"],
+  ["kurkkupomo",36,"hd-3704-1.ha-1000001618-1428.he-1000002062-64.ca-999999489-4002-1408.hr-3733-40.lg-3282-1428.ch-1000000412-1428-1408.cc-1000002994-1408.cp-93483448-1408"],
+  ["Oliver",34,"fa-201407-110.hr-828-1051.ch-255-110.sh-290-110.lg-275-110.hd-1000002098-18.ha-987462863-110.pt-6577-1417"],
+  ["Jerban",33,"hr-11276-1395.ch-255-110.lg-3526-110-110.hd-205-18.sh-910000071-110-110.ha-39483460-110.cp-7735-1408.ca-1000002087-110.cc-1000000737-110.fa-3276-110.0"],
+  ["Dix",31,"ch-1000001289-110.sh-295-110.lg-1000001314-110.hd-11208-1379-22.ca-10904-92-92.cc-568282-1213.ha-1000002460-110.hr-828-156627.ea-910000006-110-1408.0\n"],
+  ["EsaOnEsa",30,"hr-155-1394.sh-11754-110-1408.lg-1000001477-110.hd-894624589-1370.ch-1000002748-110.cp-3315-1408.ca-5934-1408.fa-1000002759-1408.he-3716-1408.0"],
+  ["Manu",29,"hd-190-1.hr-125-37.ha-1013-1408.ea-8010-1408.ch-3015-1408.lg-3057-1408.sh-3115-1408-1408.mc-3744-1408-1408.mc-6579-1408"],
+  ["Bronxi",28,"hd-11510-18.ha-1002-110.hr-828-37.ch-1000001551-110.lg-999999536-110.sh-10829-110.ea-1404-110.he-3716-1408.0\n"],
 ];
 const OHJEET = [   // sona 15:42 "yksi pelaaja kerrallaan pelaa zombie rataa yksin ja muut voivat katsoa ... 25 zombieta. 1 zombi = 1 piste."
   'Tervetuloa Halloween radan finaaliin.',   // sona 15:58
@@ -87,14 +109,24 @@ const piirra = () => {
     tbl.appendChild(otsRivi);
     const osio = (teksti, vari, ylä) => { const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 3; td.textContent = teksti;
       td.style.cssText = 'padding:' + ylä + 'px 6px 3px;font-weight:bold;font-size:12px;letter-spacing:.5px;color:' + vari; tr.appendChild(td); tbl.appendChild(tr); };
-    const rivi = (sija, nimi, p, tyyli) => { const tr = document.createElement('tr');
-      for (const [t, a] of [[sija, 'left'], [nimi, 'left'], [String(p), 'right']]) { const td = document.createElement('td'); td.textContent = t;
-        td.style.cssText = 'text-align:' + a + ';padding:3px 6px;' + tyyli; tr.appendChild(td); }
+    // sona 16:16 "heidän hahmonsa naamakuva siihen nimen viereen" -> hotellin oma imager, headonly
+    const naama = (fig) => { const im = document.createElement('img'); im.alt = '';
+      im.src = 'https://kupla.cc/avatarimage?figure=' + encodeURIComponent(fig) + '&headonly=1&direction=2&head_direction=2';
+      im.style.cssText = 'width:28px;height:32px;object-fit:contain;object-position:center bottom;flex:none';
+      let yritys = 0; im.onerror = () => { if (yritys++ < 3) setTimeout(() => { im.src = im.src.replace(/&r=\d+$|$/, '&r=' + yritys); }, 600 * yritys); };   // imager hylkää osan rinnakkaisista latauksista
+      return im; };
+    const rivi = (sija, nimi, p, tyyli, fig) => { const tr = document.createElement('tr');
+      for (const [t, a] of [[sija, 'left'], [nimi, 'left'], [String(p), 'right']]) { const td = document.createElement('td');
+        td.style.cssText = 'text-align:' + a + ';padding:3px 6px;vertical-align:middle;' + tyyli;
+        if (t === nimi && fig) { const d = document.createElement('div'); d.style.cssText = 'display:flex;align-items:center;gap:6px';
+          d.appendChild(naama(fig)); const s = document.createElement('span'); s.textContent = t; d.appendChild(s); td.appendChild(d); }
+        else td.textContent = t;
+        tr.appendChild(td); }
       tbl.appendChild(tr); };
     osio('SUORITTANEET', V.korostus, 6);
-    MALLI_TULOKSET.forEach(([nimi, p], i) => rivi(String(i + 1), nimi, p, i === 0 ? 'color:' + V.karki + ';font-weight:bold' : ''));
+    MALLI_TULOKSET.forEach(([nimi, p, fig], i) => rivi(String(i + 1), nimi, p, i === 0 ? 'color:' + V.karki + ';font-weight:bold' : '', fig));
     osio('EPÄONNISTUNEET (<' + LAPI_RAJA + 'p)', V.himmea, 12);
-    MALLI_EI_LAPI.forEach(([nimi, p]) => rivi('–', nimi, p, 'color:' + V.himmea));
+    MALLI_EI_LAPI.forEach(([nimi, p, fig]) => rivi('–', nimi, p, 'color:' + V.himmea, fig));
     const rulla = document.createElement('div'); rulla.style.cssText = 'overflow-y:auto;overscroll-behavior:contain;scrollbar-color:rgba(255,255,255,.5) transparent';   // sona 16:03 valkoinen · 16:04 "opacity 50"
     rulla.addEventListener('wheel', ev => ev.stopPropagation(), { passive: true });   // rulla ei mene pelille (zoom)
     rulla.appendChild(tbl); sisalto.appendChild(rulla);
