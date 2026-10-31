@@ -1774,7 +1774,10 @@ const kontaktissaOlevat = (P) => {
 tila.kontaktissa = () => kontaktissaOlevat().map(p => p.id);
 // kp 20:19 "punanen välkky on vaan punanen neliö hahmon päällä · kato shooter logic": shooterin keino (shooter.user.js savyta):
 //   hahmon OMIEN spritejen väri (sprite.color) punaiseksi, varjo (alpha<255) ja additiiviset ohitetaan, palautus 0xffffff.
-const savytetyt = new Map();   // hahmon roomIndex -> true
+// kp 1.11. 00:05 vain kun HP laskee: hahmo välähtää vain kun sen HP oikeasti putoaa (oma ja katsojan näkemä vuorolainen); parannus tai uusi peli ei välkytä
+const VALAHDYS_MS = 400;
+const savytetyt = new Map();   // hahmon roomIndex -> asti (Date.now() + VALAHDYS_MS)
+const hpMuisti = new Map();   // avain -> edellinen HP
 const savyta = (id, vari) => {
   try {
     const o = e.getRoomObject(huone, id, 100), sp = (o && o.visualization && o.visualization.sprites) || [];
@@ -1782,10 +1785,27 @@ const savyta = (id, vari) => {
       if (s.color !== vari) { s.color = vari; if (s.increaseUpdateCounter) s.increaseUpdateCounter(); } }
   } catch (x) {}
 };
-const paivitaValahdys = (kontaktissa) => {
-  const nyt = Date.now(), nyky = new Set();
-  for (const p of kontaktissa) if (p && p.i != null) { nyky.add(p.i); savytetyt.set(p.i, true); savyta(p.i, Math.floor(nyt / 120) % 2 ? 0xff9090 : 0xff2a2a); }
-  for (const id of [...savytetyt.keys()]) if (!nyky.has(id)) { savyta(id, 0xffffff); savytetyt.delete(id); }
+const paivitaValahdys = () => {
+  const nyt = Date.now(), AM0 = (AMMUNTA && AMMUNTA.AM) || (SAILO.ammunta && typeof SAILO.ammunta === 'object' ? SAILO.ammunta : null);
+  const VT0 = (AMMUNTA && AMMUNTA.VT) || (AM0 && AM0.vuoro), vu = VT0 && VT0.vu;
+  if (AM0 && Number.isFinite(AM0.hp) && (!ASETUS.vuoro || (vu && vu.id === omaId()))) {
+    const omaI = omaIndeksi(), avain = 'oma:' + (vu ? vu.nro : 0);
+    if (!hpMuisti.has(avain)) hpMuisti.set(avain, AM0.hp);
+    else { const eHp = hpMuisti.get(avain); if (AM0.hp < eHp && omaI != null && omaI >= 0) savytetyt.set(omaI, nyt + VALAHDYS_MS); hpMuisti.set(avain, AM0.hp); }
+  }
+  if (AM0 && AM0.muHp && vu && vu.vaihe === 1 && vu.id !== omaId()) {
+    const r = AM0.muHp.get(vu.id);
+    if (r && r.nro === vu.nro && Number.isFinite(r.hp)) {
+      const avain = 'muu:' + vu.id + ':' + vu.nro, pI = vu.i != null ? vu.i : ((pelaajat() || []).find(q => q && q.id === vu.id) || {}).i;
+      if (!hpMuisti.has(avain)) hpMuisti.set(avain, r.hp);
+      else { const eHp = hpMuisti.get(avain); if (r.hp < eHp && pI != null && pI >= 0) savytetyt.set(pI, nyt + VALAHDYS_MS); hpMuisti.set(avain, r.hp); }
+    }
+  }
+  for (const [id, asti] of [...savytetyt]) {
+    if (nyt < asti) savyta(id, Math.floor(nyt / 120) % 2 ? 0xff9090 : 0xff2a2a);
+    else { savyta(id, 0xffffff); savytetyt.delete(id); }
+  }
+  if (hpMuisti.size > 20) { for (const k of hpMuisti.keys()) if (!k.endsWith(':' + (vu ? vu.nro : 0))) hpMuisti.delete(k); }
 };
 let veriPeitto = null;
 const veriPeittajat = () => { const nyt = Date.now(); if (veriPeitto && nyt - veriPeitto.t < 3000) return veriPeitto.l; const l = [];
@@ -1798,9 +1818,8 @@ const jarjLahella = (lammikot, k) => lammikot.some(lm => lm && Math.abs(lm.x - k
 const piirraLammikot = () => {
   if (!lammikkoKanvas || !lctx || typeof document === 'undefined' || !document.body) return;
   const lammikot = Array.isArray(SAILO.lammikot) ? SAILO.lammikot : (tila.lammikot || []);
-  const kontaktissa = kontaktissaOlevat();
-  paivitaValahdys(kontaktissa);
-  if (!lammikot.length && !kontaktissa.length) {
+  paivitaValahdys();
+  if (!lammikot.length) {
     if (lammikkoKanvas.width > 0 && lammikkoKanvas.height > 0) lctx.clearRect(0, 0, lammikkoKanvas.width, lammikkoKanvas.height);
     return;
   }
