@@ -2174,6 +2174,8 @@ const SYNK = (() => {
   // Valmis johtajaksi: yhteys auki >= valmisMs (on ehtinyt kuulla kuka on paikalla ja omaksua johtajan snapshotit) ja oma simulaatio olemassa.
   const valmis = (nyt) => auki() && SY.liittynyt > 0 && nyt - SY.liittynyt >= Math.max(0, num(S().valmisMs, 3000)) && kelvollinenSim();
   const kelpaa = (id) => id > 0 && !(Array.isArray(S().eiJohtajaksi) && S().eiJohtajaksi.includes(id));
+  // Mitattu 31.10.: piilotetun välilehden ajastimet pyörivät jopa 4 s välein -> zombit hyppivät ja osumaennuste ehtii umpeutua (katoaa + ilmestyy uudelleen). Piilotettu ei johda, jos joku muu voi.
+  const piilotettu = () => { try { return !!ASETUS.ammuttava && typeof document !== 'undefined' && document.hidden === true; } catch (x) { return false; } };
   const johtajaId = (nyt) => {
     nyt = nyt || Date.now();
     if (!S().kaytossa) return 0;
@@ -2181,7 +2183,7 @@ const SYNK = (() => {
     let paras = 0;
     for (const [id, h] of SY.sykkeet) if (kelpaa(id) && h.tv && nyt - h.tv < raja && (!paras || id < paras)) paras = id;
     const oma = omaId();
-    if (oma && kelpaa(oma) && valmis(nyt) && (!paras || oma < paras)) paras = oma;
+    if (oma && kelpaa(oma) && valmis(nyt) && (!paras || (oma < paras && !piilotettu()))) paras = oma;
     return paras;
   };
   // Seuraaja = joku muu on johtaja JA sen snapshot on kuultu < hiljaisuusMs sitten. Muuten (ei yhteyttä / ei johtajaa / hiljaista) paikallinen simulaatio.
@@ -2208,7 +2210,7 @@ const SYNK = (() => {
   };
   const heiLaheta = (kysy) => {
     const id = omaId(); if (!(id > 0)) return false;
-    const nyt = Date.now(), v = valmis(nyt) ? 1 : 0;
+    const nyt = Date.now(), v = valmis(nyt) && !piilotettu() ? 1 : 0;
     const ok = laheta({ t: 'hei', id, v, q: kysy ? 1 : 0, K: SAILO.K });
     if (ok) { viimeHei = nyt; viimeV = v; tilasto.lahetettyHei++; }
     return ok;
