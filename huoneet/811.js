@@ -21,7 +21,7 @@ const OHJEET = [   // sona kirjoittaa oikeat ohjeet; nämä ovat paikkamerkkejä
   'Ohjeet tulevat tähän, kun rata on valmis.',
 ];
 // Värit (sona 15:28 punainen): tausta, reuna, korostus (otsikko + aktiivinen välilehti), himmeä teksti, kärkirivi
-const V = { tausta: 'rgba(26,10,12,.94)', reuna: '#6e1f26', korostus: '#ff5a4f', teksti: '#ecd2d0', himmea: '#b98783', valittu: '#4a1519', karki: '#ffb347' };
+const V = { tausta: 'rgba(26,10,12,.94)', reuna: '#6e1f26', korostus: '#ff5a4f', teksti: '#ecd2d0', himmea: '#d6a5a0', valittu: '#4a1519', karki: '#ffb347' };
 const Z = 1000;
 
 let ikkuna = null, sisalto = null, rivi = null, pieni = null, valittu = 0, vedto = null, pienennetty = false;
