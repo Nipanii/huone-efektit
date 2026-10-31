@@ -3095,7 +3095,7 @@ AMMUNTA = (() => {
     nollaaPeli();
     const alku = tMs + Math.max(0, Number(V.siirtoMs ?? 0)) + laskenta;   // siirto ensin, sitten laskenta (sona 16:59)
     AM.aalto.alku = alku;   // aalto 1 heti kun peli alkaa (aaltoTick: kohde olemassa ja tMs >= alku)
-    VT.vu = { id: p.id, nimi: p.nimi || null, vaihe: laskenta > 0 ? 0 : 1, alku, nro: ++VT.nro, tapa };
+    VT.vu = { id: p.id, nimi: p.nimi || null, vaihe: laskenta > 0 ? 0 : 1, alku, nro: ++VT.nro, tapa, i: p.i };   // i = pelaajan huoneindeksi: poistuminen + paluu antaa uuden indeksin -> vuoro ei jatku (kp 20:24 huijaus)
     VT.poissa = 0;
     lokiin({ vuoro: 'alkaa', id: p.id, nimi: p.nimi, tapa, nro: VT.vu.nro });
   };
@@ -3138,7 +3138,14 @@ AMMUNTA = (() => {
         const S0 = ASETUS.safeHouse ? safeHouseTila() : null;   // kp 19:47: safe house 0 HP päättää pelin
         if (vu.vaihe === 1 && S0 && S0.hp <= 0) vuoroLopeta('safehouse', true, tMs);
         else if (!(P || []).some(q => q && q.id === vu.id)) { if (!VT.poissa) VT.poissa = tMs; else if (tMs - VT.poissa >= Math.max(0, Number(V.poissaMs ?? 4000))) vuoroLopeta('poistui', true, tMs); }
-        else VT.poissa = 0;
+        else {
+          // kp 20:24 "peli jatku kun tulin huoneesee uusiks · nii voi huijaa": läsnäolo = huoneen oma pelaajaobjekti (ei välilehden fokus). Poistuminen + paluu = uusi huoneindeksi -> vuoro päättyy 'poistui'.
+          //   Lyhyt verkkokatko ilman uudelleenliittymistä ei vaihda indeksiä (poissaMs-toleranssi ennallaan). Indeksi kulkee snapshotissa (vu[6]) -> uusi johtaja tietää sen.
+          const pe = (P || []).find(q => q && q.id === vu.id);
+          if (vu.i == null) vu.i = pe.i;
+          else if (pe.i !== vu.i) { lokiin({ vuoro: 'pelaaja poistui ja palasi (indeksi ' + vu.i + ' -> ' + pe.i + '): vuoro päättyy', id: vu.id }); vuoroLopeta('poistui', true, tMs); }
+          else VT.poissa = 0;
+        }
       } else if (V.jonostaAloitus && V.jono && tMs >= (VT.lepo || 0)) {
         // sona 16:25: jonon etupään ruudussa (queue_tile1 462161 @15,3) seisova on seuraava. Pienin id jos useampi (deterministinen).
         const p = (P || []).find(q => q && q.x === V.jono.x && q.y === V.jono.y);
@@ -3202,13 +3209,13 @@ AMMUNTA = (() => {
   const vuoroSnap = (snap) => {
     if (!VA()) return;
     const vu = VT.vu, tB = SAILO.K * tikkiMs();
-    snap.vu = vu ? [vu.id, String(vu.nimi || '').slice(0, 24), vu.vaihe, Math.round(vu.alku - tB), vu.nro, vu.tapa === 'jono' ? 1 : 0] : null;
+    snap.vu = vu ? [vu.id, String(vu.nimi || '').slice(0, 24), vu.vaihe, Math.round(vu.alku - tB), vu.nro, vu.tapa === 'jono' ? 1 : 0, vu.i == null ? null : vu.i] : null;
     snap.vn = VT.nro; if (VT.viimeinen) snap.vv = [VT.viimeinen.id, String(VT.viimeinen.nimi || '').slice(0, 24), VT.viimeinen.nro, String(VT.viimeinen.syy || ''), Date.now() - (VT.viimeinen.t || 0)];
   };
   const vuoroOmaksu = (snap) => {
     if (!VA() || !('vu' in snap)) return;
     const a = snap.vu, tB = SAILO.K * tikkiMs();
-    if (Array.isArray(a)) VT.vu = { id: a[0] | 0, nimi: a[1] || null, vaihe: a[2] ? 1 : 0, alku: tB + (Number(a[3]) || 0), nro: a[4] | 0, tapa: a[5] ? 'jono' : 'kasky' };
+    if (Array.isArray(a)) VT.vu = { id: a[0] | 0, nimi: a[1] || null, vaihe: a[2] ? 1 : 0, alku: tB + (Number(a[3]) || 0), nro: a[4] | 0, tapa: a[5] ? 'jono' : 'kasky', i: a[6] == null ? null : a[6] | 0 };
     else VT.vu = null;
     if (isFinite(snap.vn)) VT.nro = Math.max(VT.nro, snap.vn | 0);
     if (Array.isArray(snap.vv)) VT.viimeinen = { id: snap.vv[0] | 0, nimi: snap.vv[1] || null, nro: snap.vv[2] | 0, syy: snap.vv[3] || '', t: Date.now() - (Number(snap.vv[4]) || 1e9) };
