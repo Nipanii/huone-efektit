@@ -128,7 +128,7 @@ const HUONEET = {
   },
   811: {   // sona 31.10. 15:42-15:43: yksi pelaaja kerrallaan, 1 zombi = 1 piste, läpi 25 tapolla, WASD + hiiri. "älä lisää tänne wiredejä".
     kuolemaOvi: null, eiSpawnia: [], eiZombeja: [],   // AVOIN: kiellettyjä alueita ei ole mitattu 811:stä (aulan kopio)
-    salasana: '', salaisetSanat: ['za811', 'zl811', 'zv811'], siemen: 811,
+    salasana: '', salaisetSanat: ['za811', 'zl811', 'zv811', 'zr811'], siemen: 811,
     // Pelin aloitus = script->wired-hybridi, SAMA mekanismi kuin 684:n zk684-kuolemateleportti (sanoSalainen + koukku + kuplaPiiloon, 682.js KAIVUKOODI):
     //   vuoroon tulevan pelaajan OMA client sanoo aloitusSanan tavallisena puheena; wired wf_trg_says_something [piilota 1, tarkka 1, vainOmistaja 0] "za811"
     //   + wf_act_teleport_to furni 454246 (Kaupungin päällystys @15,11) siirtää hänet (kp 16:41 "Tarvii script wired hybridin hahmon oikeaan siirtoon").
@@ -185,7 +185,14 @@ const HUONEET = {
       kasky: [1, 282, 281, 245],   // :aloitapeli / :lopetapeli sallittu (sama lista kuin :kuolematon). null = kaikille
       loppu: { x: 2, y: 2, furni: 511793 },   // sona 17:02: Matto 511793 @2,2 z 7.2 = lopetusSanan wired-teleportin kohde (jo siellä -> ei sanota)
       kamera: true,           // kp 17:01-17:02: L4K:n kameralukko (oma hahmo ruudun keskelle) vuoron pelaajalle koko vuoron ajan. Alt+K vaihtaa. false = pois
+      // kp 22:48-22:49 "tee se var 5 ei pääse radalle juttu" · "rollerilla script kattoo onko var 5" · "jos ei nii secret chat message triggeröi tele wired" · "takas matolle mihin menee pelin jälkee":
+      //   kun OMA pelaaja astuu jonorullariville (jonoRivi) ja hänen ratoja_tehty (rataMuuttuja, 7012-luku kuten 682.js) < rataRaja, oma client sanoo piilosanan eiPaaseSana kerran per astuminen
+      //   (wired says [1,1,0] teleporttaa matolle + show_message). rataMuuttuja null = ominaisuus pois (huoneessa ei ole viite-boksia). Lukema puuttuu = kysytään uudelleen, koodia EI lähetetä.
+      rataMuuttuja: null, rataRaja: 5, jonoRivi: { x1: 7, x2: 15, y: 3 }, eiPaaseSana: 'zr811',
     },
+    // kp 22:49-22:50 "semsi sai uudellee radan läpipääsy onnittelun · vaik oli päässy jo läpi · vaa kerta riittää": voittoSana kerran per pelaaja IKINÄ.
+    //   Pysyvä lähde = VPS-tulostaulu (tulosUrl, rivit { id, lapi }; 811.js POSTaa sinne kun run päättyy) + tämän selaimen localStorage (omat sanotut + 811.js:n h811.t3.<huone>).
+    tulosUrl: 'https://49-12-45-218.sslip.io/hiscore/811',
     // url null: VPS-varakanavan polku /r/z684 on 684:n; 811:lle ei arvata polkua. Ilman kuplaScriptsiä 811 = paikallinen simulaatio.
     synkka: { aihe: 'z811.synk', url: null },
     eiKohteena: [],   // vuoro rajaa kohteet vuoron pelaajaan (ASETUS.kohteet); robo 245 voi olla testipelaaja :aloitapeli-komennolla
@@ -212,6 +219,7 @@ HUONEET[817] = (() => { const DX = 12, DY = 12, h = JSON.parse(JSON.stringify(HU
   { const [, oik, vas] = h.aallot.puolet; h.aallot.puoletEka = [oik, oik, oik, vas]; }   // kp 19:54 ekassa aallossa enemmän oikealta
   const v = h.vuoro, siirra = (q, furni) => { q.x += DX; q.y += DY; q.furni = furni; };
   siirra(v.jono, 513063); siirra(v.alku, 512772); siirra(v.loppu, 513207);
+  h.tulosUrl = 'https://49-12-45-218.sslip.io/hiscore/817'; v.jonoRivi = { x1: v.jonoRivi.x1 + DX, x2: v.jonoRivi.x2 + DX, y: v.jonoRivi.y + DY }; v.rataMuuttuja = 'room:513321';   // var 5 -portti: rivi x 19..27, y 15 (queue_tile1 513056..513064). rataMuuttuja = 817:n oma wf_var_reference 513321 (osoittaa 656:n ratoja_tehty room:439263, tallennettu 31.10. 23:02)
   // Kohde 5 (kp 18:04, 18:12): aitamekaniikka 817. Palakohtainen HP (50), isku kuten safe house.
   //   Kun pala tuhoutuu: piilotetaan paikallisesti, ruudukko aukeaa, kaikki zombit kulkevat aukosta.
   h.aidat = {
@@ -234,6 +242,7 @@ ASETUS.ammuttava = false; ASETUS.teleKuolema = true; ASETUS.muuttunutKuolemasta 
 ASETUS.aloitusSana = ''; ASETUS.lopetusSana = ''; ASETUS.vuoro = null; ASETUS.safeHouse = null; ASETUS.aidat = null;   // 684: ei safe housea (811: HUONEET[811].safeHouse)   // 684: ei vuoroja eikä aloitussanaa (811: HUONEET[811])
 ASETUS.synkka.aihe = 'z684.synk';
 ASETUS.voittoSana = '';   // 684: ei voittosanaa (811/817: HUONEET[huone].voittoSana)
+ASETUS.tulosUrl = '';   // 684: ei tulostaulupalvelinta (811/817: HUONEET[huone].tulosUrl)
 ASETUS.kitit = null;   // 684: ei ensiapukitteja (811/817: HUONEET[huone].kitit { valiMs, max, ikaMs, hp })
 // Aseet 811:ssä = Left 4 Kuplan aseet SELLAISENAAN (kp 16:02 "otetaan vanha bow ja gun ampumis nopeus siten miten ne oli jo tehty" ·
 //   "sword voi kans pitää sellasenaan"): arvot shooter-1.15.2.user.js:505-509 (asetus.vahinko = 1). Zombin HP 60 = shooter :177 zHp.
@@ -1977,7 +1986,20 @@ tila._kuuleMaali = kuuleMaali; tila.maalissa = SAILO.maalissa;
 
 // ---- wired-script-hybridi (682.js:153-206, 442): salaisen sanan lähetys + kaiun nielu (suu ei liiku) + puhekuplan piilotus
 //   Piilotettavat sanat: salasana (684 kuolema) + aloitusSana (811 pelin aloitus) + lopetusSana (811 pelin loppu, vaihe 1c). Tyhjät pois -> 684:ssä sama joukko kuin ennen ([zk684]).
-const piiloSanat = () => [ASETUS.salasana, ASETUS.aloitusSana, ASETUS.lopetusSana, ASETUS.voittoSana].map(v => String(v || '').trim().toLowerCase()).filter(Boolean);
+const piiloSanat = () => [ASETUS.salasana, ASETUS.aloitusSana, ASETUS.lopetusSana, ASETUS.voittoSana, ASETUS.vuoro && ASETUS.vuoro.eiPaaseSana].map(v => String(v || '').trim().toLowerCase()).filter(Boolean);
+// ---- ratoja_tehty -luku (var 5 -portti, kp 22:48-22:49): sama 7012-kysely ja vastaus kuin 682.js:153-178 (sendRawPacket(7012,[1,i]) -> parser { type 1, objectId, values [{id,value}], wiredIds }).
+//   Muuttuja on huoneen OMAN viite-boksin id ('room:<boksi>'; boksi osoittaa 656:n ratoja_tehty-muuttujaan room:439263), joten id on huonekohtainen (ASETUS.vuoro.rataMuuttuja).
+//   RM.luettu = aika jolloin vastaus SISALSI muuttujan; RM.vastasi = aika jolloin mika tahansa oma 7012-vastaus tuli (erottaa "ei vastausta" ja "vastaus ilman muuttujaa").
+const RM = { odottaa: 0, arvo: null, luettu: 0, vastasi: 0, kysytty: 0 };
+const rataKuule = p => { const V = ASETUS.vuoro; const id = V && V.rataMuuttuja; if (!id) return false;
+  const meille = !!RM.odottaa && Date.now() - RM.odottaa < 5000; RM.vastasi = Date.now(); if (meille) RM.odottaa = 0;
+  const r = p.values.find(x => x && x.id === id);
+  if (r && r.value != null && isFinite(Number(r.value))) { RM.arvo = Number(r.value); RM.luettu = Date.now(); }
+  return meille; };   // vain oma kysymys niellään (kuten 682.js), muiden vastausten annetaan kulkea
+const kysyRata = () => { try { const V = ASETUS.vuoro; if (!V || !V.rataMuuttuja) return false;
+  const c = koukku(), i = omaIndeksi(); if (!c || i == null || i < 0 || typeof c.sendRawPacket !== 'function') return false;
+  RM.odottaa = Date.now(); RM.kysytty++; c.sendRawPacket(7012, [1, i], 'zj' + huone); return true;
+} catch (x) { lokiin({ rata: 'kysely virhe', viesti: String(x) }); return false; } };
 let koukkuYhteys = null, koukkuOma = null, koukkuAlkup = null;
 const koukku = () => {
   const c = yhteys(); if (!c || typeof c.handleMessages !== 'function') return null;
@@ -1998,6 +2020,10 @@ const koukku = () => {
         if (sanat.length && p && typeof p.message === 'string' && sanat.includes(p.message.trim().toLowerCase())) {
           if (i === undefined) i = omaIndeksi();
           if (i == null || p.roomIndex === i) return false;
+        }
+        if (ASETUS.vuoro && ASETUS.vuoro.rataMuuttuja && p && p.type === 1 && Array.isArray(p.values) && Array.isArray(p.wiredIds)) {   // 7012-vastaus omalle indeksille -> ratoja_tehty
+          if (i === undefined) i = omaIndeksi();
+          if (i != null && p.objectId === i && rataKuule(p)) return false;
         }
         if (p && typeof p.message === 'string' && typeof p.roomIndex === 'number' && !kuiskausLuokat.has(v.constructor) && p.chatType !== 1) {
           const onHuuto = huutoLuokat.has(v.constructor) || p.chatType === 2;
@@ -2043,6 +2069,35 @@ const sanoSalainen = (sanaIn) => {
   } catch (x) { lokiin({ salasanaVirhe: String(x) }); return false; }
 };
 tila._sanoSalainen = sanoSalainen;
+
+// ---- voittosana kerran per pelaaja IKINA (kp 22:49-22:50 "semsi sai uudellee radan läpipääsy onnittelun · vaik oli päässy jo läpi · vaa kerta riittää"):
+//   aiempi avain nro:run esti vain saman runin toiston, ja VT-muisti katoaa selaimen latauksessa. Pysyvät lähteet: (1) tämän selaimen localStorage (oma sanottu-lista + 811.js:n
+//   h811.t3.<huone> -rivit joilla lapi), (2) VPS-tulostaulu ASETUS.tulosUrl (rivit { id, lapi }, jaettu kaikille selaimille; 811.js POSTaa sinne kun run päättyy).
+//   VPS-luku epäonnistuu (verkko / esto, esim. B161) -> luotetaan vain paikalliseen (sanotaan), ettei ensimmäinen onnittelu jää kokonaan pois.
+const VOITTO_AVAIN = 'zombit.' + huone + '.voitettu';
+const lsLue = k => { try { return localStorage.getItem(k); } catch (x) { return null; } };
+const voittoPaik = id => {
+  try { const a = JSON.parse(lsLue(VOITTO_AVAIN) || '[]'); if (Array.isArray(a) && a.includes(id)) return true; } catch (x) {}
+  try { const a = JSON.parse(lsLue('h811.t3.' + huone) || '[]'); if (Array.isArray(a) && a.some(r => r && Number(r.id) === id && r.lapi)) return true; } catch (x) {}
+  return false; };
+const voittoKirjaa = id => { try { const a = JSON.parse(lsLue(VOITTO_AVAIN) || '[]'); const l = Array.isArray(a) ? a : []; if (!l.includes(id)) { l.push(id); localStorage.setItem(VOITTO_AVAIN, JSON.stringify(l)); } } catch (x) {} };
+const VP = { avain: null, tila: 'ei', jo: false };   // tila: ei | haetaan | valmis | virhe
+const voittoHae = (id, avain) => {
+  VP.avain = avain; VP.tila = 'haetaan'; VP.jo = false;
+  const lopeta = (t, jo) => { if (VP.avain !== avain || VP.tila !== 'haetaan') return; VP.tila = t; VP.jo = !!jo; };
+  if (!ASETUS.tulosUrl || typeof fetch !== 'function') return lopeta('virhe');
+  const aj = setTimeout(() => lopeta('virhe'), 8000);
+  try { fetch(ASETUS.tulosUrl + '?t=' + Date.now(), { cache: 'no-store' }).then(r => (r && r.ok ? r.json() : null))
+    .then(a => { clearTimeout(aj); if (!Array.isArray(a)) return lopeta('virhe'); lopeta('valmis', a.some(r => r && Number(r.id) === id && (r.lapi === true || r.lapi === 1))); })
+    .catch(() => { clearTimeout(aj); lopeta('virhe'); }); } catch (x) { clearTimeout(aj); lopeta('virhe'); } };
+// true = pelaaja on jo läpäissyt aiemmin (ei sanota), false = ei (sano), null = VPS-luku kesken (odota)
+const voittoJo = (id, avain) => {
+  if (voittoPaik(id)) return true;
+  if (VP.avain !== avain) voittoHae(id, avain);
+  if (VP.tila === 'haetaan') return null;
+  if (VP.tila === 'virhe') lokiin({ voitto: 'tulostaulun luku epäonnistui, luotetaan paikalliseen', avain });
+  return VP.tila === 'valmis' && VP.jo; };
+tila._voittoJo = voittoJo; tila._voittoKirjaa = voittoKirjaa;
 
 // ---- oma kiinnijäänti (kp 19:25: paikallinen 'lay' ASETUS.kuolemaMakuu ms ajan ennen zk684-salasanan lähetystä; kp 20:04: iso keskitetty KUOLIT-viesti)
 const ilmoita = teksti => {
@@ -3250,6 +3305,7 @@ AMMUNTA = (() => {
     }
     omaVuoro(P);
     omaLoppu(P);
+    omaJono(P);
   };
   // Vaihe 1c (sona 17:01-17:02 "kun pelaaja kuolee niin hän menee takaisin ylös" · "Siihen se teleportataan kun peli loppuu"): kun OMA vuoro
   //   päättyy millä tavalla tahansa (kuoli / lopetettu / jokin muu loppu), oma client sanoo ASETUS.lopetusSanan KERRAN per vuoro (VT.lopetusSanottu = nro)
@@ -3266,6 +3322,30 @@ AMMUNTA = (() => {
     if (L.x != null && o.x === L.x && o.y === L.y) { VT.lopetusSanottu = nro; lokiin({ vuoro: 'loppu: jo kohderuudussa, ei sanaa', nro }); return; }
     if (sanoSalainen(sana)) { VT.lopetusSanottu = nro; lokiin({ vuoro: 'lopetussana sanottu', sana, nro }); }
   };
+  // Var 5 -portti (kp 22:48-22:49): kun OMA pelaaja astuu jonorullariville ja ratoja_tehty < rataRaja, oma client sanoo eiPaaseSanan KERRAN per astuminen -> wired says [1,1,0]
+  //   teleporttaa matolle + show_message. Joka astumisella luetaan TUORE arvo (7012), vanhaa lukemaa ei käytetä. Lukema puuttuu (ei vastausta tai vastaus ilman muuttujaa) ->
+  //   kysytään uudelleen JP.kerrat kertaa, sitten luovutetaan ILMAN koodia: tuntematon arvo ei saa heittää pois pelaajaa, jolla on var 5. Vuoron pelaajaa ei koskaan siirretä.
+  const JP = { rivilla: false, alku: 0, sanottu: false, valmis: false, kysytty: 0, kerrat: 0 };
+  const omaJono = (P) => {
+    const V = VA(), R = V && V.jonoRivi, kood = V && String(V.eiPaaseSana || '').trim(); if (!V || !V.rataMuuttuja || !R || !kood) return;
+    const id = omaId(), o = id > 0 ? (P || []).find(q => q && q.id === id) : null, nyt = Date.now();
+    const rivilla = !!o && o.y === R.y && o.x >= R.x1 && o.x <= R.x2;
+    if (!rivilla) { if (JP.rivilla) { JP.rivilla = false; JP.sanottu = false; JP.valmis = false; } return; }
+    if (VT.vu && VT.vu.id === id) return;   // oma vuoro käynnissä: ei kosketa
+    if (!JP.rivilla) { JP.rivilla = true; JP.alku = nyt; JP.sanottu = false; JP.valmis = false; JP.kerrat = 0; JP.kysytty = 0; lokiin({ jono: 'astui rullariville', ruutu: o.x + ',' + o.y }); }
+    if (JP.sanottu || JP.valmis) return;
+    if (RM.luettu >= JP.alku) {   // tuore lukema tältä astumiselta
+      const raja = Number(V.rataRaja) || 5;
+      if (RM.arvo >= raja) { JP.valmis = true; lokiin({ jono: 'ratoja_tehty ' + RM.arvo + ' >= ' + raja + ', ei koodia' }); return; }
+      if (sanoSalainen(kood)) { JP.sanottu = true; lokiin({ jono: 'ratoja_tehty ' + RM.arvo + ' < ' + raja + ', koodi sanottu', sana: kood }); }
+      return;
+    }
+    if (!JP.kysytty || nyt - JP.kysytty >= 1500) {
+      if (JP.kerrat >= 6) { JP.valmis = true; lokiin({ jono: 'lukema puuttuu (' + (RM.vastasi >= JP.alku ? 'vastaus ilman muuttujaa' : 'ei vastausta') + '), ei koodia' }); return; }
+      JP.kysytty = nyt; JP.kerrat++; kysyRata();
+    }
+  };
+  tila.jono = JP; tila.rata = RM;
   // Vuoron pelaajan oma client: ehdot skriptissä (kp 16:45), viesti on vain wiredin laukaisin. tapa 'jono' -> sanotaan vain jos oma hahmo on yhä
   //   jonon etupään ruudussa (kp 16:43 "script kattoo onko rollejonon alussa oikeassa ruudussa"); tapa 'kasky' (:aloitapeli) -> missä tahansa.
   //   Kerran per vuoro (VT.sanottu = nro, säilyy live-päivityksen yli). Varakävely aloitusruutuun jos teleport ei tullut kavelyVaraMs:ssä.
@@ -3279,7 +3359,12 @@ AMMUNTA = (() => {
       if (pp && !lapi) VT.voittoNahty = avain;   // nähty rajan alla tässä clientissä -> ylitys on todellinen tapahtuma (ei toistoa uudelleenliittyjälle)
       else if (lapi && VT.voittoSanottu !== avain) {
         if (VT.voittoNahty !== avain) { VT.voittoSanottu = avain; lokiin({ voitto: 'jo läpi kun client liittyi, ei sanota', avain }); }
-        else if (sanoSalainen(ASETUS.voittoSana)) { VT.voittoSanottu = avain; tilasto.voittoSanottu = (tilasto.voittoSanottu || 0) + 1; lokiin({ voitto: 'voittosana sanottu', sana: ASETUS.voittoSana, avain }); }
+        else {   // kp 22:49: kerran per pelaaja ikinä (paikallinen muisti + VPS-tulostaulu), ei vain per run
+          const jo = voittoJo(id, avain);
+          if (jo === null) { /* VPS-luku kesken, kysytään seuraavalla tikillä */ }
+          else if (jo) { VT.voittoSanottu = avain; lokiin({ voitto: 'pelaaja on jo läpäissyt aiemmin, ei sanota', avain }); }
+          else if (sanoSalainen(ASETUS.voittoSana)) { VT.voittoSanottu = avain; voittoKirjaa(id); tilasto.voittoSanottu = (tilasto.voittoSanottu || 0) + 1; lokiin({ voitto: 'voittosana sanottu', sana: ASETUS.voittoSana, avain }); }
+        }
       }
     }
     if (VT.hpNollattu !== vu.nro) { VT.hpNollattu = vu.nro; AM.hp = hpMax(); AM.hpMuutos = 0; }   // kp 19:50: täydet HP vuoron alussa myös jos edellinen ei päättynyt kuolemaan
