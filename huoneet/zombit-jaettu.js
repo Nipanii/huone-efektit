@@ -3454,7 +3454,7 @@ AMMUNTA = (() => {
           const br = document.createElement('div'); br.textContent = t.rivi2;
           if (br.style) br.style.cssText = 'display:block;font:700 72px/1 "Arial",sans-serif;letter-spacing:1px;color:#ffb347;margin-top:4px'; vEl.appendChild(br); } }
       else vEl.textContent = sis;
-      if (vEl.style) { vEl.style.whiteSpace = 'pre'; vEl.style.fontSize = t.rivi2 ? '34px' : '26px'; vEl.style.fontWeight = t.osat ? '600' : '900'; } }
+      if (vEl.style) { vEl.style.whiteSpace = 'pre'; const kk = Math.min(1, ((typeof window !== 'undefined' && window.innerWidth) || 1920) / 1500);   /* sona 31.10. 23:23 "pienennä fonttii ja divii", G: pienellä näytöllä vie liikaa tilaa */ vEl.style.fontSize = Math.max(12, Math.round((t.rivi2 ? 26 : 20) * kk)) + 'px'; vEl.style.padding = Math.max(3, Math.round(5 * kk)) + 'px ' + Math.max(8, Math.round(14 * kk)) + 'px'; vEl.style.fontWeight = t.osat ? '600' : '900'; } }
     if (vEl.style) vEl.style.display = '';
     VT.naytto = sis;
   };
