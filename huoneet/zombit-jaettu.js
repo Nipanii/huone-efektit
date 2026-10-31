@@ -3806,11 +3806,11 @@ const KENTTA = 'input.nitro-chat-input-control', KOMENTO = /^:(?:safe|kuolematon
 const kuule = ev => {
   if (ev.key !== 'Enter' && ev.key !== 'NumpadEnter') return;
   const el = ev.target; if (!(el instanceof HTMLInputElement) || !el.matches(KENTTA)) return;
-  const mv = AMMUNTA && ASETUS.vuoro && /^:(aloitapeli|lopetapeli)$/i.exec((el.value || '').trim());
+  const mv = AMMUNTA && ASETUS.vuoro && /^:(aloita ?peli|peli ?aloitus|lopeta ?peli)$/i.exec((el.value || '').trim());
   if (mv) {   // 811 (kp 16:43): käsky aloittaa pelin kirjoittajalle / lopettaa käynnissä olevan. Sallittu ASETUS.vuoro.kasky-listalla; rivi ei lähde palvelimelle.
     ev.preventDefault(); ev.stopImmediatePropagation();
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, ''); el.dispatchEvent(new Event('input', { bubbles: true }));
-    const q = mv[1].toLowerCase() === 'aloitapeli' ? 'aloita' : 'lopeta', l = ASETUS.vuoro.kasky;
+    const q = /^lopeta/i.test(mv[1]) ? 'lopeta' : 'aloita', l = ASETUS.vuoro.kasky;   // kp 18:56, 19:17 kirjoitti :pelialoitus ja :aloita peli
     if (Array.isArray(l) && !l.includes(omaId())) { ilmoita(':' + mv[1] + ' ei ole sallittu sinulle'); return; }
     const vu = AMMUNTA.vuoro();
     if (q === 'aloita' && vu) { ilmoita('Peli on jo käynnissä: ' + (vu.nimi || vu.id)); return; }
