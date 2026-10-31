@@ -110,10 +110,47 @@ const huoneenFiguurit = () => { const m = new Map(); try {   // webID -> figure 
   for (const o of (e && e.getRoomObjects(huone, 100)) || []) { if (!o || o.id < 0 || String(o.type) !== 'user') continue; const u = ud && ud.getUserDataByIndex && ud.getUserDataByIndex(o.id);
     if (u && Number(u.webID) > 0 && u.figure) m.set(Number(u.webID), String(u.figure)); } } catch (x) {} return m; };
 // kp 19:57: ilmoitus omasta ja kaikkien pelaajien ennätyksestä. Ensimmäinen yhdistäminen on hiljainen (vanhat tulokset). Vertailu = tämän selaimen tuntemat tulokset.
+// kp 20:4x "onnittelu viesti sellanen oikeen extra niinku aiemmis huoneis" · "sama extra onnittelu tulee kans ennätys tuloksista": banneri + konfetti KOPIO 683.js:978-1016:sta
+//   (sama ulkoasu, ei uutta). Laukaisee (a) wiredin huonekuiskaus "<nimi> läpäisi haasteen, onnittelut!" (chatType 1, kuultu kuten 683.js kuuleLapi), (b) ennatysIlmoitus (oma + kaikkien ennätys).
+const laput = new Set(); const viimLapi = new Map();
+const banneri = (teksti, ms = 4000, px = 26, ylaPros = 18) => {
+  const d = document.createElement('div'); d.textContent = teksti;
+  d.style.cssText = 'position:fixed;left:50%;top:' + ylaPros + '%;transform:translate(-50%,0);z-index:2147483100;pointer-events:none;font:bold ' + px + 'px sans-serif;' +
+    'color:#fff;text-shadow:0 0 4px #000,0 0 4px #000,2px 2px 0 #000;white-space:nowrap;transition:opacity .6s';
+  document.body.appendChild(d); laput.add(d);
+  setTimeout(() => { d.style.opacity = '0'; }, ms); setTimeout(() => { d.remove(); laput.delete(d); }, ms + 700);
+};
+let juhlaCanvas = null;   // yksi konfetti kerrallaan: oma + kaikkien ennätys samalla hetkellä ei kasaa kahta canvasta päällekkäin
+const juhla = () => {
+  if (juhlaCanvas && juhlaCanvas.isConnected) return;
+  const c = document.createElement('canvas'), w = c.width = innerWidth, h = c.height = innerHeight, g = c.getContext('2d');
+  juhlaCanvas = c;
+  c.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:100vh;z-index:2147483050;pointer-events:none';
+  document.body.appendChild(c); laput.add(c);
+  const V = ['#ff7a00', '#a24bff', '#7dff4a', '#ffd23f', '#ff3b3b', '#ffffff'], P = [], t0 = performance.now(), KESTO = 9000;
+  const rak = (x, y) => { const v = V[Math.random() * V.length | 0]; for (let i = 0; i < 70; i++) { const a = Math.random() * 6.283, n = 2 + Math.random() * 5;
+    P.push({ x, y, vx: Math.cos(a) * n, vy: Math.sin(a) * n, e: 1, v, r: 2 + Math.random() * 2, k: 0 }); } };
+  for (let i = 0; i < 160; i++) P.push({ x: Math.random() * w, y: -20 - Math.random() * h * 0.4, vx: (Math.random() - 0.5) * 1.2, vy: 0.8 + Math.random() * 0.8, e: 1, v: V[i % V.length], r: 3 + Math.random() * 4, k: 1, kul: Math.random() * 6.283 });
+  let seur = 0;
+  const askel = nyt => { const t = nyt - t0; if (t > KESTO + 1500 || !c.isConnected) { c.remove(); laput.delete(c); return; }
+    if (t < KESTO && t > seur) { rak(w * (0.15 + Math.random() * 0.7), h * (0.15 + Math.random() * 0.4)); seur = t + 450 + Math.random() * 400; }
+    g.clearRect(0, 0, w, h); const haiv = t > KESTO ? 1 - (t - KESTO) / 1500 : 1;
+    for (let i = P.length - 1; i >= 0; i--) { const q = P[i]; q.x += q.vx; q.y += q.vy;
+      if (q.k) { q.vy = Math.min(q.vy + 0.01, 1.7); q.kul += 0.06; q.vx += Math.sin(q.kul) * 0.03; } else { q.vy += 0.06; q.vx *= 0.985; q.vy *= 0.985; q.e -= 0.012; }
+      if (q.e <= 0 || q.y > h + 30) { P.splice(i, 1); continue; }
+      g.globalAlpha = Math.max(0, Math.min(1, q.e * haiv)); g.fillStyle = q.v;
+      if (q.k) { g.save(); g.translate(q.x, q.y); g.rotate(q.kul); g.fillRect(-q.r, -q.r / 2, q.r * 2, q.r); g.restore(); } else { g.beginPath(); g.arc(q.x, q.y, q.r, 0, 6.283); g.fill(); } }
+    requestAnimationFrame(askel); };
+  requestAnimationFrame(askel);
+};
+const LAPI_VIESTI = /^(.+) läpäisi haasteen, onnittelut!$/;   // wired show_message "%user% läpäisi haasteen, onnittelut!" (testattu oikealla merkkijonolla testi-tulostaulu2.js:ssä)
+const kuuleLapi = ev => { try { if (!ev || ev.chatType !== 1) return; const m = LAPI_VIESTI.exec(String(ev.message || '').trim()); if (!m) return;
+  const nyt = Date.now(); if (nyt - (viimLapi.get(m[1]) || 0) < 10000) return; viimLapi.set(m[1], nyt);
+  banneri('☠ ' + m[1] + ' läpäisi haasteen, onnittelut! ☠', 8000, 40); juhla(); } catch (x) {} };
+const vayla = (() => { try { const e = window.NitroDevTools && window.NitroDevTools.roomEngine; return e && e.events; } catch (x) { return null; } })();
+if (vayla && vayla.addEventListener) vayla.addEventListener('RSCE_CHAT_EVENT', kuuleLapi);
 let ennatysAlustettu = false, ennatysRivi = 0;
-const ennatysIlmoitus = (teksti) => { const d = document.createElement('div'), rivi = ennatysRivi++ % 2; d.textContent = teksti; d.className = 'h811-ennatys';
-  d.style.cssText = 'position:fixed;left:50%;top:' + (20 + rivi * 7) + '%;transform:translateX(-50%);z-index:99999;pointer-events:none;padding:8px 16px;background:rgba(20,70,20,.9);color:#fff;font:bold 15px sans-serif;border-radius:6px;transition:opacity .4s';
-  document.body.appendChild(d); setTimeout(() => { d.style.opacity = '0'; }, 4000); setTimeout(() => d.remove(), 4500); };
+const ennatysIlmoitus = (teksti) => { const rivi = ennatysRivi++ % 2; banneri(teksti, 8000, 34, 18 + rivi * 9); juhla(); };   // kp: sama banneri + konfetti kuin läpäisyssä
 // Yhdistää julkaistut tulokset paikalliseen kokoelmaan. Palauttaa true jos jokin rivi muuttui.
 const yhdista = () => { const G = window['__zombi' + huone], lista = G && Array.isArray(G.tulokset) ? G.tulokset : []; let muuttui = false, figut = null;
   for (const t of lista) { if (!t || !(Number(t.id) > 0)) continue; const id = Number(t.id), tapot = Math.max(0, Number(t.tapot) | 0), av = id + ':' + (Number(t.run) | 0) + ':' + tapot;
@@ -287,10 +324,11 @@ let viimeSig = '';
 const paivita = () => { if (!sisalto) return; const R = tulosRivit(), sig = JSON.stringify(R); if (sig === viimeSig) return; viimeSig = sig;
   if (valittu !== 0 || pienennetty) return; const rt = sisalto.firstElementChild, y = rt ? rt.scrollTop : 0; piirra(); const uusi = sisalto.firstElementChild; if (uusi) uusi.scrollTop = y; };
 const tulosAjastin = setInterval(paivita, 1000);
-window.__h811 = { huone, pienenna, versio: 'tulokset-1', tulosRivit, paivita };
+window.__h811 = { huone, pienenna, versio: 'tulokset-2', tulosRivit, paivita, kuuleLapi, ennatysIlmoitus };
 
 return () => {
   clearInterval(veriAjastin); clearInterval(tulosAjastin);
+  try { if (vayla && vayla.removeEventListener) vayla.removeEventListener('RSCE_CHAT_EVENT', kuuleLapi); } catch (x) {} for (const d of laput) d.remove(); laput.clear(); juhlaCanvas = null;
   { const bg = tyhjio(), c = taustaCanvas(); if (bg) bg.alpha = 1; if (c && c.dataset.h811veri) { c.style.background = ''; delete c.dataset.h811veri; } }
   if (ikkuna) ikkuna.remove();
   ikkuna = sisalto = rivi = pieni = null; vedto = null;
