@@ -1648,6 +1648,8 @@ const askel = (k, Z, P) => {
     if (saalis && saalis.p && saalis.p.i !== omaI) { if (z.kontaktit) delete z.kontaktit[saalis.p.id]; saalis = null; }
     // F6: oma kiinnijäänti kun kuolema ei voi alkaa (armo/lukko/maali/safe) -> ei paikallista makuuta/lammikkoa ilman kuolemaa
     if (saalis) { const este = kuolemaEste(Date.now()); if (este) { omaSyyKirjaa(este, { zn: z.n }); if (z.kontaktit) delete z.kontaktit[saalis.p.id]; saalis = null; } }
+    // Oman tappoennusteen piilottama zombi ei pure.
+    if (saalis && AMMUNTA && !z.muuttunut && AMMUNTA.piilossa(z)) { if (z.kontaktit) delete z.kontaktit[saalis.p.id]; saalis = null; }
     // 811 vaihtoehto A (ASETUS.kiinnijaanti 'hp'): kiinnijäänti vähentää HP:ta; jos HP > 0, laskuri nollautuu eikä kuolemaa tule
     if (saalis && AMMUNTA && AMMUNTA.purema(saalis.p.id)) { if (z.kontaktit) delete z.kontaktit[saalis.p.id]; saalis = null; }
     if (saalis) {
@@ -2224,7 +2226,8 @@ const SYNK = (() => {
   //   ja yksi paikka jää osumille. Kanavan raja on silti 3 viestiä/s, joten suunta päivittyy muilla enintään sitä tahtia.
   //   kp 21:07 "en näe kans jerbanin healttia": vuoron pelaajan HP (hp: [hp, vuoronro]) kulkee samoin kuin ka: lähtee minkä tahansa viestin mukana, vain muuttuessa (hpOdottaa tyhjenee kun viesti lähti).
   //   Shooter-1.15.2 jViesti :554 (hp lähtee muutoksessa :634/:849/:942/:1735, vastaanotto :1076-1080, piirto :1909).
-  let katseOdottaa = null, laukauksetOdottaa = [], hpOdottaa = null;
+  //   kp 21:25 "zombi oli ammuttu ja otin dmg": osumia EI pudoteta (live 33/302 hävisi, ennuste umpeutui ja zombi palasi). Kaikki odottavat osumat kulkevat os-kentässä minkä tahansa viestin mukana.
+  let katseOdottaa = null, laukauksetOdottaa = [], hpOdottaa = null, osumaOdottaa = [], osumaViime = null, osumaNro = Date.now() % 100000000;
   const laheta = (o) => {
     if (!auki()) return false;
     try {
@@ -2233,12 +2236,20 @@ const SYNK = (() => {
       if (katseOdottaa != null) ext.ka = katseOdottaa;
       if (hpOdottaa != null) ext.hp = hpOdottaa;
       if (laukauksetOdottaa.length) { ext.la = laukauksetOdottaa.slice(); laukauksetOdottaa.length = 0; }
+      let osMukana = 0;
+      if (osumaOdottaa.length) {   // ei yli maxTavuja: loput jäävät jonoon seuraavaan viestiin
+        const tila = num(S().maxTavuja, 7500) - JSON.stringify(o).length - 300; let t = 0; const os = [];
+        for (const q of osumaOdottaa) { const p = JSON.stringify(q.h).length + 1; if (t + p > tila) break; t += p; os.push(q.h); }
+        if (os.length) { ext.os = os; osMukana = os.length; }
+      }
       const s = JSON.stringify(Object.keys(ext).length ? Object.assign({}, o, ext) : o);
       if (s.length > num(S().maxTavuja, 7500)) { tilasto.hylattyKoko++; return false; }
       while (lahetysAjat.length && nyt - lahetysAjat[0] >= 1000) lahetysAjat.shift();
       if (lahetysAjat.length >= (ks ? Math.max(1, num(S().maxLahetysS, 3)) : 15)) { tilasto.hylattyRaja++; return false; }
       if (ks) ksYht.ks.send(AIHE, s); else ws.send(s);
-      lahetysAjat.push(nyt); tilasto.viimeKoko = s.length; katseOdottaa = null; hpOdottaa = null; return true;
+      lahetysAjat.push(nyt); tilasto.viimeKoko = s.length; katseOdottaa = null; hpOdottaa = null;
+      if (osMukana) { osumaViime = { osat: osumaOdottaa.splice(0, osMukana), t: nyt }; tilasto.lahetettyOsuma = (tilasto.lahetettyOsuma || 0) + osMukana; }
+      return true;
     } catch (x) { tilasto.virhe = String(x); return false; }
   };
   const heiLaheta = (kysy) => {
@@ -2270,7 +2281,8 @@ const SYNK = (() => {
       if (z.syo) { o.sy = z.syoId ?? null; o.sa = rel(z.syoAstiMs); }
       return o;
     };
-    const snap = { t: 'snap', id: omaId(), K, E: SAILO.E, z: SAILO.zombit.filter(z => z).map(z => pakkaa(kuvaa(z))), m: [], l: [] };
+    // 811 aallot: ammuttu zombi ei kuulu snapshotiin. Seuraajalla sen ku >= 0 ilman ammuttu-tietoa synnytti haamun satunnaiseen ruutuun (17/40 tappoa, mitattu 31.10.).
+    const snap = { t: 'snap', id: omaId(), K, E: SAILO.E, z: SAILO.zombit.filter(z => z && !(ASETUS.aallot && z.ammuttu && z.kuoli >= 0)).map(z => pakkaa(kuvaa(z))), m: [], l: [] };
     const ms = (SAILO.muuttuneet || []).filter(m => m).sort((a, b) => (b.syntyMs ?? 0) - (a.syntyMs ?? 0));
     for (const m of ms.slice(0, mMax)) {
       const o = kuvaa(m); o.l = m.lahdeId; if (fig && m.figuuri) o.f = m.figuuri;
@@ -2346,8 +2358,11 @@ const SYNK = (() => {
     for (const s of snap.z) {
       if (!sx(s) || !isFinite(s.n)) continue;
       let z = vanhat.get(s.n);
-      if (z) vanhat.delete(s.n); else z = rakennaPerusZombi(s.n, num(s.sn, SAILO.E), { x: s.x, y: s.y }, tB, tikki, s0);
-      if (ASETUS.ammuttava && AMMUNTA && AMMUNTA.pidaPaikallinen(z, s)) { tilasto.ohitettuTappo = (tilasto.ohitettuTappo || 0) + 1; uusi.push(z); continue; }   // 811: oma tappo odottaa johtajan vahvistusta
+      if (z) vanhat.delete(s.n);
+      // 811: oma tappo odottaa johtajan vahvistusta. Jo poistettua zombia ei rakenneta takaisin: elävänä se purisi piilosta. Jos johtaja ei vahvista, snapshot palauttaa sen ennusteen umpeuduttua.
+      if (ASETUS.ammuttava && AMMUNTA && AMMUNTA.pidaPaikallinen(z, s)) { tilasto.ohitettuTappo = (tilasto.ohitettuTappo || 0) + 1; if (z) uusi.push(z); continue; }
+      if (!z) z = rakennaPerusZombi(s.n, num(s.sn, SAILO.E), { x: s.x, y: s.y }, tB, tikki, s0);
+      z.ammuttu = false;
       if (paikallinenSyo(z, s, tB)) tilasto.ohitettu++; else omaksuLiike(z, s, tB, tikki, s0);
       uusi.push(z);
     }
@@ -2416,11 +2431,20 @@ const SYNK = (() => {
   // 811: oma osuma kanavalle. Paikallinen 3/s-raja kieltäytyi -> jonoon, uusinta 400 ms välein enintään 3 kertaa (vastaanottaja idempotentti: zn+sn).
   const osumaJono = [];
   const lahetaOsuma = (o) => {
-    const msg = { t: 'osuma', id: omaId(), zn: o.zn, sn: o.sn, d: o.d, w: o.w, x: o.x, y: o.y, K: SAILO.K };
-    if (!(msg.id > 0)) return false;
-    if (laheta(msg)) { tilasto.lahetettyOsuma = (tilasto.lahetettyOsuma || 0) + 1; return true; }
-    if (!auki()) return false;
-    osumaJono.push({ msg, seuraava: Date.now() + 400, yritys: 0 }); return false;
+    if (!(omaId() > 0)) return false;
+    osumaOdottaa.push({ h: [o.zn, o.sn, o.d, o.w, o.x, o.y, ++osumaNro], t: Date.now() });
+    return true;
+  };
+  // Odottavat osumat omassa viestissä heti kun 3/s-rajassa on tilaa. Jos tämä client on nyt johtaja, osumat käsitellään suoraan. Vain yli 8 s vanha osuma (kanava poikki) hylätään.
+  const osumatTick = () => {
+    if (!osumaOdottaa.length) return;
+    const nyt = Date.now();
+    while (osumaOdottaa.length && nyt - osumaOdottaa[0].t > 8000) { osumaOdottaa.shift(); tilasto.osumaVanheni = (tilasto.osumaVanheni || 0) + 1; }
+    if (!osumaOdottaa.length) return;
+    if (AMMUNTA && valmis(nyt) && johtajaId(nyt) === omaId()) { AMMUNTA.osumatSaapui(omaId(), osumaOdottaa.splice(0).map(q => q.h), nyt); return; }
+    if (!auki()) return;
+    while (lahetysAjat.length && nyt - lahetysAjat[0] >= 1000) lahetysAjat.shift();
+    if (lahetysAjat.length < (kanava === 'kuplaScripts' ? Math.max(1, num(S().maxLahetysS, 3)) : 15)) laheta({ t: 'osuma', id: omaId() });
   };
   // 811 vuoro: :aloitapeli / :lopetapeli seuraajalta johtajalle (sama jono ja uusinta kuin osumalla; johtaja tarkistaa kasky-listan ja tilan)
   const lahetaKatse = (k) => { katseOdottaa = k; const nyt = Date.now(); while (lahetysAjat.length && nyt - lahetysAjat[0] >= 1000) lahetysAjat.shift();
@@ -2497,6 +2521,7 @@ const SYNK = (() => {
     if (m.ka != null && AMMUNTA) AMMUNTA.katseSaapui(id, Number(m.ka));
     if (m.hp != null && AMMUNTA) AMMUNTA.hpSaapui(id, m.hp);   // kp 21:07: vuoron pelaajan HP-palkki muille
     if (m.la && Array.isArray(m.la) && AMMUNTA) AMMUNTA.laukauksetSaapui(id, m.la);
+    if (Array.isArray(m.os) && ASETUS.ammuttava && AMMUNTA) { AMMUNTA.osumatSaapui(id, m.os, Date.now()); tilasto.vastaanotettuOsuma = (tilasto.vastaanotettuOsuma || 0) + m.os.length; }
     const nyt = Date.now(), raja = Math.max(1000, num(S().hiljaisuusMs, 10000));
     // Yksin oltuaan (kukaan muu ei kuulunut raja-ajan sisällä: verkkokatko / kanavalla ei katkeamisilmoitusta) ensimmäinen kontakti VALMIISEEN vertaiseen
     //   aloittaa 3 s kuuntelun alusta -> ei oteta johtajuutta vanhalla saarekkeen tilalla, vaan omaksutaan ensin vertaisen snapshotit.
@@ -2509,7 +2534,7 @@ const SYNK = (() => {
       m.z = m.z.map(pura); m.m = (Array.isArray(m.m) ? m.m : []).map(pura);
       m.l = (Array.isArray(m.l) ? m.l : []).map(a => Array.isArray(a) ? { l: a[0], x: a[1], y: a[2], n: a[3], k: a[4] } : {});
       SY.odottava = m; SY.snapAika = nyt; SY.snapJohtaja = id; tilasto.vastaanotettuSnap++;
-    } else if (m.t === 'osuma' && ASETUS.ammuttava && AMMUNTA) {   // 811: ampujan osuma; vain auktoriteetti (johtaja / paikallinen) hyväksyy, tiki():ssä
+    } else if (m.t === 'osuma' && m.zn != null && ASETUS.ammuttava && AMMUNTA) {   // 811: vanha yhden osuman muoto (uudet tulevat os-kentässä, ks. yllä); vain auktoriteetti (johtaja / paikallinen) hyväksyy, tiki():ssä
       AMMUNTA.vastaanota(id, m, nyt); tilasto.vastaanotettuOsuma = (tilasto.vastaanotettuOsuma || 0) + 1;
     } else if (m.t === 'katse') {
     } else if (m.t === 'vuoro' && ASETUS.vuoro && AMMUNTA) {   // 811: vuoropyyntö; vain auktoriteetti käsittelee (vuoroTick)
@@ -2558,6 +2583,8 @@ const SYNK = (() => {
     if (e && (e.code === 1004 || e.code === 429) && kuoliViimeData && !kuoliPalvelinRetry && Date.now() - kuoliViimeTs < 700) {
       kuoliPalvelinRetry = true; kuoliJono.push({ msg: kuoliViimeData, seuraava: Date.now() + 400 });
     }
+    // Palvelin kieltäytyi: viimeksi lähteneet osumat uudelleen jonon alkuun (vastaanottaja karsii tuplat osuman numerolla, kieltäytyminen ei kerro mikä viesti se oli)
+    if (e && (e.code === 1004 || e.code === 429) && osumaViime && Date.now() - osumaViime.t < 700) { osumaOdottaa.unshift(...osumaViime.osat); osumaViime = null; }
   };
   const ksOta = () => {
     const ks = ksSaatavilla(); if (!ks) return false;
@@ -2603,7 +2630,8 @@ const SYNK = (() => {
         else if ((j.yritys = (j.yritys || 0) + 1) < 3) { j.seuraava = nyt + 400; kuoliJono.unshift(j); }   // paikallinen 3/s-raja (1 s ikkuna) täynnä: uusi yritys 400 ms päästä, enintään 3 uusintaa
         else tilasto.kuolemaHylatty++;
       }
-      if (osumaJono.length && nyt >= osumaJono[0].seuraava && !kuoliJono.length) {   // 811: osuman uusinta (kuolemaviesti ensin)
+      osumatTick();   // osumat ensin: katse, HP ja snapshot vasta tämän jälkeen
+      if (osumaJono.length && nyt >= osumaJono[0].seuraava && !kuoliJono.length) {   // 811: vuoro- ja kittiviestien uusinta (kuolemaviesti ensin)
         const j = osumaJono.shift();
         if (laheta(j.msg)) tilasto.lahetettyOsuma = (tilasto.lahetettyOsuma || 0) + 1;
         else if (++j.yritys < 3) { j.seuraava = nyt + 400; osumaJono.unshift(j); }
@@ -2639,7 +2667,7 @@ const SYNK = (() => {
       sykkeet: [...SY.sykkeet].map(([id, h]) => ({ id, ikaMs: nyt - h.t, valmisIkaMs: h.tv ? nyt - h.tv : null })), ...tilasto,
     };
   };
-  return { seuraa, johtajaId, kasitteleSnap, kasitteleKuolemat, lahetaKuolema, lahetaOsuma, lahetaVuoro, lahetaKitti, lahetaKatse, lahetaHp, lahetaLaukaus, kaynnista, sulje, tiedot, snapLaheta, omaksuSnap, rakennaSnap };
+  return { seuraa, johtajaId, kasitteleSnap, kasitteleKuolemat, lahetaKuolema, lahetaOsuma, osumatTick, lahetaVuoro, lahetaKitti, lahetaKatse, lahetaHp, lahetaLaukaus, kaynnista, sulje, tiedot, snapLaheta, omaksuSnap, rakennaSnap };
 })();
 tila.synkka = SYNK.tiedot; tila._synk = SYNK;
 
@@ -2665,6 +2693,7 @@ AMMUNTA = (() => {
   if (!(AM.odottavat instanceof Map)) AM.odottavat = new Map();   // seuraajan oma tappo: n -> { sn, asti }
   if (!(AM.ennuste instanceof Map)) AM.ennuste = new Map();       // 'n:sn' -> asti (oma ennustettu tappo kunnes johtaja vahvistaa)
   if (!(AM.hpEnn instanceof Map)) AM.hpEnn = new Map();           // 'n:sn' -> { hp, asti } ampujan oma HP-ennuste (piilotus vasta kun <= 0)
+  if (!(AM.osNahty instanceof Map)) AM.osNahty = new Map();       // ampujan id -> jo vastaanotetut osumanumerot
   if (!(AM.nahdyt instanceof Set)) AM.nahdyt = new Set();         // tappoavaimet joiden ruumis on jo näytetty tässä clientissä
   const tilasto = { ammuttu: 0, osui: 0, vahinko: 0, hyvaksytty: 0, hylatty: 0, tapettu: 0, vahvistettu: 0, ennusteVanheni: 0, kavely: 0, kavelyKiintio: 0, nollattu: 0 };
   const tikkiMs = () => Math.max(50, Number(ASETUS.tikki) || 250);
@@ -2811,6 +2840,7 @@ AMMUNTA = (() => {
       }
       SYNK.lahetaOsuma(o);
     }
+    SYNK.osumatTick();   // saman tikin osumat (miekkapyörähdys) yhdessä viestissä
   };
   // kp 19:23: vastaanottaja pitää toisen pelaajan katseen myös tämän kävelyaskelten aikana (moottori palauttaa suunnan joka askeleella): muisti 2500 ms, tasaus 30 ms tikillä.
   const katseMuisti = new Map();
@@ -2847,7 +2877,17 @@ AMMUNTA = (() => {
   const vastaanota = (id, m, nyt) => {
     if (!isFinite(m.zn) || !isFinite(m.sn)) return;
     AM.jono.push({ id, oma: false, zn: Number(m.zn), sn: Number(m.sn), d: Number(m.d) || 0, x: Number(m.x), y: Number(m.y), saapui: nyt, w: typeof m.w === 'string' ? m.w.slice(0, 12) : 'luoti' });
-    if (AM.jono.length > 32) AM.jono.shift();
+    if (AM.jono.length > 256) AM.jono.shift();
+  };
+  // os-kenttä: [zn, sn, d, w, x, y, numero]. Numero karsii uudelleenlähetyksen tuplat (palvelimen 1004 ei kerro mikä viesti kiellettiin).
+  const osumatSaapui = (id, lista, nyt) => {
+    let nahty = AM.osNahty.get(id); if (!nahty) AM.osNahty.set(id, nahty = new Set());
+    for (const a of lista) {
+      if (!Array.isArray(a)) continue;
+      if (a[6] != null) { if (nahty.has(a[6])) continue; nahty.add(a[6]); }
+      vastaanota(id, { zn: a[0], sn: a[1], d: a[2], w: a[3], x: a[4], y: a[5] }, nyt);
+    }
+    if (nahty.size > 400) AM.osNahty.set(id, new Set([...nahty].slice(-200)));
   };
   // seuraaja: snapshotissa vielä elossa oleva zombi, jonka tämä client juuri tappoi (sama sn), ei herää henkiin ennen vahvistusta
   const pidaPaikallinen = (z, s) => {
@@ -3961,7 +4001,7 @@ AMMUNTA = (() => {
     if (vEl && vEl.remove) vEl.remove();
     if (window[GLOBAALI] && window[GLOBAALI].huone === huone) delete window[GLOBAALI];
   };
-  return { aaltoTick, aalto: () => AM.aalto, kasittele, vastaanota, katseSaapui, laukauksetSaapui, pidaPaikallinen, omaksu, snapLisaa, pelaajaKuoli, omaKuolema, piirto, piilossa, piirtoPaikat, julkaise, sulje,
+  return { aaltoTick, aalto: () => AM.aalto, kasittele, vastaanota, osumatSaapui, katseSaapui, laukauksetSaapui, pidaPaikallinen, omaksu, snapLisaa, pelaajaKuoli, omaKuolema, piirto, piilossa, piirtoPaikat, julkaise, sulje,
     ammu, ammuSuuntaan, asetaAse, ase: () => aseOn, valitseAse, aseNyt, runLoppu, tilasto, AM, auktoriteetti, luodit: () => luodit.length, jaljet: () => jaljet.length,
     purema, paranna, kontaktiKerroin, nollaaKontakti, hp: () => AM.hp, wasd: { pidetyt, tick: wasdTick, nappain, nosto }, hiiri,
     vuoroTick, vuoroPyyda, vuoroVastaanota, vuoro: () => VT.vu, VT, vuoroSallii, aseKaytossa: aseAktiivinen, vuoroTeksti,
