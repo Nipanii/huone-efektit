@@ -133,12 +133,16 @@ tila.safe = (v) => {
 // ---- yhteys ja istunto
 const istunto = () => { const sm = dv(e, '_roomSessionManager'); return sm && sm.getSession && sm.getSession(huone); };
 const omaIndeksi = () => {
-  const s = istunto(), i = s && s.ownRoomIndex; if (i != null && i >= 0) return i;
+  const s = istunto(), i = s && s.ownRoomIndex;
   const ud = s && s.userDataManager, sd = dv(e, '_sessionDataManager') || {}, id = Number(sd._userId || sd.userId || 0), nimi = String(sd._name || sd.userName || '').trim().toLowerCase();
+  // F9: ownRoomIndex kelpaa vain jos sen käyttäjä on oma id (vanhentunut indeksi -> oma kiinnijäänti hylättiin kuin muiden, välkky ilman kuolemaa)
+  const hasI = i != null && i >= 0;
+  if (hasI && (!ud || !ud.getUserDataByIndex || !(id > 0))) return i;
+  if (hasI) { const u0 = ud.getUserDataByIndex(i); if (u0 && Number(u0.webID) === id) return i; }
   if (!ud || !ud.getUserDataByIndex || (!id && !nimi)) return null;
   for (const o of e.getRoomObjects(huone, 100) || []) { const u = o && ud.getUserDataByIndex(o.id);
     if (u && ((id > 0 && Number(u.webID) === id) || (nimi && String(u.name || '').trim().toLowerCase() === nimi))) return o.id; }
-  return null;
+  return hasI ? i : null;
 };
 const yhteys = () => {
   const nahty = new Set(); let c = null;
@@ -1272,7 +1276,10 @@ const askel = (k, Z, P) => {
     let { saalis, aktP, aktT } = paivitaKontaktit(z, P, k, tMs, tikki, s0, kaatuneet);
     // kp 20:39 "mun kuolema ei näkyny sun ruudulla" / desync: vain UHRIN oma kone päättää kiinnijäännin (se lähettää zk684).
     //   Muiden koneiden zombit eivät tapa toisen pelaajaa paikallisesti (tuotti valekuolemia); kuolema näkyy muille ovelle-teleportista.
+    if (saalis && saalis.p && saalis.p.id === omaId() && saalis.p.i !== omaI) omaSyyKirjaa('indeksi', { omaI, pI: saalis.p.i });   // F9-diagnostiikka: oma laskuri täyttyi mutta indeksi ei täsmää
     if (saalis && saalis.p && saalis.p.i !== omaI) { if (z.kontaktit) delete z.kontaktit[saalis.p.id]; saalis = null; }
+    // F6: oma kiinnijäänti kun kuolema ei voi alkaa (armo/lukko/maali/safe) -> ei paikallista makuuta/lammikkoa ilman kuolemaa
+    if (saalis) { const este = kuolemaEste(Date.now()); if (este) { omaSyyKirjaa(este, { zn: z.n }); if (z.kontaktit) delete z.kontaktit[saalis.p.id]; saalis = null; } }
     if (saalis) {
       const kp = saalis.p;
       const makuuMs = Math.max(0, Number(ASETUS.kuolemaMakuu ?? 1500));
@@ -1689,16 +1696,27 @@ const asennaKavelyEsto = () => {
   } catch (x) {}
 };
 const puraKavelyEsto = () => { try { if (kavelyH && kavelyH.sendWalkUpdate === kavelyOma) kavelyH.sendWalkUpdate = kavelyAlkup; } catch (x) {} kavelyH = kavelyOma = kavelyAlkup = null; };
+// kp 31.10. 12:41 "jos seisoit vaa paikallaa ja et kuollu nii on problem": syy miksi oma kuolema ei nyt voi alkaa (null = voi).
+//   Sama ehto askel():ssä (ei paikallista makuuta/lammikkoa ilman kuolemaa) ja kuole():ssa; viimeisin syy näkyy tila.omaTila():ssa.
+let omaSyy = null, omaSyyMs = 0;
+const omaSyyKirjaa = (syy, x) => { const nyt = Date.now(); if (syy === omaSyy && nyt - omaSyyMs < 1000) return; omaSyy = syy; omaSyyMs = nyt; lokiin(Object.assign({ omaEiKuole: syy }, x || {})); };
+const kuolemaEste = (nyt) => {
+  const makuuMs = Math.max(0, Number(ASETUS.kuolemaMakuu ?? 1500)), lukko = Math.max(1000, Number(ASETUS.kuolemaLukko) || 5000);
+  if (nyt - ALKU < ARMO) return 'armo';
+  if (nyt - kuolemaKaynnissa < Math.max(lukko, makuuMs)) return 'lukko';
+  if (onMaalissa(omaId(), nyt)) return 'maali';
+  if (safe && saaSafe()) return 'safe';
+  return null;
+};
 const kuole = (syy, kaappari) => {
   const nyt = Date.now(), makuuMs = Math.max(0, Number(ASETUS.kuolemaMakuu ?? 1500));
-  const lukko = Math.max(1000, Number(ASETUS.kuolemaLukko) || 5000);
-  if (nyt - kuolemaKaynnissa < Math.max(lukko, makuuMs)) return;
-  if (onMaalissa(omaId(), nyt)) return;   // kp 22:16: maaliin päässyt ei kuole ennen kuin teleportti ehtii (maalisuoja)
-  if (safe && saaSafe()) {
-    if (nyt - safeIlmoitettu > 5000) { safeIlmoitettu = nyt; ilmoita(syy + ' (:safe päällä, ei kuolemaa)'); lokiin({ kuolema: syy, safe: true }); }
-    return;
+  const este = kuolemaEste(nyt);
+  if (este) {
+    if (este === 'safe' && nyt - safeIlmoitettu > 5000) { safeIlmoitettu = nyt; ilmoita(syy + ' (:safe päällä, ei kuolemaa)'); lokiin({ kuolema: syy, safe: true }); }
+    omaSyyKirjaa(este, { kuolema: syy });
+    return false;
   }
-  kuolemaKaynnissa = nyt; tila.kuolemat++; naytaKuolit();
+  kuolemaKaynnissa = nyt; tila.kuolemat++; naytaKuolit(); omaSyy = 'kuoli'; omaSyyMs = nyt;
   // kp 21:21 "kuolema ei näkyny se :lay sun ruudul": muut näkivät kuoleman vasta teleportista (makuun JÄLKEEN) -> kerrotaan kuolema kanavalla heti (ensisijainen lähetys)
   try { SYNK.lahetaKuolema(kaappari); } catch (x) {}
   // kp 20:06 "kun makaa pysty kävellä samalla": oman hahmon kävelykomennot estetään makuun ajan (sendWalkUpdate-kääre, puretaan siivouksessa)
@@ -1724,6 +1742,7 @@ const kuole = (syy, kaappari) => {
   } else {
     laheta();
   }
+  return true;
 };
 const tarkistaOma = () => {
   if (Date.now() - ALKU < ARMO) return;
@@ -1737,8 +1756,9 @@ const tarkistaOma = () => {
   for (const z of tila.zombit.concat(tila.muuttuneet || [])) {
     if (z.muuttunut && z.lahdeId === id) continue;
     if (z.viimeSyoId === id && z.viimeSyoK > omaViimeSyoK && SAILO.K - z.viimeSyoK <= ikkunaK) {
-      omaViimeSyoK = z.viimeSyoK ?? SAILO.K;
-      return kuole('Zombi sai sinut kiinni!', z);
+      // F6: kulutetaan vasta kun kuole() oikeasti käynnistyi (este -> yritetään uudelleen ikkunan sisällä, ei hiljaista katoamista)
+      if (kuole('Zombi sai sinut kiinni!', z)) omaViimeSyoK = z.viimeSyoK ?? SAILO.K;
+      return;
     }
   }
 };
@@ -2149,6 +2169,16 @@ const SYNK = (() => {
   return { seuraa, johtajaId, kasitteleSnap, kasitteleKuolemat, lahetaKuolema, kaynnista, sulje, tiedot, snapLaheta, omaksuSnap, rakennaSnap };
 })();
 tila.synkka = SYNK.tiedot; tila._synk = SYNK;
+// Diagnostiikka pelaajan konsoliin: window.zombit.omaTila() -> miksi oma välkky ei johda kuolemaan
+tila.omaTila = () => {
+  const id = omaId(), omaI = omaIndeksi(), nyt = Date.now();
+  let pI = null; try { const P = pelaajat(); const p = (P || []).find(q => q && q.id === id); pI = p ? p.i : null; } catch (x) {}
+  const kontaktit = [];
+  for (const z of (tila.zombit || []).concat(tila.muuttuneet || [])) { const t = z && z.kontaktit && z.kontaktit[id]; if (t) kontaktit.push({ n: z.n, ms: Math.round(t.ms), raja: t.rajaMs, et: t.et }); }
+  const ti = SYNK.tiedot();
+  return { omaId: id, omaI, pI, indeksiOk: omaI === pI, kohde: onKohde({ id }), este: kuolemaEste(nyt), viimeSyy: omaSyy, viimeSyyIka: omaSyy ? nyt - omaSyyMs : null,
+    hyppy: liike(id).hyppy, kontaktit, kuolemat: tila.kuolemat, virheet: tila.virheet, ajastinElossa: tila.virheet <= 50, rooli: ti.rooli, viimeKEro: ti.viimeKEro };
+};
 
 // ---- kello
 const ALKU = Date.now(), ARMO = 6000;   // käynnistyksen jälkeen 6 s armoaika
