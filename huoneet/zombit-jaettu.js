@@ -2767,7 +2767,16 @@ AMMUNTA = (() => {
       SYNK.lahetaOsuma(o);
     }
   };
-  const katseSaapui = (id, k) => { if (!isFinite(k) || id === omaId()) return; const p = (pelaajat() || []).find(q => q && q.id === id); if (!p) return;
+  // kp 19:23: vastaanottaja pitää toisen pelaajan katseen myös tämän kävelyaskelten aikana (moottori palauttaa suunnan joka askeleella): muisti 2500 ms, tasaus 30 ms tikillä.
+  const katseMuisti = new Map();
+  const katseKertaa = () => {
+    if (!katseMuisti.size) return; const nyt = Date.now();
+    for (const [id, m] of katseMuisti) {
+      if (nyt - m.t > 2500) { katseMuisti.delete(id); continue; }
+      try { const p = (pelaajat() || []).find(q => q && q.id === id); if (!p) continue; const o = e.getRoomObject(huone, p.i, 100), d = o && o.getDirection(); if (d && d.x !== m.k) { o.setDirection(new d.constructor(m.k, d.y, d.z)); o.model.setValue('head_direction', m.k); } } catch (x) {}
+    }
+  };
+  const katseSaapui = (id, k) => { if (!isFinite(k) || id === omaId()) return; katseMuisti.set(id, { k, t: Date.now() }); const p = (pelaajat() || []).find(q => q && q.id === id); if (!p) return;
     try { const o = e.getRoomObject(huone, p.i, 100), d = o && o.getDirection(); if (d) { o.setDirection(new d.constructor(k, d.y, d.z)); o.model.setValue('head_direction', k); } } catch (x) {} };
   const laukauksetSaapui = (id, lista) => {
     if (id === omaId() || !Array.isArray(lista)) return;
@@ -3511,16 +3520,26 @@ AMMUNTA = (() => {
   const hiirenKulma = () => { const h = hiirenVektori(null, null, omaPaikka()); return h ? ((Math.round(Math.atan2(h.dx, -h.dy) * 180 / Math.PI / 45) * 45) % 360 + 360) % 360 : null; };   // shooter :2193
   // kp 18:33 "lähetetään se omaa kanavaa pitkin": suunta muille SYNK-kanavalla (raakapaketti 3301 ei löydy kaikilta, istunnossa ei ole yhteyttä).
   const lahetaKatse = (minä, k) => { try { return SYNK.lahetaKatse(k); } catch (x) { return false; } };
+  // kp 19:23: WASD-kävelyn aikana hahmo pitää katseensa hiiren suunnassa. Moottori asettaa suunnan joka askeleella -> oma näkymä: tasataan paikallisesti joka 30 ms tikillä (ei verkkoon),
+  //   muille: lähetys kulman vaihtuessa ja virkistys 1000 ms välein (vastaanottaja pitää muistin 2500 ms, katseSaapui + katseKertaa).
+  const katseKavellessa = (k) => {
+    const nyt = Date.now(), minä = omaPaikka(); if (!minä) return;
+    let o = null, d = null; try { o = e.getRoomObject(huone, minä.i, 100); d = o && o.getDirection(); } catch (x) {} if (!o || !d) return;
+    if (d.x !== k) { try { o.setDirection(new d.constructor(k, d.y, d.z)); o.model.setValue('head_direction', k); tilasto.katseKavellessa = (tilasto.katseKavellessa || 0) + 1; } catch (x) {} }
+    if (k !== viimeKatse || nyt - viimeKatseAika >= 1000) { lahetaKatse(minä, k); viimeKatse = k; viimeKatseAika = nyt; }
+  };
   const katseTick = () => {
-    if (!aseAktiivinen() || kuolemaLukossa(Date.now()) || (pidetyt.size && !wasdEste)) return;   // shooter :2194 (ohjausOn, kuollut, pidetyt)
-    const k = hiirenKulma(); if (k == null || Date.now() - viimeKatseAika < 50) return;
+    if (!aseAktiivinen() || kuolemaLukossa(Date.now())) return;   // shooter :2194 (ohjausOn, kuollut). `pidetyt`-ehto POISTETTU tarkoituksella (kp 19:23): shooter ei käännä WASD-kävelyn aikana, tämä kääntää.
+    const k = hiirenKulma(); if (k == null) return;
+    if (pidetyt.size && !wasdEste) return katseKavellessa(k);   // kp 19:23 "hahmon pitää kävellä takaperin jos ampuu taaksepäin": ei shooterissa (:2194 ohittaa), uusi
+    if (Date.now() - viimeKatseAika < 50) return;
     const minä = omaPaikka(); if (!minä) return;
     let o = null, d = null; try { o = e.getRoomObject(huone, minä.i, 100); d = o && o.getDirection(); } catch (x) {} if (!o || !d) return;
     if (k === viimeKatse && (d.x == null || d.x === k || Date.now() - viimeKatseAika < 400)) return;   // shooter :2198 (minä.suunta = hahmon oikea suunta)
     lahetaKatse(minä, k);   // kp 18:32 "saa käyttää 3301 pakettia": muutkin näkevät suunnan (shooter :2200)
     try { o.setDirection(new d.constructor(k, d.y, d.z)); o.model.setValue('head_direction', k); viimeKatse = k; viimeKatseAika = Date.now(); tilasto.katse = (tilasto.katse || 0) + 1; } catch (x) {}   // shooter :2201-2202
   };
-  const katseAjastin = setInterval(() => { try { katseTick(); } catch (x) {} }, 30);   // shooter :2203
+  const katseAjastin = setInterval(() => { try { katseTick(); katseKertaa(); } catch (x) {} }, 30);   // shooter :2203
   const onKentta = el => !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
   const chatPois = () => { chatTila = false; try { if (onKentta(document.activeElement)) document.activeElement.blur(); } catch (x) {} try { hudPaivita(); } catch (x) {} };
   // Vaihe 1c (kp 17:02 "nyt täs ei oo sitä vaihtoo chatin ja pelin välil" · "eli ei voi kirjottaa wasd kontrollien takii samalla"):
