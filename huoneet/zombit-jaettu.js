@@ -157,6 +157,7 @@ const HUONEET = {
     //   HP-koukku: auktoriteetti vähentää AM.safe.hp (vahinko per isku, iskuMs per zombi), snapshot 'sh' vie muille, nollautuu vuoron alussa.
     //   VAIHE 2 (EI tehty): seinän välkyntä, safe housen HP-palkki näytölle, peli päättyy kun HP 0 (nyt vain loki + window.__zombi811.safeHouse).
     kuljettavatKalusteet: ['cpunk_c15_road', 'val13_grass'],
+    osittainLapi: { tyypit: ['army_c15_wiredividr'], osuus: 1 / 3 },   // kp 31.10. 22:48 turva-aita: noin joka kolmas luoti menee läpi, satunnaisesti
     eiPeita: ['urban_lamp', 'army_c15_medictent', 'nyc_c23_divider', 'nyc_c23_dividercorner'],   // kp 31.10. 22:46 lääkintäteltta ei saa estää ampumista, 22:47 kaupunkiaidat läpiammuttaviksi
     safeHouse: { hp: 150, vahinko: 1, iskuMs: 1000, etaisyys: 0, rakennus: 'nyc_c23_buildingblue', valahdysMs: 300,
       ruudut: [[15, 11, 0, -1], [14, 11, 0, -1], [16, 11, 0, -1], [13, 11, 0, -1], [17, 11, 0, -1], [12, 11, 0, -1], [18, 11, 0, -1], [11, 11, 0, -1], [19, 11, 0, -1],
@@ -3451,7 +3452,7 @@ AMMUNTA = (() => {
   let esteMuisti = null;
   const esteKartta = () => {   // shooter :965
     const nyt = Date.now(); if (esteMuisti && esteMuisti.ek === ASETUS.esteKorkeus && nyt - esteMuisti.t < 1000) return esteMuisti;
-    const out = { ek: ASETUS.esteKorkeus, t: nyt, ruudut: new Set(), idt: new Map(), hm: null, seinat: true, peittajat: [] };
+    const out = { ek: ASETUS.esteKorkeus, t: nyt, ruudut: new Set(), vahvat: new Set(), idt: new Map(), hm: null, seinat: true, peittajat: [] };
     try {
       const cv = e.getRoomInstanceRenderingCanvas(huone, 1), g = cv && cv.geometry, oc = cv && cv._objectCache && cv._objectCache._data; out.hm = e.getFurnitureStackingHeightMap(huone);
       try { const ro = e.getRoomObject(huone, -1, 0), v = ro && ro.model.getValue('room_wall_visibility'); if (v === false || v === 0) out.seinat = false; } catch (x) {}
@@ -3464,8 +3465,9 @@ AMMUNTA = (() => {
             if (ala > -1e9 && (sp.y - (bb.y + (ala - yla) * (cv._scale || 1))) / yks > 1) continue; }
           const l = o.getLocation(), m = o.model, r = Math.round(((o.getDirection() && o.getDirection().x) || 0) / 45) % 4; let sx = m.getValue('furniture_size_x') || 1, sy = m.getValue('furniture_size_y') || 1; if (r === 2) [sx, sy] = [sy, sx];   // shooter 1.11.3
           if (nousu <= ASETUS.esteKorkeus) continue;   // shooter 1.10.9: peittäjiksi vain esteet (matala ruoho ei estä)
+          const osLapi = !!(ASETUS.osittainLapi && (ASETUS.osittainLapi.tyypit || []).includes(String(o.type)));
           const x0 = Math.round(l.x), y0 = Math.round(l.y); out.peittajat.push({ id: o.id, x0, y0, x1: x0 + sx - 1, y1: y0 + sy - 1 });
-          for (let i = 0; i < sx; i++) for (let j = 0; j < sy; j++) { const kk = (Math.round(l.x) + i) + ',' + (Math.round(l.y) + j); out.ruudut.add(kk); out.idt.set(kk, o.id); } } }
+          for (let i = 0; i < sx; i++) for (let j = 0; j < sy; j++) { const kk = (Math.round(l.x) + i) + ',' + (Math.round(l.y) + j); out.ruudut.add(kk); if (!osLapi) out.vahvat.add(kk); out.idt.set(kk, o.id); } } }
     } catch (x) {}
     return esteMuisti = out;
   };
@@ -3479,7 +3481,7 @@ AMMUNTA = (() => {
     for (let s = 0.05; s <= L; s += 0.05) {
       const tx = Math.round(x + dx * s), ty = Math.round(y + dy * s); if (tx === ex && ty === ey) continue; ex = tx; ey = ty;
       if (!huoneRuutu(tx, ty)) { if (!ulkona && k.seinat && (tx < px || ty < py)) return Math.max(0, s - 0.05); ulkona = true; continue; }
-      ulkona = false; px = tx; py = ty; if (k.ruudut.has(tx + ',' + ty)) { if (!rata) return s; const kk = tx + ',' + ty; for (let s2 = s; s2 <= L && Math.round(x + dx * s2) === tx && Math.round(y + dy * s2) === ty; s2 += 0.05) if (kuvassa(s2, kk)) return s2; }
+      ulkona = false; px = tx; py = ty; if (k.ruudut.has(tx + ',' + ty) && !(rata && rata.lapiAita && !k.vahvat.has(tx + ',' + ty))) { if (!rata) return s; const kk = tx + ',' + ty; for (let s2 = s; s2 <= L && Math.round(x + dx * s2) === tx && Math.round(y + dy * s2) === ty; s2 += 0.05) if (kuvassa(s2, kk)) return s2; }
     }
     return Infinity;
   };
@@ -3541,7 +3543,7 @@ AMMUNTA = (() => {
     const x = Math.round(minä.x), y = Math.round(minä.y);
     if (A.m === 'p') {   // projektiili (jousi, pistooli): lentää, osuma lasketaan radalta luotiTickissä (shooter :1745)
       const LL = A.latausLento && c != null ? A.latausLento[0] + (A.latausLento[1] - A.latausLento[0]) * c : (A.lento || 12);
-      const este = esteMatka(minä.x, minä.y, dx, dy, 40, { z: minä.z });
+      const este = esteMatka(minä.x, minä.y, dx, dy, 40, { z: minä.z, lapiAita: !!(ASETUS.osittainLapi && Math.random() < ASETUS.osittainLapi.osuus) });
       luodit.push({ x: minä.x, y: minä.y, z: minä.z, dx, dy, t0: nyt, w, c, LL, este, pm: null });   // shooter :1054 (rata: kuva-alueen sisällä)
       try { SYNK.lahetaLaukaus(['p', w, Math.round(minä.x * 100) / 100, Math.round(minä.y * 100) / 100, minä.z, Math.round(dx * 1000) / 1000, Math.round(dy * 1000) / 1000, c, Math.round(LL * 100) / 100, Math.round(este * 100) / 100]); } catch (x) {}
       return { lensi: w, c };
