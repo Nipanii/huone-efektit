@@ -20,7 +20,7 @@ const MALLI_EI_LAPI = [   // [nimi, pisteet < LAPI_RAJA, figure] — oikeita pel
   ["Nicszerg",11,"fa-3344-1000024.ch-215-110.cp-9032-1308.lg-275-110.hd-3091-1.ea-3484-1408.he-3560-1408.ha-1000002933-1408.hr-125-32.0"],
   ["Aido",8,"fa-201407-1324.hr-3322-34.ch-800001467-1408-1408.sh-3068-92-1408.cp-9032-1308.lg-10059-1408.hd-209-1024.cc-2935-1408-1408"],
 ];
-const NAKYVAT = 10;   // highscore-rivejä näkyvissä ilman vieritystä (sona 15:57)
+const NAKYVAT = 7;   // highscore-rivejä näkyvissä ilman vieritystä (sona 15:57 10 · 16:31 "liian korkea ... top 7")
 const MALLI_TULOKSET = [   // [nimi, pisteet, figure] — oikeita pelaajia satunnaisesti, sona #1, pisteet keksittyjä (sona 16:16)
   ["sona",78,"hr-1000002941-61.hd-11626-18-18.ch-1000001712-110.lg-10464-110-110.sh-1000002987-110-110.ea-999999641-110-110.fa-999999498-110.cc-1000001547-110.he-10419-110.ca-999999837-110.0"],
   ["T1R0M1",72,"fa-1209-1408.hr-990000606-1394.ch-990000871-1408.sh-10043-92-1408.cp-9032-1308.lg-11333-1408.hd-209-3.wa-11314-1408.ha-11031-1408"],
