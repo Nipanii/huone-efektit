@@ -58,6 +58,13 @@
         "huoneet/811.js",
         "huoneet/zombit-jaettu.js"
       ]
+    },
+    "817": {
+      "nimi": "Rata 6 B (811 levennetty, finaali)",
+      "skriptit": [
+        "huoneet/811.js",
+        "huoneet/zombit-jaettu.js"
+      ]
     }
   },
   "kaikki": {

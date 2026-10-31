@@ -183,6 +183,16 @@ const HUONEET = {
     eiKohteena: [],   // vuoro rajaa kohteet vuoron pelaajaan (ASETUS.kohteet); robo 245 voi olla testipelaaja :aloitapeli-komennolla
   },
 };
+// Huone 817 "Rata 6 B" = 811 levennettynä (kp 31.10. 16:10-17:31 "valmistele siirto 817:ään eli samat scriptit toimimaan siellä"): sama peli, kaikki ruudut x+12, y+12
+//   (nitro/data/huoneet/811-levea-kopio.json), furni-id:t 817:n omat (mitattu 17:32 vertaa-811-817.js). Wiredit samoilla sanoilla za811/zl811: wired on huonekohtainen.
+//   Portit + tie vasemmalle (kp 16:10) EI tässä vielä: tämä on pelkkä siirto.
+HUONEET[817] = (() => { const DX = 12, DY = 12, h = JSON.parse(JSON.stringify(HUONEET[811]));
+  h.siemen = 817; h.synkka = { aihe: 'z817.synk', url: null };
+  h.safeHouse.ruudut = h.safeHouse.ruudut.map(([x, y, ax, ay]) => [x + DX, y + DY, ax, ay]);
+  h.aallot.puolet = h.aallot.puolet.map(p => Array.isArray(p) ? p.map(([x, y]) => [x + DX, y + DY]) : p);
+  const v = h.vuoro, siirra = (q, furni) => { q.x += DX; q.y += DY; q.furni = furni; };
+  siirra(v.jono, 513063); siirra(v.alku, 512772); siirra(v.loppu, 513207);
+  return h; })();
 ASETUS.aallot = null;   // 684: ei aaltoja (zombimäärä laskeMaara(P), tapettu syntyy uudelleen). 811: HUONEET[811].aallot
 ASETUS.ammuttava = false; ASETUS.teleKuolema = true; ASETUS.muuttunutKuolemasta = true; ASETUS.salaisetSanat = []; ASETUS.tappoRaja = 25;
 ASETUS.aloitusSana = ''; ASETUS.lopetusSana = ''; ASETUS.vuoro = null; ASETUS.safeHouse = null;   // 684: ei safe housea (811: HUONEET[811].safeHouse)   // 684: ei vuoroja eikä aloitussanaa (811: HUONEET[811])
