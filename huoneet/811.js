@@ -6,7 +6,7 @@
 // Ikkuna aukeaa huoneeseen tullessa, sulkeutuu ×:stä ja aukeaa uudelleen vasemman reunan napista. Raahattavissa otsikosta (683.js-malli).
 const huone = kupla.roomId();
 
-const OTSIKKO = 'Hallowen rata 6/6';
+const OTSIKKO = 'Hallowen rata finaali';   // sona 15:27 'vaihdetaan 6/6 sanaksi finaali'
 const VALILEHDET = ['Highscores', 'Ohjeet'];
 const MALLI_TULOKSET = [   // [nimi, pisteet, aika] — keksittyjä, vain ulkoasua varten
   ['Pelaaja 1', 980, '04:12'],
