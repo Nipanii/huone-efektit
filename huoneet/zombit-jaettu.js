@@ -281,6 +281,7 @@ const huone = Number((kupla && kupla.roomId && kupla.roomId()) || (e && e.active
   if (ASETUS.ase && ASETUS.aseet && !ASETUS.aseet[ASETUS.ase.valittu]) ASETUS.ase.valittu = ['luoti', 'miekka', 'jousi'].find(w => ASETUS.aseet[w]) || ASETUS.ase.valittu; }
 const dv = (o, k) => { const d = o && Object.getOwnPropertyDescriptor(o, k); return d && !d.get ? d.value : undefined; };
 const omaId = () => { const s = e && dv(e, '_sessionDataManager'); return Number((s && (dv(s, '_userId') || s.userId)) || 0); };
+const omaNimi = () => { const s = e && dv(e, '_sessionDataManager'); const n = s && (dv(s, '_name') || s._name || s.userName); return n ? String(n) : null; };
 if (!e || !huone) return () => {};
 
 const tila = window.zombit = { versio: 'zombit-jaettu 2', huone, asetus: ASETUS, zombit: [], muuttuneet: [], lammikot: [], kohde: null, ovi: null, loki: [], kuolemat: 0, virheet: 0, k: 0 };
@@ -2000,6 +2001,25 @@ const kysyRata = () => { try { const V = ASETUS.vuoro; if (!V || !V.rataMuuttuja
   const c = koukku(), i = omaIndeksi(); if (!c || i == null || i < 0 || typeof c.sendRawPacket !== 'function') return false;
   RM.odottaa = Date.now(); RM.kysytty++; c.sendRawPacket(7012, [1, i], 'zj' + huone); return true;
 } catch (x) { lokiin({ rata: 'kysely virhe', viesti: String(x) }); return false; } };
+// kp 31.10. 23:57 liike kuten shooterissa :457, :460: palvelimen vahvistama paikka pelaajille (1640)
+const palvelin = new Map(), tilaKuuntelijat = new Set(), tilaKoukut = [];
+let tilaViimeinenRef = null;
+const kasitteleTila = (st, ev) => {
+  if (ev && ev === tilaViimeinenRef) return; if (st && st === tilaViimeinenRef) return; tilaViimeinenRef = ev || st;
+  const s = istunto(), ud = s && s.userDataManager; if (!ud) return;
+  const nyt = Date.now(), muuttui = [];
+  for (const it of st) { const d = ud.getUserDataByIndex && ud.getUserDataByIndex(it.id); if (!d || !d.name || d.type !== 1) continue;
+    palvelin.set(d.name, { x: it.didMove ? it.targetX : it.x, y: it.didMove ? it.targetY : it.y, liikkuu: !!it.didMove, t: nyt }); muuttui.push(d.name); }
+  for (const n of muuttui) tilaKuuntelijat.forEach(f => { try { f(n); } catch (x) {} });
+};
+const koukutaTila = () => {
+  try {
+    const c = yhteys(), m = c && dv(c, '_messages'), byId = m && dv(m, '_messageInstancesById'), hs = byId && byId.get && byId.get(1640); if (!hs) return false;
+    for (const h of hs) { if (h.__kshTila) continue; const cb = h._callBack; if (typeof cb !== 'function') continue; h.__kshTila = true; tilaKoukut.push([h, cb]);
+      h._callBack = function (ev) { const r = cb.apply(this, arguments); try { const p = ev && (ev.getParser ? ev.getParser() : (ev.parser || ev._parser)), st = p && (p.statuses || p._statuses); if (st) kasitteleTila(st, ev); } catch (x) {} return r; }; }
+    return true;
+  } catch (x) { return false; }
+};
 let koukkuYhteys = null, koukkuOma = null, koukkuAlkup = null;
 const koukku = () => {
   const c = yhteys(); if (!c || typeof c.handleMessages !== 'function') return null;
@@ -2015,7 +2035,9 @@ const koukku = () => {
       const puheLuokat = new Set((msgs && msgs.getEvents && msgs.getEvents(1446) || []).map(x => x && x.constructor));
       let i;
       viestit = viestit.filter(v => {
-        const p = v && v.parser;
+        const p = v && (v.getParser ? v.getParser() : (v.parser || v._parser));
+        const st = p && (p.statuses || p._statuses);
+        if (st) kasitteleTila(st, v);   // kp 31.10. 23:57 liike kuten shooterissa :463 (käyttäjätilapaketti 1640)
         // Palvelin kaiuttaa wf_trg_says_something (piilota=1) -koodin lähettäjälle kuiskauksena (2704) -> niellään, ettei suu liiku eikä kuplaa synny.
         if (sanat.length && p && typeof p.message === 'string' && sanat.includes(p.message.trim().toLowerCase())) {
           if (i === undefined) i = omaIndeksi();
@@ -3736,13 +3758,12 @@ AMMUNTA = (() => {
   // kp 31.10. "portille health bar": kunkin portin (ASETUS.aidat.palat) HP-palkki portin yläpuolelle; sama tyyli kuin omaP / shP (40 px, 42x7 tausta, väri >0.5/>0.25).
   //   HP aitaTila().palat[i].hp (seuraajilla snap.ai); ei palkkia tuhoutuneelle palalle eikä vuoropelin ulkopuolella (VA() ilman VT.vu). 684: ASETUS.aidat null -> [].
   const gateZ = new Map();   // palan id -> { t, z }: ruudun korkeus object-haulla korkeintaan 2 s välein
-  // sama ehto kuin kohtiAitaa: zombi iskee palaa vain jos sen hyökkäysruudusta ei ole reittiä safe houselle. Välimuisti tuhojen määrän ja ruudukon mukaan (kutsutaan joka ruudulla).
+  // sama ehto kuin kohtiAitaa: portti on tiellä niin kauan kuin jollain zombilla ei ole reittiä safe houselle (d < 0). Kenttä välimuistiin tuhojen määrän ja ruudukon mukaan (kutsutaan joka ruudulla).
   let tieMuisti = null;
-  const porttiYhaTiella = AT => { const SH = ASETUS.safeHouse, AI = ASETUS.aidat; if (!ruudukko || !SH || !Array.isArray(SH.ruudut) || !AI) return true;
-    if (tieMuisti && tieMuisti.n === AT.tuhoutuneetIds.size && tieMuisti.r === ruudukko) return tieMuisti.v;
-    const { W, H, ok } = ruudukko, d = bfsKentta(W, H, ok, SH.ruudut.filter(r => Array.isArray(r)).map(r => ({ x: r[0], y: r[1] }))).d;
-    const v = (AI.hyokkaysRuudut || []).some(r => Array.isArray(r) && ok[r[1] * W + r[0]] && d[r[1] * W + r[0]] < 0 && AT.palat.some(p => p.hp > 0 && p.x === r[0] + r[2] && p.y === r[1] + r[3]));
-    tieMuisti = { n: AT.tuhoutuneetIds.size, r: ruudukko, v }; return v; };
+  const porttiYhaTiella = AT => { const SH = ASETUS.safeHouse; if (!ruudukko || !SH || !Array.isArray(SH.ruudut)) return true;
+    if (!tieMuisti || tieMuisti.n !== AT.tuhoutuneetIds.size || tieMuisti.r !== ruudukko) tieMuisti = { n: AT.tuhoutuneetIds.size, r: ruudukko, d: bfsKentta(ruudukko.W, ruudukko.H, ruudukko.ok, SH.ruudut.filter(r => Array.isArray(r)).map(r => ({ x: r[0], y: r[1] }))).d };
+    const { W } = ruudukko, zt = SAILO.zombit || []; if (!zt.length) return true;
+    return zt.some(z => z && tieMuisti.d[Math.round(z.y) * W + Math.round(z.x)] < 0); };
   const gateHpPalkit = () => {
     const out = []; if (!ASETUS.aidat || (VA() && !VT.vu)) return out;
     const AT = aitaTila(); if (AT && AT.tuhoutuneetIds && AT.tuhoutuneetIds.size > 0 && !porttiYhaTiella(AT)) return [];   // kp 19:45 'kun yksi on tuhottu, muille ei palkkia', tarkennus 31.10. 23:48: yksi tuho ei aina avaa reittiä, joten palkit piiloon vasta kun reitti on auki
@@ -3857,29 +3878,38 @@ AMMUNTA = (() => {
   // 811 vuoro (kp 16:25 "Ase pitää olla käytössä vaan pelaajalle"): WASD + hiiriammunta vain vuoron pelaajalle pelin aikana; muut kävelevät klikkaamalla.
   const aseAktiivinen = () => aseOn && vuoroSallii();
   const kuljettava = (x, y) => { try { const h = e.getFurnitureStackingHeightMap(huone); if (!h) return false; if (typeof h.validPosition === 'function' && !h.validPosition(x, y)) return false; return h.getTileHeight(x, y) < 60 && lattiaa(x, y); } catch (x2) { return false; } };
+  // kp 31.10. 23:57 liike kuten shooterissa :476: palvelimen vahvistama ruutu (didMove ? target : x,y); ennen ensimmäistä 1640-tilaa piirretty paikka pyöristettynä
+  const omaPalvelin = () => { const n = omaNimi(), p = n && (palvelin.get(n) || palvelin.get(n.toLowerCase())); if (p) return p; const o = omaPaikka(); return o ? { x: Math.round(o.x), y: Math.round(o.y), liikkuu: false, t: 0 } : null; };
+  let kavelyUusinta = 0, maaliOdottaa = false;   // kp 31.10. 23:57 liike kuten shooterissa :2057, :2068
   const kavele = (x, y) => {
     const nyt = Date.now(); while (kavelyAjat.length && nyt - kavelyAjat[0] >= 2000) kavelyAjat.shift();
-    if (kavelyAjat.length >= 10) { tilasto.kavelyKiintio++; return false; }
+    if (kavelyAjat.length >= 10) {
+      tilasto.kavelyKiintio++;
+      if (!kavelyUusinta) kavelyUusinta = setTimeout(() => { kavelyUusinta = 0; wasdTick(); }, kavelyAjat[0] + 2000 - nyt + 1);   // kp 31.10. 23:57 liike kuten shooterissa :2060: uusinta kiintiön vapautuessa
+      return false;
+    }
     const h = e && e.objectEventHandler; if (!h || typeof h.sendWalkUpdate !== 'function') return false;
-    kavelyAjat.push(nyt); tilasto.kavely++;
+    kavelyAjat.push(nyt); tilasto.kavely++; maaliOdottaa = true;
     try { h.sendWalkUpdate(x, y); } catch (x2) { return false; }
     return true;
   };
   let wasdEste = false;   // shooter :2051 wasdEste (kävelyn este: seinää vasten seistessä katse vapaana)
   const wasdTick = () => {
     wasdEste = false;   // shooter :2079
-    if (!aseAktiivinen() || chatTila || !pidetyt.size || kuolemaLukossa(Date.now())) { wasdMaali = null; return; }
+    if (!aseAktiivinen() || chatTila || !pidetyt.size || kuolemaLukossa(Date.now())) { wasdMaali = null; maaliOdottaa = false; return; }
     const A = aseNyt(); if (veto && !(A.hidasKavely || A.lataus)) { wasdMaali = null; return; }   // shooter 1.7.6 / 1.10.17
     let dx = 0, dy = 0; for (const k of pidetyt) { dx += WASD[k][0]; dy += WASD[k][1]; }
     dx = Math.sign(dx); dy = Math.sign(dy); if (!dx && !dy) { wasdMaali = null; return; }
-    wasdSuunta = [dx, dy];
-    const o = omaPaikka(); if (!o) return;
-    const tx = Math.round(o.x) + dx, ty = Math.round(o.y) + dy;
-    if (!kuljettava(tx, ty)) { wasdEste = true; wasdMaali = null; return; }   // shooter :2089 (siellä wasdEste = !p.liikkuu; liikkuu-tietoa ei ole tässä)
+    const p = omaPalvelin(); if (!p) return;   // kp 31.10. 23:57 liike kuten shooterissa :2086: omaPalvelin, ei pyöristetty piirretty paikka
+    koukutaTila(); wasdSuunta = [dx, dy];
+    const tx = p.x + dx, ty = p.y + dy;
+    if (!kuljettava(tx, ty)) { wasdEste = !p.liikkuu; wasdMaali = null; return; }   // kp 31.10. 23:57 liike kuten shooterissa :2089 (wasdEste = !p.liikkuu)
     const avain = tx + ',' + ty; if (avain === wasdMaali) return;
     if (kavele(tx, ty)) wasdMaali = avain;
   };
   const wasdAjastin = setInterval(() => { try { wasdTick(); } catch (x) {} }, 100);
+  const omaTilaKuuntelija = n => { const o = omaNimi(); if (n === o || (n && o && n.toLowerCase() === o.toLowerCase())) { maaliOdottaa = false; if (pidetyt.size) wasdTick(); } };   // kp 31.10. 23:57 liike kuten shooterissa :2093: tick heti kun palvelin raportoi askeleen
+  tilaKuuntelijat.add(omaTilaKuuntelija);
   // ---- kohde 7 (kp 18:22 "hahmo ei pyöri siis hiiren suuntaa" · "niinku og shooteris"): hahmo kääntyy hiiren suuntaan. shooter-1.15.2.user.js:
   //   hiirenKulma :2193 (8 suuntaa: round(atan2(dx,-dy)/45)*45), kääntösilmukka setInterval 30 ms :2194-2203, paikallinen käännös :2201-2202
   //   (o.setDirection(new d.constructor(k, d.y, d.z)); o.model.setValue('head_direction', k)). Ehdot sellaisenaan: ei kun WASD pidossa (paitsi seinää vasten, wasdEste),
@@ -3944,7 +3974,7 @@ AMMUNTA = (() => {
     }
     if (tulostuva && onKentta(ev.target)) ev.preventDefault();   // välilyönti valittuun kenttään ei kirjoita peli-tilassa
   };
-  const nosto = ev => { const k = String(ev.key || '').toLowerCase(); if (pidetyt.delete(k)) { ev.preventDefault(); ev.stopImmediatePropagation(); wasdTick(); } };
+  const nosto = ev => { const k = String(ev.key || '').toLowerCase(); if (pidetyt.delete(k)) { ev.preventDefault(); ev.stopImmediatePropagation(); if (!(pidetyt.size && maaliOdottaa)) wasdTick(); } };   // kp 31.10. 23:57 liike kuten shooterissa :2100: ei korvata odottavaa vinoa maalia suoralla
   // kp 31.10. 23:25 oikean klikkauksen menu (SurfaceWalkMenuView) sulkeutuu vain document-mousedownista, jota ampuminen ei päästä perille -> vasen klikkaus painaa sen Peruuta-riviä ja ampuu silti
   const suljeOikeaMenu = () => { try { for (const el of document.querySelectorAll('.nitro-context-menu .menu-item')) if ((el.textContent || '').trim() === 'Peruuta') { el.click(); return; } } catch (x) {} };
   const huoneeseen = ev => !!ev && ev.button === 0 && ev.target && ev.target.tagName === 'CANVAS' && !(ev.target.hasAttribute && ev.target.hasAttribute('data-zombit-ammunta'));
@@ -3988,7 +4018,7 @@ AMMUNTA = (() => {
   const HIIRI_T = ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click', 'pointermove'];
   addEventListener('keydown', nappain, true); addEventListener('keyup', nosto, true);
   for (const t of HIIRI_T) addEventListener(t, hiiri, true);
-  const blur = () => { pidetyt.clear(); wasdMaali = null; veto = null; autoPois(); };
+  const blur = () => { pidetyt.clear(); wasdMaali = null; maaliOdottaa = false; if (kavelyUusinta) { clearTimeout(kavelyUusinta); kavelyUusinta = 0; } veto = null; autoPois(); };
   addEventListener('blur', blur);
   const asetaAse = (v) => { aseOn = !!v; try { sessionStorage.setItem(MUISTI_ASE, aseOn ? '1' : '0'); } catch (x) {} blur(); return aseOn; };
 
@@ -4146,6 +4176,9 @@ AMMUNTA = (() => {
     if (hudEl && hudEl.remove) hudEl.remove();
     kuplatLapi(false);
     clearInterval(wasdAjastin); clearInterval(katseAjastin); autoPois();
+    if (kavelyUusinta) { clearTimeout(kavelyUusinta); kavelyUusinta = 0; }   // kp 31.10. 23:57 liike kuten shooterissa
+    tilaKuuntelijat.delete(omaTilaKuuntelija);
+    for (const [h, cb] of tilaKoukut) { try { h._callBack = cb; delete h.__kshTila; } catch (x) {} } tilaKoukut.length = 0;
     removeEventListener('keydown', nappain, true); removeEventListener('keyup', nosto, true); removeEventListener('blur', blur);
     for (const t of HIIRI_T) removeEventListener(t, hiiri, true);
     removeEventListener('wheel', rulla, { capture: true });
