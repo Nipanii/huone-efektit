@@ -3073,6 +3073,8 @@ AMMUNTA = (() => {
   const piirraKitit = (p, nyt, W, H, lista) => {
     if (!lista.length || !kitKoko || !kitKokoCtx || !kitApu || !kitApuCtx) return 0;
     const rctx = kitKokoCtx, kctx = kitApuCtx;
+    const hahmot = []; for (const h of piirtoPaikat.values()) hahmot.push(h);
+    try { for (const o of e.getRoomObjects(huone, 100) || []) { if (!o || o.id < 0 || String(o.type) !== 'user') continue; const L = o.getLocation(); if (L) hahmot.push({ x: Number(L.x), y: Number(L.y), z: Number(L.z) || 0 }); } } catch (x) {}
     if (kitKoko.width !== W || kitKoko.height !== H) { kitKoko.width = W; kitKoko.height = H; }
     rctx.clearRect(0, 0, W, H); let n = 0;
     for (const k of lista) { const a = p(k.x, k.y, k.z), q = p(k.x + 1, k.y, k.z); if (!a || !q) continue;
@@ -3081,7 +3083,10 @@ AMMUNTA = (() => {
         c.fillStyle = 'rgba(0,0,0,.25)'; c.beginPath(); c.ellipse(a.x - ox, a.y - oy, r * 1.1, r * 0.45, 0, 0, Math.PI * 2); c.fill();
         c.fillStyle = '#fff'; c.strokeStyle = '#7a0a10'; c.lineWidth = 2; c.beginPath(); c.roundRect ? c.roundRect(a.x - ox - r, y0 - oy - r, 2 * r, 2 * r, 3) : c.rect(a.x - ox - r, y0 - oy - r, 2 * r, 2 * r); c.fill(); c.stroke();
         c.fillStyle = '#e5242f'; c.fillRect(a.x - ox - r * 0.18, y0 - oy - r * 0.65, r * 0.36, r * 1.3); c.fillRect(a.x - ox - r * 0.65, y0 - oy - r * 0.18, r * 1.3, r * 0.36); };
-      const pr = peittoLaatikot(p, k.x, k.y);
+      // kp 22:54 "vaa se alue joka ei oo hidden tavaran takana" (shooter 1.11.3): edessä olevan esineen ja hahmon kuva-alueen sisään jäävä osa on läpikuultava, muu täysin näkyvä.
+      const pr = kitPeitto(p, k.x, k.y);
+      for (const h of hahmot) { if (h.x + h.y < k.x + k.y) continue; const s = p(h.x, h.y, h.z), q2 = s && p(h.x + 1, h.y, h.z); if (!s || !q2) continue; const hh = Math.max(8, Math.abs(q2.x - s.x)), bx = s.x - 0.5 * hh, by = s.y - 3.25 * hh, bh = 3.4 * hh;
+        if (bx < a.x + r * 1.2 && bx + hh > a.x - r * 1.2 && by < a.y + r && by + bh > y0 - r) pr.push({ x: bx, y: by, w: hh, h: bh }); }
       if (!pr.length) { piirraKit(rctx, 0, 0); n++; continue; }
       const kx = Math.floor(a.x - r * 1.2 - 4), ky = Math.floor(y0 - r - 4), kw = Math.ceil(r * 2.4 + 8), kh = Math.max(1, Math.ceil(a.y + r * 0.5 + 4 - ky));
       kitApu.width = kw; kitApu.height = kh; piirraKit(kctx, kx, ky);
@@ -3455,19 +3460,20 @@ AMMUNTA = (() => {
   let esteMuisti = null;
   const esteKartta = () => {   // shooter :965
     const nyt = Date.now(); if (esteMuisti && esteMuisti.ek === ASETUS.esteKorkeus && nyt - esteMuisti.t < 1000) return esteMuisti;
-    const out = { ek: ASETUS.esteKorkeus, t: nyt, ruudut: new Set(), vahvat: new Set(), idt: new Map(), hm: null, seinat: true, peittajat: [] };
+    const out = { ek: ASETUS.esteKorkeus, t: nyt, ruudut: new Set(), vahvat: new Set(), idt: new Map(), hm: null, seinat: true, peittajat: [], kitPeittajat: [] };
     try {
       const cv = e.getRoomInstanceRenderingCanvas(huone, 1), g = cv && cv.geometry, oc = cv && cv._objectCache && cv._objectCache._data; out.hm = e.getFurnitureStackingHeightMap(huone);
       try { const ro = e.getRoomObject(huone, -1, 0), v = ro && ro.model.getValue('room_wall_visibility'); if (v === false || v === 0) out.seinat = false; } catch (x) {}
       if (g) { const Vk = g.direction.constructor, a = g.getScreenPoint(new Vk(0, 0, 0)), b = g.getScreenPoint(new Vk(0, 0, 1)), yks = (a.y - b.y) * (cv._scale || 1);
         if (yks > 0) for (const o of e.getRoomObjects(huone, 10) || []) {
-          if ((ASETUS.eiPeita || []).includes(String(o.type))) continue;   // kp 19:58 ammukset eivät osu valotolppiin
+          const eiEste = (ASETUS.eiPeita || []).includes(String(o.type));   // kp 19:58 ammukset eivät osu valotolppiin
           const bb = e.getRoomObjectBoundingRectangle(huone, o.id, 10, 1), sp = e.getRoomObjectScreenLocation(huone, o.id, 10, 1); if (!bb || !sp || !(bb.height > 0)) continue; const nousu = (sp.y - bb.y) / yks; if (nousu <= 1) continue;
           { const ent = oc && oc.get(String(o.instanceId)), ss = ent && ent._sprites && ent._sprites._sprites; let ala = -1e9, yla = 1e9;   // shooter 1.11.4 zoom + 1.10.7 katosta roikkuva ei ulotu luodin korkeudelle
             if (ss) for (const q of ss) { const t = q._sprite; if (!t || !t._visible || !t._texture) continue; yla = Math.min(yla, q._y); if (/_sd_|shadow/i.test(t._libraryAssetName || '')) continue; ala = Math.max(ala, q._y + t._height); }
             if (ala > -1e9 && (sp.y - (bb.y + (ala - yla) * (cv._scale || 1))) / yks > 1) continue; }
           const l = o.getLocation(), m = o.model, r = Math.round(((o.getDirection() && o.getDirection().x) || 0) / 45) % 4; let sx = m.getValue('furniture_size_x') || 1, sy = m.getValue('furniture_size_y') || 1; if (r === 2) [sx, sy] = [sy, sx];   // shooter 1.11.3
-          if (nousu <= ASETUS.esteKorkeus) continue;   // shooter 1.10.9: peittäjiksi vain esteet (matala ruoho ei estä)
+          if (nousu >= 1) out.kitPeittajat.push({ id: o.id, x0: Math.round(l.x), y0: Math.round(l.y), x1: Math.round(l.x) + sx - 1, y1: Math.round(l.y) + sy - 1 });   // kp 22:54: kitin peitto ei riipu siitä, meneekö luoti esineen läpi
+          if (eiEste || nousu <= ASETUS.esteKorkeus) continue;   // shooter 1.10.9: peittäjiksi vain esteet (matala ruoho ei estä)
           const osLapi = !!(ASETUS.osittainLapi && (ASETUS.osittainLapi.tyypit || []).includes(String(o.type)));
           const x0 = Math.round(l.x), y0 = Math.round(l.y); out.peittajat.push({ id: o.id, x0, y0, x1: x0 + sx - 1, y1: y0 + sy - 1 });
           for (let i = 0; i < sx; i++) for (let j = 0; j < sy; j++) { const kk = (Math.round(l.x) + i) + ',' + (Math.round(l.y) + j); out.ruudut.add(kk); if (!osLapi) out.vahvat.add(kk); out.idt.set(kk, o.id); } } }
@@ -3498,6 +3504,9 @@ AMMUNTA = (() => {
     }
     return out;
   };
+  const kitPeitto = (f, bx, by) => { const k = esteKartta(), syv = bx + by, out = []; if (!f.laatikko) return out;
+    for (const q of k.kitPeittajat) { if (q.x1 + q.y1 <= syv + 0.25 || bx < q.x0 - 4 || bx > q.x1 + 4 || by < q.y0 - 4 || by > q.y1 + 4) continue; let r = null; try { r = f.laatikko(e.getRoomObjectBoundingRectangle(huone, q.id, 10, 1)); } catch (x) {} if (r) out.push(r); }
+    return out; };
   const peitossa = (f, bx, by, a) => peittoLaatikot(f, bx, by).some(r => a.x >= r.x && a.x <= r.x + r.w && a.y >= r.y && a.y <= r.y + r.h);   // shooter :1015
   const nakyy = (x, y, tx, ty) => { const m = Math.hypot(tx - x, ty - y); if (m < 0.6) return true; try { return esteMatka(x, y, (tx - x) / m, (ty - y) / m, m) >= m - 0.5; } catch (x2) { return true; } };   // shooter :904
   // Elävät, piirretyt zombit kohteina (tavalliset; muuttuneita ei 811:ssä synny)
