@@ -2194,11 +2194,15 @@ const SYNK = (() => {
   // Lähetys ei koskaan heitä. kuplaScripts: palvelin rajoittaa 3 lähetystä / 1000 ms / käyttäjä -> oma raja maxLahetysS (3) ja 1004-virheen jälkeen hitaampi snapshot-väli (hidasMs).
   // kp 18:37 "miksi ei lähde samassa viestissä osumat ja suunta": viimeisin suunta (ka) lähtee minkä tahansa viestin mukana. Oma viesti vain jos 3/s rajassa on tilaa,
   //   ja yksi paikka jää osumille. Kanavan raja on silti 3 viestiä/s, joten suunta päivittyy muilla enintään sitä tahtia.
-  let katseOdottaa = null;
+  let katseOdottaa = null, laukauksetOdottaa = [];
   const laheta = (o) => {
     if (!auki()) return false;
     try {
-      const nyt = Date.now(), ks = kanava === 'kuplaScripts', s = JSON.stringify(katseOdottaa != null ? Object.assign({}, o, { ka: katseOdottaa }) : o);
+      const nyt = Date.now(), ks = kanava === 'kuplaScripts';
+      const ext = {};
+      if (katseOdottaa != null) ext.ka = katseOdottaa;
+      if (laukauksetOdottaa.length) { ext.la = laukauksetOdottaa.slice(); laukauksetOdottaa.length = 0; }
+      const s = JSON.stringify(Object.keys(ext).length ? Object.assign({}, o, ext) : o);
       if (s.length > num(S().maxTavuja, 7500)) { tilasto.hylattyKoko++; return false; }
       while (lahetysAjat.length && nyt - lahetysAjat[0] >= 1000) lahetysAjat.shift();
       if (lahetysAjat.length >= (ks ? Math.max(1, num(S().maxLahetysS, 3)) : 15)) { tilasto.hylattyRaja++; return false; }
@@ -2391,6 +2395,12 @@ const SYNK = (() => {
   const lahetaKatse = (k) => { katseOdottaa = k; const nyt = Date.now(); while (lahetysAjat.length && nyt - lahetysAjat[0] >= 1000) lahetysAjat.shift();
     if (kanava === 'kuplaScripts' && lahetysAjat.length >= Math.max(1, num(S().maxLahetysS, 3)) - 1) return false;
     return laheta({ t: 'katse', id: omaId() }); };
+  const lahetaLaukaus = (l) => {
+    if (l) laukauksetOdottaa.push(l);
+    const nyt = Date.now(); while (lahetysAjat.length && nyt - lahetysAjat[0] >= 1000) lahetysAjat.shift();
+    if (kanava === 'kuplaScripts' && lahetysAjat.length >= Math.max(1, num(S().maxLahetysS, 3)) - 1) return false;
+    return laheta({ t: 'laukaus', id: omaId() });
+  };
   const lahetaVuoro = (o) => {
     const msg = { t: 'vuoro', id: omaId(), q: o.q, K: SAILO.K };
     if (!(msg.id > 0)) return false;
@@ -2441,6 +2451,7 @@ const SYNK = (() => {
     if (!m || typeof m !== 'object') return;
     const id = Number(m.id); if (!(id > 0) || id === omaId()) return;
     if (m.ka != null && AMMUNTA) AMMUNTA.katseSaapui(id, Number(m.ka));
+    if (m.la && Array.isArray(m.la) && AMMUNTA) AMMUNTA.laukauksetSaapui(id, m.la);
     const nyt = Date.now(), raja = Math.max(1000, num(S().hiljaisuusMs, 10000));
     // Yksin oltuaan (kukaan muu ei kuulunut raja-ajan sisällä: verkkokatko / kanavalla ei katkeamisilmoitusta) ensimmäinen kontakti VALMIISEEN vertaiseen
     //   aloittaa 3 s kuuntelun alusta -> ei oteta johtajuutta vanhalla saarekkeen tilalla, vaan omaksutaan ensin vertaisen snapshotit.
@@ -2581,7 +2592,7 @@ const SYNK = (() => {
       sykkeet: [...SY.sykkeet].map(([id, h]) => ({ id, ikaMs: nyt - h.t, valmisIkaMs: h.tv ? nyt - h.tv : null })), ...tilasto,
     };
   };
-  return { seuraa, johtajaId, kasitteleSnap, kasitteleKuolemat, lahetaKuolema, lahetaOsuma, lahetaVuoro, lahetaKatse, kaynnista, sulje, tiedot, snapLaheta, omaksuSnap, rakennaSnap };
+  return { seuraa, johtajaId, kasitteleSnap, kasitteleKuolemat, lahetaKuolema, lahetaOsuma, lahetaVuoro, lahetaKatse, lahetaLaukaus, kaynnista, sulje, tiedot, snapLaheta, omaksuSnap, rakennaSnap };
 })();
 tila.synkka = SYNK.tiedot; tila._synk = SYNK;
 
@@ -2753,6 +2764,27 @@ AMMUNTA = (() => {
   };
   const katseSaapui = (id, k) => { if (!isFinite(k) || id === omaId()) return; const p = (pelaajat() || []).find(q => q && q.id === id); if (!p) return;
     try { const o = e.getRoomObject(huone, p.i, 100), d = o && o.getDirection(); if (d) { o.setDirection(new d.constructor(k, d.y, d.z)); o.model.setValue('head_direction', k); } } catch (x) {} };
+  const laukauksetSaapui = (id, lista) => {
+    if (id === omaId() || !Array.isArray(lista)) return;
+    const nyt = Date.now(), p = (pelaajat() || []).find(q => q && q.id === id);
+    for (const item of lista) {
+      if (!Array.isArray(item)) continue;
+      const tyyppi = item[0], w = typeof item[1] === 'string' ? item[1] : 'luoti';
+      const x = Number(item[2]), y = Number(item[3]), z = Number(item[4]) || (p ? p.z : 0);
+      const dx = Number(item[5]), dy = Number(item[6]), c = item[7] != null ? Number(item[7]) : undefined;
+      if (!isFinite(x) || !isFinite(y) || !isFinite(dx) || !isFinite(dy)) continue;
+      const A = aseOf(w);
+      if (tyyppi === 'p') {
+        const LL = item[8] != null ? Number(item[8]) : (A.lento || 12);
+        const este = item[9] != null ? Number(item[9]) : esteMatka(x, y, dx, dy, 40, { z });
+        luodit.push({ x, y, z, dx, dy, t0: nyt, w, c, LL, este, pm: null, piirtoVain: true });
+      } else if (tyyppi === 'h') {
+        const lapi = !!item[8], pituus = item[9] != null ? Number(item[9]) : (A.kantama || 12);
+        jaljet.push({ x, y, z, dx, dy, pituus, t0: nyt, vari: A.vari, lapi, w, i: p ? p.i : null });
+        while (jaljet.length > 20) jaljet.shift();
+      }
+    }
+  };
   const vastaanota = (id, m, nyt) => {
     if (!isFinite(m.zn) || !isFinite(m.sn)) return;
     AM.jono.push({ id, oma: false, zn: Number(m.zn), sn: Number(m.sn), d: Number(m.d) || 0, x: Number(m.x), y: Number(m.y), saapui: nyt, w: typeof m.w === 'string' ? m.w.slice(0, 12) : 'luoti' });
@@ -3256,7 +3288,9 @@ AMMUNTA = (() => {
     const x = Math.round(minä.x), y = Math.round(minä.y);
     if (A.m === 'p') {   // projektiili (jousi, pistooli): lentää, osuma lasketaan radalta luotiTickissä (shooter :1745)
       const LL = A.latausLento && c != null ? A.latausLento[0] + (A.latausLento[1] - A.latausLento[0]) * c : (A.lento || 12);
-      luodit.push({ x: minä.x, y: minä.y, z: minä.z, dx, dy, t0: nyt, w, c, LL, este: esteMatka(minä.x, minä.y, dx, dy, 40, { z: minä.z }), pm: null });   // shooter :1054 (rata: kuva-alueen sisällä)
+      const este = esteMatka(minä.x, minä.y, dx, dy, 40, { z: minä.z });
+      luodit.push({ x: minä.x, y: minä.y, z: minä.z, dx, dy, t0: nyt, w, c, LL, este, pm: null });   // shooter :1054 (rata: kuva-alueen sisällä)
+      try { SYNK.lahetaLaukaus(['p', w, Math.round(minä.x * 100) / 100, Math.round(minä.y * 100) / 100, minä.z, Math.round(dx * 1000) / 1000, Math.round(dy * 1000) / 1000, c, Math.round(LL * 100) / 100, Math.round(este * 100) / 100]); } catch (x) {}
       return { lensi: w, c };
     }
     // hitscan (miekka): normaalisti ensimmäinen kohde kantamalla; täysi lataus = pyörähdys, kaikki säteellä lapi[0] (shooter :1049-1062)
@@ -3265,7 +3299,9 @@ AMMUNTA = (() => {
     for (const k of kohteet()) { const m = sateella(x, y, dx, dy, k.x, k.y, KA, lapi ? PYORAHDYS : OSUMA_SADE); if (m != null && nakyy(x, y, k.x, k.y)) osumat.push(Object.assign({ m }, k)); }
     osumat.sort((a, b) => a.m - b.m);
     if (!lapi) osumat = osumat.slice(0, 1);
-    jaljet.push({ x: minä.x, y: minä.y, z: minä.z, dx, dy, pituus: lapi ? KA : osumat[0] ? osumat[0].m : KA, t0: nyt, vari: A.vari, lapi, w, i: minä.i });
+    const jPituus = lapi ? KA : osumat[0] ? osumat[0].m : KA;
+    jaljet.push({ x: minä.x, y: minä.y, z: minä.z, dx, dy, pituus: jPituus, t0: nyt, vari: A.vari, lapi, w, i: minä.i });
+    try { SYNK.lahetaLaukaus(['h', w, Math.round(minä.x * 100) / 100, Math.round(minä.y * 100) / 100, minä.z, Math.round(dx * 1000) / 1000, Math.round(dy * 1000) / 1000, c, lapi ? 1 : 0, Math.round(jPituus * 100) / 100]); } catch (x) {}
     while (jaljet.length > 20) jaljet.shift();
     const lapiKerroin = (k) => {   // shooter :923 varjossa: linjalla lähempänä toinen kohde -> lapiLapi %
       const p = A.lapiLapi != null ? +A.lapiLapi : 100; if (p >= 100) return 1;
@@ -3283,7 +3319,7 @@ AMMUNTA = (() => {
       const m0 = b.pm == null ? 0.5 : b.pm; b.pm = matka; const m1 = Math.min(matka, b.LL, b.este);
       let paras = null;
       if (matka > 0.5) for (const k of kohteet()) { const m = sateella(b.x, b.y, b.dx, b.dy, k.x, k.y, m1, OSUMA_SADE); if (m != null && m >= m0 - OSUMA_SADE && m > 0.5 && (!paras || m < paras.m)) paras = Object.assign({ m }, k); }
-      if (paras) { luodit.splice(i, 1); osuma(paras, A, b.w, b.c, paras.m, 1); continue; }
+      if (paras) { luodit.splice(i, 1); if (!b.piirtoVain) osuma(paras, A, b.w, b.c, paras.m, 1); continue; }
       if (matka > b.LL || matka > b.este) luodit.splice(i, 1);
     }
   };
@@ -3339,14 +3375,20 @@ AMMUNTA = (() => {
   // ---- kohde 2 (kp 18:07 "omalle pelaajalle tosiaa health bar"): oman pelaajan HP-palkki hahmon yläpuolelle, shooter-1.15.2 `palkki` :1862-1866 sellaisenaan
   //   (z+2.9, leveys 40, tausta #000a 42x7, väri >0.5 #3ddc5a / >0.25 #f5c542 / muuten #e5484d, arvo <= 0 -> 💀; osuus = HP / max kuten shooter 1.12.0). HP = AM.hp.
   //   Piirretään kun oma pelaaja on pelissä (vuoroSallii); shooter piirtää omankin palkin aina (:1909). Huom: kiinnijaanti 'kontakti' -tilassa AM.hp ei muutu (täynnä).
+  const safeHouseHpPalkki = () => {
+    if (!ASETUS.safeHouse) return null;
+    const S = safeHouseTila(); if (!S || !(S.max > 0)) return null;
+    const r = (ASETUS.safeHouse.ruudut && ASETUS.safeHouse.ruudut[0]) || [15, 11];
+    return { x: r[0], y: r[1], z: 7, hp: Math.max(0, S.hp), max: S.max, os: Math.min(1, Math.max(0, S.hp) / S.max) };
+  };
   const omaHpPalkki = () => { if (!vuoroSallii()) return null; const m = omaPaikka(); return m ? { x: m.x, y: m.y, z: m.z, hp: AM.hp } : null; };
   const piirraJaljet = (nyt) => {
     const kesto = Math.max(50, Number(ASETUS.ase.jalkiMs) || 450);
     while (jaljet.length && nyt - jaljet[0].t0 > (jaljet[0].lapi ? 750 : kesto)) jaljet.shift();
     if (!jkanvas || !jctx || !document.body) return;
     const W = window.innerWidth || 0, H = window.innerHeight || 0;
-    const palkit = hpPalkit(nyt), omaP = omaHpPalkki();
-    if (!jaljet.length && !luodit.length && !palkit.length && !veto && !omaP) { if (jkanvas.width) jctx.clearRect(0, 0, jkanvas.width, jkanvas.height); return; }
+    const palkit = hpPalkit(nyt), omaP = omaHpPalkki(), shP = safeHouseHpPalkki();
+    if (!jaljet.length && !luodit.length && !palkit.length && !veto && !omaP && !shP) { if (jkanvas.width) jctx.clearRect(0, 0, jkanvas.width, jkanvas.height); return; }
     if (jkanvas.parentNode !== document.body) document.body.appendChild(jkanvas);
     if (jkanvas.width !== W || jkanvas.height !== H) { jkanvas.width = W; jkanvas.height = H; jkanvas.style.width = W + 'px'; jkanvas.style.height = H + 'px'; }
     jctx.clearRect(0, 0, W, H);
@@ -3381,6 +3423,20 @@ AMMUNTA = (() => {
         const os = Math.min(1, Math.max(0, omaP.hp) / hpMax());
         jctx.fillStyle = os > 0.5 ? '#3ddc5a' : os > 0.25 ? '#f5c542' : '#e5484d'; jctx.fillRect(sc.x - w / 2, sc.y, w * os, 5);
         if (omaP.hp <= 0) { jctx.font = '16px sans-serif'; jctx.fillText('💀', sc.x - 8, sc.y - 4); } }
+    }
+    if (shP) {   // Safe House HP-palkki: rakennuksen yläpuolella (x 15, y 11, z 7) tai vuorolaatikon alla (kp: "ei näy mistään safe house health")
+      let sc = p(shP.x, shP.y, shP.z + 1.5);
+      if (!sc && vEl && vEl.getBoundingClientRect) {
+        const vr = vEl.getBoundingClientRect();
+        if (vr && vr.width > 0) sc = { x: vr.left + vr.width / 2, y: vr.bottom + 12 };
+      }
+      if (sc) {
+        const w = 40;
+        jctx.fillStyle = '#000a'; jctx.fillRect(sc.x - w / 2 - 1, sc.y - 1, w + 2, 7);
+        const os = shP.os;
+        jctx.fillStyle = os > 0.5 ? '#3ddc5a' : os > 0.25 ? '#f5c542' : '#e5484d'; jctx.fillRect(sc.x - w / 2, sc.y, w * os, 5);
+        if (shP.hp <= 0) { jctx.font = '16px sans-serif'; jctx.fillText('💀', sc.x - 8, sc.y - 4); }
+      }
     }
   };
 
@@ -3652,11 +3708,11 @@ AMMUNTA = (() => {
     if (vEl && vEl.remove) vEl.remove();
     if (window[GLOBAALI] && window[GLOBAALI].huone === huone) delete window[GLOBAALI];
   };
-  return { aaltoTick, aalto: () => AM.aalto, kasittele, vastaanota, katseSaapui, pidaPaikallinen, omaksu, snapLisaa, pelaajaKuoli, omaKuolema, piirto, piilossa, piirtoPaikat, julkaise, sulje,
-    ammu, ammuSuuntaan, asetaAse, ase: () => aseOn, valitseAse, aseNyt, runLoppu, tilasto, AM, auktoriteetti, luodit: () => luodit.length,
+  return { aaltoTick, aalto: () => AM.aalto, kasittele, vastaanota, katseSaapui, laukauksetSaapui, pidaPaikallinen, omaksu, snapLisaa, pelaajaKuoli, omaKuolema, piirto, piilossa, piirtoPaikat, julkaise, sulje,
+    ammu, ammuSuuntaan, asetaAse, ase: () => aseOn, valitseAse, aseNyt, runLoppu, tilasto, AM, auktoriteetti, luodit: () => luodit.length, jaljet: () => jaljet.length,
     purema, paranna, kontaktiKerroin, nollaaKontakti, hp: () => AM.hp, wasd: { pidetyt, tick: wasdTick, nappain, nosto }, hiiri,
     vuoroTick, vuoroPyyda, vuoroVastaanota, vuoro: () => VT.vu, VT, vuoroSallii, aseKaytossa: aseAktiivinen, vuoroTeksti,
-    omaHpPalkki,
+    omaHpPalkki, safeHouseHpPalkki,
     katse: { tick: katseTick, kulma: hiirenKulma },
     este: { esteMatka, esteKartta, peitossa, peittoLaatikot, lentoZ, kamera },   // kohde 1 (testausta varten, kuten shooter :1018 __kshEste)
     // vaihe 1c
