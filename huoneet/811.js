@@ -86,7 +86,7 @@ const piirra = () => {
         tr.appendChild(td); }
       tbl.appendChild(tr); });
     // sona 15:57 "näkyy 10 pelaajaa, ja muuten pitää scrollata": korkeus mitataan otsikko + 10 riviä; otsikko pysyy ylhäällä; rulla ei mene pelille (zoom)
-    const rulla = document.createElement('div'); rulla.style.cssText = 'overflow-y:auto;overscroll-behavior:contain';
+    const rulla = document.createElement('div'); rulla.style.cssText = 'overflow-y:auto;overscroll-behavior:contain;scrollbar-color:#fff transparent';   // sona 16:03 "scrollaus bar:ista valkoinen"
     rulla.addEventListener('wheel', ev => ev.stopPropagation(), { passive: true });
     for (const th of otsRivi.children) th.style.cssText += ';position:sticky;top:0;background:' + V.tausta;
     rulla.appendChild(tbl); sisalto.appendChild(rulla);
