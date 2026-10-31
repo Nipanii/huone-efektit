@@ -128,7 +128,7 @@ const HUONEET = {
   },
   811: {   // sona 31.10. 15:42-15:43: yksi pelaaja kerrallaan, 1 zombi = 1 piste, läpi 25 tapolla, WASD + hiiri. "älä lisää tänne wiredejä".
     kuolemaOvi: null, eiSpawnia: [], eiZombeja: [],   // AVOIN: kiellettyjä alueita ei ole mitattu 811:stä (aulan kopio)
-    salasana: '', salaisetSanat: ['za811', 'zl811'], siemen: 811,
+    salasana: '', salaisetSanat: ['za811', 'zl811', 'zv811'], siemen: 811,
     // Pelin aloitus = script->wired-hybridi, SAMA mekanismi kuin 684:n zk684-kuolemateleportti (sanoSalainen + koukku + kuplaPiiloon, 682.js KAIVUKOODI):
     //   vuoroon tulevan pelaajan OMA client sanoo aloitusSanan tavallisena puheena; wired wf_trg_says_something [piilota 1, tarkka 1, vainOmistaja 0] "za811"
     //   + wf_act_teleport_to furni 454246 (Kaupungin päällystys @15,11) siirtää hänet (kp 16:41 "Tarvii script wired hybridin hahmon oikeaan siirtoon").
@@ -139,6 +139,9 @@ const HUONEET = {
     huomaaVali: [10, 16], luovutusVali: [14, 22], reaktioVali: [0, 1],   // kp 18:43 "pitää targettaa enemmän pelaajaa" (684: 5..9, 3..5, 0..3)
     veriKalusteet: true, kiinnijaanti: 'hp',   // kp 18:32 "Vaihdetaan hp tilaan", health packit myöhemmin
     lopetusSana: 'zl811',
+    // kp 20:26 "rakennetaan siihen onnittelu wired": kun vuoron pelaajan tapot ensimmäisen kerran ajossa >= tappoRaja, pelaajan OMA client sanoo voittoSanan
+    //   (sama mekanismi kuin aloitusSana za811: sanoSalainen + piiloSanat + salaisetSanat) -> wired (kp rakentaa huoneeseen) onnittelee. Peli jatkuu. Tyhjä = ei sanota (684).
+    voittoSana: 'zv811',
     teleKuolema: false, muuttunutKuolemasta: false, ammuttava: true,
     maaraPohja: 4, maaraMin: 5, maaraMax: 8,   // OMA VALINTA (säädettävä): yksinpelaajalle 5 zombia kerrallaan (684:n kaavalla 3)
     tappoRaja: 100,   // kp 19:59 läpi 100 tapolla, keruu jatkuu sen jälkeen
@@ -155,7 +158,7 @@ const HUONEET = {
     //   VAIHE 2 (EI tehty): seinän välkyntä, safe housen HP-palkki näytölle, peli päättyy kun HP 0 (nyt vain loki + window.__zombi811.safeHouse).
     kuljettavatKalusteet: ['cpunk_c15_road', 'val13_grass'],
     eiPeita: ['urban_lamp'],
-    safeHouse: { hp: 100, vahinko: 1, iskuMs: 1000, etaisyys: 0, rakennus: 'nyc_c23_buildingblue', valahdysMs: 300,
+    safeHouse: { hp: 150, vahinko: 1, iskuMs: 1000, etaisyys: 0, rakennus: 'nyc_c23_buildingblue', valahdysMs: 300,
       ruudut: [[15, 11, 0, -1], [14, 11, 0, -1], [16, 11, 0, -1], [13, 11, 0, -1], [17, 11, 0, -1], [12, 11, 0, -1], [18, 11, 0, -1], [11, 11, 0, -1], [19, 11, 0, -1],
         [10, 11, 0, -1], [20, 11, 0, -1], [9, 11, 0, -1], [8, 11, 0, -1], [7, 11, 0, -1], [6, 11, 0, -1], [5, 11, 0, -1], [4, 11, 0, -1], [3, 11, 0, -1], [2, 11, 0, -1],
         [22, 9, -1, 0], [22, 8, -1, 0], [22, 7, -1, 0], [22, 6, -1, 0], [22, 5, -1, 0], [22, 4, -1, 0], [22, 3, -1, 0], [22, 2, -1, 0], [22, 1, -1, 0]] },
@@ -223,6 +226,7 @@ ASETUS.aallot = null;   // 684: ei aaltoja (zombimäärä laskeMaara(P), tapettu
 ASETUS.ammuttava = false; ASETUS.teleKuolema = true; ASETUS.muuttunutKuolemasta = true; ASETUS.salaisetSanat = []; ASETUS.tappoRaja = 25;
 ASETUS.aloitusSana = ''; ASETUS.lopetusSana = ''; ASETUS.vuoro = null; ASETUS.safeHouse = null; ASETUS.aidat = null;   // 684: ei safe housea (811: HUONEET[811].safeHouse)   // 684: ei vuoroja eikä aloitussanaa (811: HUONEET[811])
 ASETUS.synkka.aihe = 'z684.synk';
+ASETUS.voittoSana = '';   // 684: ei voittosanaa (811/817: HUONEET[huone].voittoSana)
 ASETUS.kitit = null;   // 684: ei ensiapukitteja (811/817: HUONEET[huone].kitit { valiMs, max, ikaMs, hp })
 // Aseet 811:ssä = Left 4 Kuplan aseet SELLAISENAAN (kp 16:02 "otetaan vanha bow ja gun ampumis nopeus siten miten ne oli jo tehty" ·
 //   "sword voi kans pitää sellasenaan"): arvot shooter-1.15.2.user.js:505-509 (asetus.vahinko = 1). Zombin HP 60 = shooter :177 zHp.
@@ -1963,7 +1967,7 @@ tila._kuuleMaali = kuuleMaali; tila.maalissa = SAILO.maalissa;
 
 // ---- wired-script-hybridi (682.js:153-206, 442): salaisen sanan lähetys + kaiun nielu (suu ei liiku) + puhekuplan piilotus
 //   Piilotettavat sanat: salasana (684 kuolema) + aloitusSana (811 pelin aloitus) + lopetusSana (811 pelin loppu, vaihe 1c). Tyhjät pois -> 684:ssä sama joukko kuin ennen ([zk684]).
-const piiloSanat = () => [ASETUS.salasana, ASETUS.aloitusSana, ASETUS.lopetusSana].map(v => String(v || '').trim().toLowerCase()).filter(Boolean);
+const piiloSanat = () => [ASETUS.salasana, ASETUS.aloitusSana, ASETUS.lopetusSana, ASETUS.voittoSana].map(v => String(v || '').trim().toLowerCase()).filter(Boolean);
 let koukkuYhteys = null, koukkuOma = null, koukkuAlkup = null;
 const koukku = () => {
   const c = yhteys(); if (!c || typeof c.handleMessages !== 'function') return null;
@@ -3168,6 +3172,14 @@ AMMUNTA = (() => {
     const o = (P || []).find(q => q && q.id === id); if (!o) return;
     const nyt = Date.now(), alku = V.alku || {};
     if (o.x === alku.x && o.y === alku.y) VT.siirtynyt = vu.nro;
+    if (ASETUS.voittoSana && vu.vaihe === 1) {   // kp 20:26: voittosana kerran per run, vain vuoron pelaajan oma client; peli jatkuu (hyvaksy vain asettaa p.lapi)
+      const pp = AM.pisteet[id], avain = vu.nro + ':' + (pp ? pp.run : 0), lapi = !!pp && (!!pp.lapi || pp.tapot >= raja());
+      if (pp && !lapi) VT.voittoNahty = avain;   // nähty rajan alla tässä clientissä -> ylitys on todellinen tapahtuma (ei toistoa uudelleenliittyjälle)
+      else if (lapi && VT.voittoSanottu !== avain) {
+        if (VT.voittoNahty !== avain) { VT.voittoSanottu = avain; lokiin({ voitto: 'jo läpi kun client liittyi, ei sanota', avain }); }
+        else if (sanoSalainen(ASETUS.voittoSana)) { VT.voittoSanottu = avain; tilasto.voittoSanottu = (tilasto.voittoSanottu || 0) + 1; lokiin({ voitto: 'voittosana sanottu', sana: ASETUS.voittoSana, avain }); }
+      }
+    }
     if (VT.hpNollattu !== vu.nro) { VT.hpNollattu = vu.nro; AM.hp = hpMax(); AM.hpMuutos = 0; }   // kp 19:50: täydet HP vuoron alussa myös jos edellinen ei päättynyt kuolemaan
     if (VT.sanottu !== vu.nro) {
       if (vu.tapa === 'jono' && V.jono && !(o.x === V.jono.x && o.y === V.jono.y)) { if (!VT.eiJonossa || VT.eiJonossa.nro !== vu.nro) { VT.eiJonossa = { nro: vu.nro }; lokiin({ vuoro: 'ei jonon etupäässä, aloitussanaa ei sanota', ruutu: o.x + ',' + o.y }); } }
