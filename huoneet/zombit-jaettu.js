@@ -195,6 +195,9 @@ const HUONEET = {
     // kp 20:31 "täs on vähän liian vaikee ottaa dmg" (+ "joo": liian harvoin): purema tulee kun kontaktilaskuri (sama ruutu, kontaktiSama) ylittää arvotun rajan; raja lyhenee 1.5-kertaisesti
     //   (base 0.8..1.5 s -> 0.53..1.0 s, 811/817). 684 käyttää base-arvoja. Purema 15 (ASETUS.hp.purema) ja HP 100 ennallaan; viereinen ruutu ei kerrytä (kontaktiViereinen 0, kp 20:11) ennallaan.
     kontaktiMin: 0.53, kontaktiMax: 1.0,
+    // kp 20:24 "nää komennot ei saa toimii kaikille": :aloitapeli / :aloita peli / :pelialoitus / :lopetapeli / :resetpeli vain näille (282 kurkkupomo, 281 arkkiherttuatar sona, 245 Herra-Robotti).
+    //   Sama lista rajaa lähettäjän (oma client ei lähetä) ja vastaanottajan (johtaja hylkää t:'vuoro'-pyynnön muulta id:ltä). Korvaa vuoro.kasky:n (jossa oli myös id 1). Puuttuva = vuoro.kasky.
+    komennotSaa: [282, 281, 245],
     poistaAseet: ['jousi'],   // kp 20:17 "poistetaan bow yksinkertaistamisen vuoksi": 811/817:n asevalikoima = pistooli + miekka (684: ei ammuntaa, ASETUS.aseet ennallaan)
   },
 };
@@ -2479,10 +2482,11 @@ const SYNK = (() => {
   };
 
   // ---- yhteys
-  const viesti = (data) => {
+  const viesti = (data, lahettaja) => {
     let m = null; try { m = JSON.parse(String(data)); } catch (x) { return; }
     if (!m || typeof m !== 'object') return;
     const id = Number(m.id); if (!(id > 0) || id === omaId()) return;
+    if (lahettaja > 0 && id !== lahettaja) { tilasto.vaaraLahettaja = (tilasto.vaaraLahettaja || 0) + 1; return; }   // payloadin id on lähettäjän oma väite; kanavan senderId ratkaisee (kp 20:24: komento ei saa kulkea toisen id:llä)
     if (m.ka != null && AMMUNTA) AMMUNTA.katseSaapui(id, Number(m.ka));
     if (m.la && Array.isArray(m.la) && AMMUNTA) AMMUNTA.laukauksetSaapui(id, m.la);
     const nyt = Date.now(), raja = Math.max(1000, num(S().hiljaisuusMs, 10000));
@@ -2535,7 +2539,7 @@ const SYNK = (() => {
     try {
       if (!m || m.topic !== AIHE || typeof m.data !== 'string') return;
       if (Number(m.senderId) === omaId()) { tilasto.kaikuMs = Date.now(); return; }
-      viesti(m.data);
+      viesti(m.data, Number(m.senderId));
     } catch (x) { tilasto.virhe = String(x); }
   };
   const ksVirhe = (e) => {
@@ -3105,7 +3109,7 @@ AMMUNTA = (() => {
     lokiin({ vuoro: 'päättyi', id: vu.id, syy, nro: vu.nro });
     return true;
   };
-  const kaskySallittu = (id) => { const l = (VA() || {}).kasky; return !Array.isArray(l) || l.includes(id); };
+  const kaskySallittu = (id) => { const l = Array.isArray(ASETUS.komennotSaa) ? ASETUS.komennotSaa : (VA() || {}).kasky; return !Array.isArray(l) || l.includes(id); };
   const kasittelePyynto = (r, P, tMs) => {
     if (!kaskySallittu(r.id)) { lokiin({ vuoroPyynto: r.q, id: r.id, hylatty: 'ei kasky-listalla' }); return; }
     if (r.q === 'reset') { if (!vuoroLopeta('reset', false, tMs)) nollaaPeli(); VT.viimeinen = null; VT.lepo = 0; lokiin({ vuoro: 'reset', id: r.id }); return; }   // kp 19:51 :resetpeli, ei tulosta
@@ -4001,7 +4005,7 @@ const kuule = ev => {
   if (mv) {   // 811 (kp 16:43): käsky aloittaa pelin kirjoittajalle / lopettaa käynnissä olevan. Sallittu ASETUS.vuoro.kasky-listalla; rivi ei lähde palvelimelle.
     ev.preventDefault(); ev.stopImmediatePropagation();
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, ''); el.dispatchEvent(new Event('input', { bubbles: true }));
-    const q = /^lopeta/i.test(mv[1]) ? 'lopeta' : /^reset/i.test(mv[1]) ? 'reset' : 'aloita', l = ASETUS.vuoro.kasky;   // kp 18:56, 19:17 kirjoitti :pelialoitus ja :aloita peli
+    const q = /^lopeta/i.test(mv[1]) ? 'lopeta' : /^reset/i.test(mv[1]) ? 'reset' : 'aloita', l = Array.isArray(ASETUS.komennotSaa) ? ASETUS.komennotSaa : ASETUS.vuoro.kasky;   // kp 18:56, 19:17 kirjoitti :pelialoitus ja :aloita peli; kp 20:24 komennotSaa
     if (Array.isArray(l) && !l.includes(omaId())) { ilmoita(':' + mv[1] + ' ei ole sallittu sinulle'); return; }
     const vu = AMMUNTA.vuoro();
     if (q === 'aloita' && vu) { ilmoita('Peli on jo käynnissä: ' + (vu.nimi || vu.id)); return; }
