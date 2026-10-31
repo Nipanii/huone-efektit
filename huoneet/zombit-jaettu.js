@@ -3381,14 +3381,27 @@ AMMUNTA = (() => {
     const r = (ASETUS.safeHouse.ruudut && ASETUS.safeHouse.ruudut[0]) || [15, 11];
     return { x: r[0], y: r[1], z: 7, hp: Math.max(0, S.hp), max: S.max, os: Math.min(1, Math.max(0, S.hp) / S.max) };
   };
+  // kp 31.10. "portille health bar": kunkin portin (ASETUS.aidat.palat) HP-palkki portin yläpuolelle; sama tyyli kuin omaP / shP (40 px, 42x7 tausta, väri >0.5/>0.25).
+  //   HP aitaTila().palat[i].hp (seuraajilla snap.ai); ei palkkia tuhoutuneelle palalle eikä vuoropelin ulkopuolella (VA() ilman VT.vu). 684: ASETUS.aidat null -> [].
+  const gateZ = new Map();   // palan id -> { t, z }: ruudun korkeus object-haulla korkeintaan 2 s välein
+  const gateHpPalkit = () => {
+    const out = []; if (!ASETUS.aidat || (VA() && !VT.vu)) return out;
+    const AT = aitaTila(); if (!AT) return out; const nyt = Date.now();
+    for (const pa of AT.palat || []) {
+      if (!(pa.hp > 0) || (AT.tuhoutuneetIds && AT.tuhoutuneetIds.has(pa.id))) continue;
+      let c = gateZ.get(pa.id); if (!c || nyt - c.t > 2000) { let z = c ? c.z : 0; try { z = Number(e.getRoomObject(huone, pa.id, 10).getLocation().z) || 0; } catch (x) {} c = { t: nyt, z }; gateZ.set(pa.id, c); }
+      out.push({ x: pa.x + 0.5, y: pa.y + 0.5, z: c.z + 2.4, os: Math.min(1, Math.max(0, pa.hp) / (pa.max || ASETUS.aidat.hp || 1)) });
+    }
+    return out;
+  };
   const omaHpPalkki = () => { if (!vuoroSallii()) return null; const m = omaPaikka(); return m ? { x: m.x, y: m.y, z: m.z, hp: AM.hp } : null; };
   const piirraJaljet = (nyt) => {
     const kesto = Math.max(50, Number(ASETUS.ase.jalkiMs) || 450);
     while (jaljet.length && nyt - jaljet[0].t0 > (jaljet[0].lapi ? 750 : kesto)) jaljet.shift();
     if (!jkanvas || !jctx || !document.body) return;
     const W = window.innerWidth || 0, H = window.innerHeight || 0;
-    const palkit = hpPalkit(nyt), omaP = omaHpPalkki(), shP = safeHouseHpPalkki();
-    if (!jaljet.length && !luodit.length && !palkit.length && !veto && !omaP && !shP) { if (jkanvas.width) jctx.clearRect(0, 0, jkanvas.width, jkanvas.height); return; }
+    const palkit = hpPalkit(nyt), omaP = omaHpPalkki(), shP = safeHouseHpPalkki(), gP = gateHpPalkit();
+    if (!jaljet.length && !luodit.length && !palkit.length && !veto && !omaP && !shP && !gP.length) { if (jkanvas.width) jctx.clearRect(0, 0, jkanvas.width, jkanvas.height); return; }
     if (jkanvas.parentNode !== document.body) document.body.appendChild(jkanvas);
     if (jkanvas.width !== W || jkanvas.height !== H) { jkanvas.width = W; jkanvas.height = H; jkanvas.style.width = W + 'px'; jkanvas.style.height = H + 'px'; }
     jctx.clearRect(0, 0, W, H);
@@ -3437,6 +3450,11 @@ AMMUNTA = (() => {
         jctx.fillStyle = os > 0.5 ? '#3ddc5a' : os > 0.25 ? '#f5c542' : '#e5484d'; jctx.fillRect(sc.x - w / 2, sc.y, w * os, 5);
         if (shP.hp <= 0) { jctx.font = '16px sans-serif'; jctx.fillText('💀', sc.x - 8, sc.y - 4); }
       }
+    }
+    for (const g of gP) {   // portit
+      const sc = p(g.x, g.y, g.z); if (!sc) continue; const w = 40;
+      jctx.fillStyle = '#000a'; jctx.fillRect(sc.x - w / 2 - 1, sc.y - 1, w + 2, 7);
+      jctx.fillStyle = g.os > 0.5 ? '#3ddc5a' : g.os > 0.25 ? '#f5c542' : '#e5484d'; jctx.fillRect(sc.x - w / 2, sc.y, w * g.os, 5);
     }
   };
 
@@ -3712,7 +3730,7 @@ AMMUNTA = (() => {
     ammu, ammuSuuntaan, asetaAse, ase: () => aseOn, valitseAse, aseNyt, runLoppu, tilasto, AM, auktoriteetti, luodit: () => luodit.length, jaljet: () => jaljet.length,
     purema, paranna, kontaktiKerroin, nollaaKontakti, hp: () => AM.hp, wasd: { pidetyt, tick: wasdTick, nappain, nosto }, hiiri,
     vuoroTick, vuoroPyyda, vuoroVastaanota, vuoro: () => VT.vu, VT, vuoroSallii, aseKaytossa: aseAktiivinen, vuoroTeksti,
-    omaHpPalkki, safeHouseHpPalkki,
+    omaHpPalkki, safeHouseHpPalkki, gateHpPalkit,
     katse: { tick: katseTick, kulma: hiirenKulma },
     este: { esteMatka, esteKartta, peitossa, peittoLaatikot, lentoZ, kamera },   // kohde 1 (testausta varten, kuten shooter :1018 __kshEste)
     // vaihe 1c
