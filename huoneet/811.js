@@ -97,16 +97,16 @@ const piirra = () => {
     sisalto.appendChild(huom);
   } else {
     // sona 15:50 "korostaa tota tavoite kohtaa" · 15:51 "vaikka se laatikkona alimmaiseksi"
-    const tavoite = OHJEET.filter(r => /^Tavoite/.test(r));
+    const tavoite = OHJEET.filter(r => /^(Tavoite|Rata on läpäisty)/.test(r));   // sona 15:59 'Siirrä tavoite laatikkoon teksti "Rata on läpäisty..."'
     for (const r of OHJEET) { if (tavoite.includes(r)) continue;
       const p = document.createElement('p'); p.textContent = r; p.style.cssText = 'margin:0 0 6px'; sisalto.appendChild(p); }
     sisalto.appendChild(ohjausKuva());
     // sona 15:57 '"Tavoite" otsikko ja siirrä leipäteksti sen alapuolelle. Ei boldia leipätekstillä.'
-    for (const r of tavoite) { const p = document.createElement('div');
+    if (tavoite.length) { const p = document.createElement('div');
       p.style.cssText = 'margin-top:10px;padding:8px 10px;color:#fff;background:' + V.valittu + ';border:1px solid ' + V.korostus + ';border-left:4px solid ' + V.korostus + ';border-radius:5px';
-      const o = document.createElement('div'); o.textContent = 'Tavoite'; o.style.cssText = 'font-weight:bold;font-size:14px;color:' + V.korostus + ';margin-bottom:3px';
-      const t = document.createElement('div'); t.textContent = r.replace(/^Tavoite:\s*/, ''); t.style.cssText = 'font-weight:normal;font-size:13px';
-      p.appendChild(o); p.appendChild(t); sisalto.appendChild(p); }
+      const o = document.createElement('div'); o.textContent = 'Tavoite'; o.style.cssText = 'font-weight:bold;font-size:14px;color:' + V.korostus + ';margin-bottom:3px'; p.appendChild(o);
+      for (const r of tavoite) { const t = document.createElement('div'); t.textContent = r.replace(/^Tavoite:\s*/, '').replace(/^./, c => c.toUpperCase()); t.style.cssText = 'font-weight:normal;font-size:13px;margin-top:2px'; p.appendChild(t); }
+      sisalto.appendChild(p); }
   }
 };
 
