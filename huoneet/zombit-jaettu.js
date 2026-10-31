@@ -3063,7 +3063,7 @@ AMMUNTA = (() => {
     AM.kitit = uusi;
   };
   // piirto (shooter :1876-1902): valkoinen laatikko, punainen risti, kevyt keinunta; esineen takana vain peittyvä osa läpikuultava (peittoLaatikot);
-  //   hahmojen vartalokaista pyyhitään pois, jottei kitti piirry hahmon päälle (shooter :1903, kp 12:21). Oma kangas -> jkanvas.
+  //   kp 22:1x: hahmon pyyhintä poistettu kokonaan (laatikko peitti kitin epäluonnollisesti; avatar-pikselit vaatisivat GPU-hitMapin/readPixels, jota ei ole saatavilla). Oma kangas -> jkanvas.
   const kitKoko = (typeof document !== 'undefined' && document.createElement) ? document.createElement('canvas') : null;
   const kitKokoCtx = kitKoko && kitKoko.getContext ? kitKoko.getContext('2d') : null;
   const kitApu = (typeof document !== 'undefined' && document.createElement) ? document.createElement('canvas') : null;   // yhden kitin apukangas (shooter 1.11.3)
@@ -3071,11 +3071,11 @@ AMMUNTA = (() => {
   const kitPiirrettavat = () => (kitAsetus() && AM.kitit.size) ? [...AM.kitit].map(([i, k]) => ({ i, x: k.x, y: k.y, z: kitKorkeus(k.x, k.y) })) : [];
   const piirraKitit = (p, nyt, W, H, lista) => {
     if (!lista.length || !kitKoko || !kitKokoCtx || !kitApu || !kitApuCtx) return 0;
-    const rctx = kitKokoCtx, kctx = kitApuCtx, hwOf = (x, y, z) => { const a = p(x, y, z), q = p(x + 1, y, z); return a && q ? Math.max(8, Math.abs(q.x - a.x)) : 22; };
+    const rctx = kitKokoCtx, kctx = kitApuCtx;
     if (kitKoko.width !== W || kitKoko.height !== H) { kitKoko.width = W; kitKoko.height = H; }
     rctx.clearRect(0, 0, W, H); let n = 0;
     for (const k of lista) { const a = p(k.x, k.y, k.z), q = p(k.x + 1, k.y, k.z); if (!a || !q) continue;
-      const hw = Math.max(8, Math.abs(q.x - a.x)), r = 0.32 * hw, y0 = a.y - r - 2 - Math.sin(nyt / 300) * 2;
+      const hw = Math.max(8, Math.abs(q.x - a.x)), r = 0.38 * hw, y0 = a.y - r - 2 - Math.sin(nyt / 300) * 2;
       const piirraKit = (c, ox, oy) => {
         c.fillStyle = 'rgba(0,0,0,.25)'; c.beginPath(); c.ellipse(a.x - ox, a.y - oy, r * 1.1, r * 0.45, 0, 0, Math.PI * 2); c.fill();
         c.fillStyle = '#fff'; c.strokeStyle = '#7a0a10'; c.lineWidth = 2; c.beginPath(); c.roundRect ? c.roundRect(a.x - ox - r, y0 - oy - r, 2 * r, 2 * r, 3) : c.rect(a.x - ox - r, y0 - oy - r, 2 * r, 2 * r); c.fill(); c.stroke();
@@ -3084,17 +3084,10 @@ AMMUNTA = (() => {
       if (!pr.length) { piirraKit(rctx, 0, 0); n++; continue; }
       const kx = Math.floor(a.x - r * 1.2 - 4), ky = Math.floor(y0 - r - 4), kw = Math.ceil(r * 2.4 + 8), kh = Math.max(1, Math.ceil(a.y + r * 0.5 + 4 - ky));
       kitApu.width = kw; kitApu.height = kh; piirraKit(kctx, kx, ky);
-      rctx.globalAlpha = 0.35; rctx.drawImage(kitApu, kx, ky); rctx.globalAlpha = 1;
+      rctx.globalAlpha = 0.5; rctx.drawImage(kitApu, kx, ky); rctx.globalAlpha = 1;
       kctx.save(); kctx.beginPath(); for (const q2 of pr) kctx.rect(q2.x - kx, q2.y - ky, q2.w, q2.h); kctx.clip(); kctx.clearRect(0, 0, kw, kh); kctx.restore();
       rctx.drawImage(kitApu, kx, ky); n++; }
     if (!n) return 0;
-    const hahmot = []; for (const h of piirtoPaikat.values()) hahmot.push(h);
-    try { for (const o of e.getRoomObjects(huone, 100) || []) { if (!o || o.id < 0 || String(o.type) !== 'user') continue; const L = o.getLocation(); if (L) hahmot.push({ x: Number(L.x), y: Number(L.y), z: Number(L.z) || 0 }); } } catch (x) {}
-    // kp 21:40 "niil on joku aura": pyyhintä vain kitin edessä olevalta hahmolta (x+y >= kitin) ja vartalon korkuisena (3.25 hw, shooterin 5 hw meni yli pään). Ennen ohi kulkeva zombi pyyhki kitin. Pohja shooter :1903.
-    for (const h of hahmot) { const s = p(h.x, h.y, h.z); if (!s) continue; const hw = hwOf(h.x, h.y, h.z);
-      for (const k of lista) { if (h.x + h.y < k.x + k.y) continue; const a = p(k.x, k.y, k.z); if (!a) continue; const kw = hwOf(k.x, k.y, k.z);
-        const x0 = Math.max(s.x - 0.5 * hw, a.x - kw), x1 = Math.min(s.x + 0.5 * hw, a.x + kw), y0 = Math.max(s.y - 3.25 * hw, a.y - 2 * kw), y1 = Math.min(s.y + 0.15 * hw, a.y + kw);
-        if (x1 > x0 && y1 > y0) rctx.clearRect(x0, y0, x1 - x0, y1 - y0); } }
     jctx.drawImage(kitKoko, 0, 0); return n;
   };
 
