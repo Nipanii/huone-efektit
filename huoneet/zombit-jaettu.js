@@ -1061,7 +1061,7 @@ const kohtiSafeHousea = (k, tMs, tikki, z, varattu, s0, a, kentat) => {
   if (S && !SYNK.seuraa() && tMs - (z.shIsku ?? -1e15) >= iskuMs) {
     z.shIsku = tMs;
     const ennen = S.hp; S.hp = Math.max(0, S.hp - Math.max(0, Number(SH.vahinko) || 1)); S.iskut++; S.viime = tMs; S.ix = z.x; S.iy = z.y;
-    if (ennen > 0 && S.hp <= 0) lokiin({ safeHouse: 'HP 0 (vaihe 2: pelin loppu ei toteutettu)', iskut: S.iskut });
+    if (ennen > 0 && S.hp <= 0) lokiin({ safeHouse: 'HP 0', iskut: S.iskut });
   }
   return true;
 };
@@ -3008,7 +3008,9 @@ AMMUNTA = (() => {
       for (const r of VT.pyynnot.splice(0)) if (nyt - r.saapui < 5000) kasittelePyynto(r, P, tMs);
       const vu = VT.vu;
       if (vu) {
-        if (!(P || []).some(q => q && q.id === vu.id)) { if (!VT.poissa) VT.poissa = tMs; else if (tMs - VT.poissa >= Math.max(0, Number(V.poissaMs ?? 4000))) vuoroLopeta('poistui', true, tMs); }
+        const S0 = ASETUS.safeHouse ? safeHouseTila() : null;   // kp 19:47: safe house 0 HP päättää pelin
+        if (vu.vaihe === 1 && S0 && S0.hp <= 0) vuoroLopeta('safehouse', true, tMs);
+        else if (!(P || []).some(q => q && q.id === vu.id)) { if (!VT.poissa) VT.poissa = tMs; else if (tMs - VT.poissa >= Math.max(0, Number(V.poissaMs ?? 4000))) vuoroLopeta('poistui', true, tMs); }
         else VT.poissa = 0;
       } else if (V.jonostaAloitus && V.jono && tMs >= (VT.lepo || 0)) {
         // sona 16:25: jonon etupään ruudussa (queue_tile1 462161 @15,3) seisova on seuraava. Pienin id jos useampi (deterministinen).
