@@ -10,6 +10,10 @@ const huone = kupla.roomId();
 const OTSIKKO = 'Hallowen rata finaali';   // sona 15:27 'vaihdetaan 6/6 sanaksi finaali'
 const VALILEHDET = ['Highscores', 'Ohjeet'];
 const KORISTEET = false;   // sona 16:00 lisätty, 16:04 poistettu ("Ei ne sovikkaan"); koodi jätetty
+const LAPI_RAJA = 25;   // sona 15:42 "pääsee radan läpi jos on tappanut 25 zombieta"
+const MALLI_EI_LAPI = [   // [nimi, pisteet < LAPI_RAJA] — keksittyjä (sona 16:09)
+  ['Ilmari', 23], ['Sofia', 21], ['Juho', 19], ['Ellen', 17], ['Matias', 14], ['Nelli', 11], ['Arttu', 8], ['Vilma', 5],
+];
 const NAKYVAT = 10;   // highscore-rivejä näkyvissä ilman vieritystä (sona 15:57)
 const MALLI_TULOKSET = [   // [nimi, pisteet = tapetut zombit, aika] — keksittyjä (sona 15:56 "25 pelaajaa ... keksittyjä suomalaisia etunimiä")
   ['Aino', 78, '06:41'], ['Eetu', 72, '06:12'], ['Helmi', 69, '07:03'], ['Onni', 65, '05:58'], ['Venla', 61, '06:30'],
@@ -94,6 +98,17 @@ const piirra = () => {
     rulla.appendChild(tbl); sisalto.appendChild(rulla);
     const r = tbl.rows; let h = 0; for (let i = 0; i <= NAKYVAT && i < r.length; i++) h += r[i].getBoundingClientRect().height;
     rulla.style.maxHeight = Math.ceil(h || (NAKYVAT + 1) * 23) + 'px';
+    // sona 16:09 "alas sellanen kohta missä näkyy pelaajat jotka ei oo päässy läpi, eli ovat saaneet alle 25 pistettä"
+    const eiOts = document.createElement('div'); eiOts.textContent = 'EI VIELÄ LÄPI (alle ' + LAPI_RAJA + ' pistettä)';
+    eiOts.style.cssText = 'margin:12px 0 4px;font-weight:bold;font-size:12px;letter-spacing:.5px;color:' + V.himmea;
+    sisalto.appendChild(eiOts);
+    const eiRulla = document.createElement('div'); eiRulla.style.cssText = 'max-height:110px;overflow-y:auto;overscroll-behavior:contain;scrollbar-color:rgba(255,255,255,.5) transparent';
+    eiRulla.addEventListener('wheel', ev => ev.stopPropagation(), { passive: true });
+    const eiTbl = document.createElement('table'); eiTbl.style.cssText = 'width:100%;border-collapse:collapse;font:13px sans-serif;color:' + V.himmea;
+    for (const [nimi, p] of MALLI_EI_LAPI) { const tr = document.createElement('tr');
+      for (const [t, a] of [[nimi, 'left'], [String(p), 'right']]) { const td = document.createElement('td'); td.textContent = t; td.style.cssText = 'text-align:' + a + ';padding:2px 6px'; tr.appendChild(td); }
+      eiTbl.appendChild(tr); }
+    eiRulla.appendChild(eiTbl); sisalto.appendChild(eiRulla);
     const huom = document.createElement('div'); huom.textContent = 'Mockup: pisteet eivät ole oikeita.';
     huom.style.cssText = 'margin-top:8px;font-size:11px;color:' + V.himmea + ';font-style:italic';
     sisalto.appendChild(huom);
