@@ -136,7 +136,7 @@ const HUONEET = {
     // Vaihe 1c (sona 17:01-17:02 "kun pelaaja kuolee niin hän menee takaisin ylös" · "Siihen se teleportataan kun peli loppuu"): kun OMA vuoro päättyy
     //   (kuolema / :lopetapeli / mikä tahansa loppu), pelaajan oma client sanoo lopetusSanan kerran -> wired wf_trg_says_something "zl811"
     //   + wf_act_teleport_to furni 511793 (Matto habbox_couture_grand_tapis @2,2 z 7.2). Sama piilotus kuin za811.
-    veriKalusteet: true,
+    veriKalusteet: true, kiinnijaanti: 'hp',   // kp 18:32 "Vaihdetaan hp tilaan", health packit myöhemmin
     lopetusSana: 'zl811',
     teleKuolema: false, muuttunutKuolemasta: false, ammuttava: true,
     maaraPohja: 4, maaraMin: 5, maaraMax: 8,   // OMA VALINTA (säädettävä): yksinpelaajalle 5 zombia kerrallaan (684:n kaavalla 3)
@@ -2200,6 +2200,7 @@ const SYNK = (() => {
     osumaJono.push({ msg, seuraava: Date.now() + 400, yritys: 0 }); return false;
   };
   // 811 vuoro: :aloitapeli / :lopetapeli seuraajalta johtajalle (sama jono ja uusinta kuin osumalla; johtaja tarkistaa kasky-listan ja tilan)
+  const lahetaKatse = (k) => laheta({ t: 'katse', id: omaId(), k });
   const lahetaVuoro = (o) => {
     const msg = { t: 'vuoro', id: omaId(), q: o.q, K: SAILO.K };
     if (!(msg.id > 0)) return false;
@@ -2263,6 +2264,7 @@ const SYNK = (() => {
       SY.odottava = m; SY.snapAika = nyt; SY.snapJohtaja = id; tilasto.vastaanotettuSnap++;
     } else if (m.t === 'osuma' && ASETUS.ammuttava && AMMUNTA) {   // 811: ampujan osuma; vain auktoriteetti (johtaja / paikallinen) hyväksyy, tiki():ssä
       AMMUNTA.vastaanota(id, m, nyt); tilasto.vastaanotettuOsuma = (tilasto.vastaanotettuOsuma || 0) + 1;
+    } else if (m.t === 'katse' && AMMUNTA) { AMMUNTA.katseSaapui(id, Number(m.k));
     } else if (m.t === 'vuoro' && ASETUS.vuoro && AMMUNTA) {   // 811: vuoropyyntö; vain auktoriteetti käsittelee (vuoroTick)
       AMMUNTA.vuoroVastaanota(id, m); tilasto.vastaanotettuVuoro = (tilasto.vastaanotettuVuoro || 0) + 1;
     } else if (m.t === 'kuoli' && isFinite(m.x) && isFinite(m.y)) {   // oma kaiku on jo suodatettu (id === omaId) ylempänä
@@ -2388,7 +2390,7 @@ const SYNK = (() => {
       sykkeet: [...SY.sykkeet].map(([id, h]) => ({ id, ikaMs: nyt - h.t, valmisIkaMs: h.tv ? nyt - h.tv : null })), ...tilasto,
     };
   };
-  return { seuraa, johtajaId, kasitteleSnap, kasitteleKuolemat, lahetaKuolema, lahetaOsuma, lahetaVuoro, kaynnista, sulje, tiedot, snapLaheta, omaksuSnap, rakennaSnap };
+  return { seuraa, johtajaId, kasitteleSnap, kasitteleKuolemat, lahetaKuolema, lahetaOsuma, lahetaVuoro, lahetaKatse, kaynnista, sulje, tiedot, snapLaheta, omaksuSnap, rakennaSnap };
 })();
 tila.synkka = SYNK.tiedot; tila._synk = SYNK;
 
@@ -2558,6 +2560,8 @@ AMMUNTA = (() => {
       SYNK.lahetaOsuma(o);
     }
   };
+  const katseSaapui = (id, k) => { if (!isFinite(k) || id === omaId()) return; const p = (pelaajat() || []).find(q => q && q.id === id); if (!p) return;
+    try { const o = e.getRoomObject(huone, p.i, 100), d = o && o.getDirection(); if (d) { o.setDirection(new d.constructor(k, d.y, d.z)); o.model.setValue('head_direction', k); } } catch (x) {} };
   const vastaanota = (id, m, nyt) => {
     if (!isFinite(m.zn) || !isFinite(m.sn)) return;
     AM.jono.push({ id, oma: false, zn: Number(m.zn), sn: Number(m.sn), d: Number(m.d) || 0, x: Number(m.x), y: Number(m.y), saapui: nyt, w: typeof m.w === 'string' ? m.w.slice(0, 12) : 'luoti' });
@@ -3209,12 +3213,16 @@ AMMUNTA = (() => {
   //   muut eivät näe suuntaa. wasdIrti (shooter :2194 350 ms) on shooterissa aina 0 (ei koskaan asetettu) -> jätetty pois.
   let viimeKatse = null, viimeKatseAika = 0;
   const hiirenKulma = () => { const h = hiirenVektori(null, null, omaPaikka()); return h ? ((Math.round(Math.atan2(h.dx, -h.dy) * 180 / Math.PI / 45) * 45) % 360 + 360) % 360 : null; };   // shooter :2193
+  // kp 18:33 "lähetetään se omaa kanavaa pitkin": suunta muille SYNK-kanavalla (raakapaketti 3301 ei löydy kaikilta, istunnossa ei ole yhteyttä). Max 2/s, jotta 3/s raja riittää myös osumille.
+  let katseLahetetty = 0;
+  const lahetaKatse = (minä, k) => { const nyt = Date.now(); if (nyt - katseLahetetty < 500) return false; katseLahetetty = nyt; try { return SYNK.lahetaKatse(k); } catch (x) { return false; } };
   const katseTick = () => {
     if (!aseAktiivinen() || Date.now() < kavelyEstoAsti || (pidetyt.size && !wasdEste)) return;   // shooter :2194 (ohjausOn, kuollut, pidetyt)
     const k = hiirenKulma(); if (k == null || Date.now() - viimeKatseAika < 50) return;
     const minä = omaPaikka(); if (!minä) return;
     let o = null, d = null; try { o = e.getRoomObject(huone, minä.i, 100); d = o && o.getDirection(); } catch (x) {} if (!o || !d) return;
     if (k === viimeKatse && (d.x == null || d.x === k || Date.now() - viimeKatseAika < 400)) return;   // shooter :2198 (minä.suunta = hahmon oikea suunta)
+    lahetaKatse(minä, k);   // kp 18:32 "saa käyttää 3301 pakettia": muutkin näkevät suunnan (shooter :2200)
     try { o.setDirection(new d.constructor(k, d.y, d.z)); o.model.setValue('head_direction', k); viimeKatse = k; viimeKatseAika = Date.now(); tilasto.katse = (tilasto.katse || 0) + 1; } catch (x) {}   // shooter :2201-2202
   };
   const katseAjastin = setInterval(() => { try { katseTick(); } catch (x) {} }, 30);   // shooter :2203
@@ -3431,7 +3439,7 @@ AMMUNTA = (() => {
     if (vEl && vEl.remove) vEl.remove();
     if (window[GLOBAALI] && window[GLOBAALI].huone === huone) delete window[GLOBAALI];
   };
-  return { aaltoTick, aalto: () => AM.aalto, kasittele, vastaanota, pidaPaikallinen, omaksu, snapLisaa, pelaajaKuoli, omaKuolema, piirto, piilossa, piirtoPaikat, julkaise, sulje,
+  return { aaltoTick, aalto: () => AM.aalto, kasittele, vastaanota, katseSaapui, pidaPaikallinen, omaksu, snapLisaa, pelaajaKuoli, omaKuolema, piirto, piilossa, piirtoPaikat, julkaise, sulje,
     ammu, ammuSuuntaan, asetaAse, ase: () => aseOn, valitseAse, aseNyt, runLoppu, tilasto, AM, auktoriteetti, luodit: () => luodit.length,
     purema, paranna, kontaktiKerroin, nollaaKontakti, hp: () => AM.hp, wasd: { pidetyt, tick: wasdTick, nappain, nosto }, hiiri,
     vuoroTick, vuoroPyyda, vuoroVastaanota, vuoro: () => VT.vu, VT, vuoroSallii, aseKaytossa: aseAktiivinen, vuoroTeksti,
