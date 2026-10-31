@@ -149,7 +149,7 @@ const kuuleLapi = ev => { try { if (!ev || ev.chatType !== 1) return; const m = 
   banneri('☠ ' + m[1] + ' läpäisi haasteen, onnittelut! ☠', 8000, 40); juhla(); } catch (x) {} };
 const vayla = (() => { try { const e = window.NitroDevTools && window.NitroDevTools.roomEngine; return e && e.events; } catch (x) { return null; } })();
 if (vayla && vayla.addEventListener) vayla.addEventListener('RSCE_CHAT_EVENT', kuuleLapi);
-let ennatysAlustettu = false, ennatysRivi = 0;
+let ennatysAlustettu = false, ennatysRivi = 0, omaVuoroNahty = false;
 const ennatysIlmoitus = (teksti) => { const rivi = ennatysRivi++ % 2; banneri(teksti, 8000, 34, 18 + rivi * 9); juhla(); };   // kp: sama banneri + konfetti kuin läpäisyssä
 // kp 20:47 "players upload themselves": huoneen 811/817 paras-per-pelaaja -lista on palvelimella (GET/POST ULKO_URL, CORS kupla.cc). Rivit { id, nimi, tapot, lapi, aalto, fig, t }.
 //   GET käynnistyessä + 30 s välein -> sama max-yhdistys kuin muilla tuloksilla, HILJAA (ei ennätysilmoitusta), ja rivit ovat ennätysvertailun (oma + kaikkien) lähtötaso.
@@ -170,10 +170,11 @@ const yhdistaUlko = () => { let muuttui = false;
   return muuttui; };
 // Yhdistää julkaistut tulokset paikalliseen kokoelmaan. Palauttaa true jos jokin rivi muuttui.
 const yhdista = () => { const G = window['__zombi' + huone], lista = G && Array.isArray(G.tulokset) ? G.tulokset : []; let muuttui = false, figut = null;
+  if (G && G.vuoro && G.vuoro.pelaaja && Number(G.vuoro.pelaaja) === Number(G.pelaaja)) omaVuoroNahty = true;   // kp 31.10. 23:40 'tuloksesi 22' huoneeseen tullessa: vanha oma rivi tuli johtajan tilassa ensimmäisen yhdistämisen jälkeen
   if (yhdistaUlko()) muuttui = true;   // ulkoinen lista ensin ja hiljaa: lähtötaso, jota vasten alla olevat uudet tulokset verrataan
   for (const t of lista) { if (!t || !(Number(t.id) > 0)) continue; const id = Number(t.id), tapot = Math.max(0, Number(t.tapot) | 0), av = id + ':' + (Number(t.run) | 0) + ':' + tapot;
     if (nahty.has(av)) continue; nahty.add(av);
-    if (ennatysAlustettu && tapot < LAPI_RAJA && id === Number(G.pelaaja) && (Number(t.run) | 0) >= (Number(G.run) | 0) - 1)   // kp 20:49: oma ajo päättyi alle rajan -> vain tälle pelaajalle banneri, ei konfettia; ei vanhoille riveille latauksessa (ensimmäinen yhdistäminen hiljainen, run-tuoreus)
+    if (ennatysAlustettu && omaVuoroNahty && tapot < LAPI_RAJA && id === Number(G.pelaaja) && (Number(t.run) | 0) >= (Number(G.run) | 0) - 1)   // kp 20:49: oma ajo päättyi alle rajan -> vain tälle pelaajalle banneri, ei konfettia; ei vanhoille riveille latauksessa (ensimmäinen yhdistäminen hiljainen, run-tuoreus)
       banneri('Tuloksesi: ' + tapot + '. Läpäisyyn tarvitaan ' + LAPI_RAJA + '.', 8000, 30, 36);
     if (ULKO_URL && tapot > 0 && id === Number(G.pelaaja)) { const e0 = paras.get(id);   // oma tulos: lähetä palvelimelle jos ylittää tunnetun (tai ensimmäinen)
       if (!e0 || tapot > e0.tapot) { if (!figut) figut = huoneenFiguurit(); const fg = String(figut.get(id) || (e0 && e0.fig) || '').slice(0, 400);
