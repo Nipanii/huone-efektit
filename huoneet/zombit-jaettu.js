@@ -3945,6 +3945,10 @@ AMMUNTA = (() => {
     const d = t => document.createElement(t), lisaa = (a, b) => { if (a && a.appendChild) a.appendChild(b); return b; };
     const h = tyyli(d('div'), 'position:fixed;left:50%;bottom:92px;transform:translateX(-50%);z-index:99997;display:none;flex-direction:column;align-items:center;gap:6px;font:12px Ubuntu,sans-serif;color:#dce6f2;user-select:none;pointer-events:none');
     if (h.setAttribute) h.setAttribute('data-zombit-hud', String(huone));
+    // kp 21:53-22:00 "safehouse health bar näkyy jossai koko aja" + "toi on iha jees": safe house oman HP:n yläpuolelle, sama tyyli sinisenä.
+    hudO.sh = lisaa(h, tyyli(d('div'), 'width:330px;height:18px;border-radius:9px;background:#0b1320;border:2px solid #283f5d;position:relative;overflow:hidden;box-shadow:0 3px 10px rgba(0,0,0,.5);display:none'));
+    hudO.shI = lisaa(hudO.sh, tyyli(d('i'), 'position:absolute;left:0;top:0;bottom:0;transition:width .15s;background:linear-gradient(180deg,#5b9bf0,#2f6fc4)'));
+    hudO.shT = lisaa(hudO.sh, tyyli(d('span'), 'position:absolute;inset:0;text-align:center;line-height:14px;font-weight:bold;font-size:11px;text-shadow:0 1px 2px #000'));
     hudO.hp = lisaa(h, tyyli(d('div'), 'width:330px;height:18px;border-radius:9px;background:#0b1320;border:2px solid #283f5d;position:relative;overflow:hidden;box-shadow:0 3px 10px rgba(0,0,0,.5)'));
     hudO.hpI = lisaa(hudO.hp, tyyli(d('i'), 'position:absolute;left:0;top:0;bottom:0;transition:width .15s'));
     hudO.hpT = lisaa(hudO.hp, tyyli(d('span'), 'position:absolute;inset:0;text-align:center;line-height:14px;font-weight:bold;font-size:11px;text-shadow:0 1px 2px #000'));
@@ -3967,7 +3971,7 @@ AMMUNTA = (() => {
     if (ASETUS.vuoro) { const v = lisaa(kd, tyyli(d('div'), SIRU + ';font-weight:normal;font-size:10px')); v.textContent = 'Q / rulla: vaihda ase'; }   // kp 20:44 "laitetaan se johonkin hudiin"
     return h;
   };
-  const hudTila = () => ({ nakyy: aseAktiivinen(), ase: ASETUS.ase.valittu, chat: chatTila, kamera: kameraAktiivinen(), k: omaTapot(), hp: hpTila() ? Math.round(AM.hp) : null,
+  const hudTila = () => ({ nakyy: aseAktiivinen(), ase: ASETUS.ase.valittu, chat: chatTila, kamera: kameraAktiivinen(), k: omaTapot(), hp: hpTila() ? Math.round(AM.hp) : null, sh: safeHouseHpPalkki(),
     tilaTeksti: chatTila ? '💬 CHAT · Esc = peli' : '🎮 PELI · Enter = chat' });
   const hudPaivita = () => {
     const t = hudTila(); tila.hud = t;
@@ -3976,6 +3980,8 @@ AMMUNTA = (() => {
     if (hudEl.parentNode !== document.body && document.body.appendChild) document.body.appendChild(hudEl);
     if (hudEl.style) hudEl.style.display = 'flex';
     for (const [w, b] of Object.entries(hudO.slotit)) { const css = w === t.ase ? SLOT_ON : SLOT; if (b.style && b.dataset ? b.dataset.on !== String(w === t.ase) : true) { tyyli(b, css); if (b.dataset) b.dataset.on = String(w === t.ase); } }
+    if (hudO.sh && hudO.sh.style) hudO.sh.style.display = t.sh ? '' : 'none';
+    if (t.sh) { if (hudO.shI && hudO.shI.style) hudO.shI.style.width = t.sh.os * 100 + '%'; if (hudO.shT) hudO.shT.textContent = 'Safe house ' + Math.round(t.sh.hp) + ' / ' + t.sh.max; }
     if (hudO.hp && hudO.hp.style) hudO.hp.style.display = t.hp == null ? 'none' : '';
     if (t.hp != null && hudO.hpI && hudO.hpI.style) { const os = Math.max(0, Math.min(1, t.hp / hpMax())); hudO.hpI.style.width = os * 100 + '%';
       hudO.hpI.style.background = os > 0.5 ? 'linear-gradient(180deg,#5ee37c,#2fb34f)' : os > 0.25 ? 'linear-gradient(180deg,#ffd75e,#e0a91e)' : 'linear-gradient(180deg,#ff6b6f,#d83a3f)';   // L4K :3175
