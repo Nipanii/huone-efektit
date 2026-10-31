@@ -2007,15 +2007,18 @@ const SYNK = (() => {
     return !!j && j !== omaId() && SY.snapJohtaja === j && nyt - SY.snapAika < Math.max(1000, num(S().hiljaisuusMs, 10000));
   };
   // Lähetys ei koskaan heitä. kuplaScripts: palvelin rajoittaa 3 lähetystä / 1000 ms / käyttäjä -> oma raja maxLahetysS (3) ja 1004-virheen jälkeen hitaampi snapshot-väli (hidasMs).
+  // kp 18:37 "miksi ei lähde samassa viestissä osumat ja suunta": viimeisin suunta (ka) lähtee minkä tahansa viestin mukana. Oma viesti vain jos 3/s rajassa on tilaa,
+  //   ja yksi paikka jää osumille. Kanavan raja on silti 3 viestiä/s, joten suunta päivittyy muilla enintään sitä tahtia.
+  let katseOdottaa = null;
   const laheta = (o) => {
     if (!auki()) return false;
     try {
-      const nyt = Date.now(), s = JSON.stringify(o), ks = kanava === 'kuplaScripts';
+      const nyt = Date.now(), ks = kanava === 'kuplaScripts', s = JSON.stringify(katseOdottaa != null ? Object.assign({}, o, { ka: katseOdottaa }) : o);
       if (s.length > num(S().maxTavuja, 7500)) { tilasto.hylattyKoko++; return false; }
       while (lahetysAjat.length && nyt - lahetysAjat[0] >= 1000) lahetysAjat.shift();
       if (lahetysAjat.length >= (ks ? Math.max(1, num(S().maxLahetysS, 3)) : 15)) { tilasto.hylattyRaja++; return false; }
       if (ks) ksYht.ks.send(AIHE, s); else ws.send(s);
-      lahetysAjat.push(nyt); tilasto.viimeKoko = s.length; return true;
+      lahetysAjat.push(nyt); tilasto.viimeKoko = s.length; katseOdottaa = null; return true;
     } catch (x) { tilasto.virhe = String(x); return false; }
   };
   const heiLaheta = (kysy) => {
@@ -2200,7 +2203,9 @@ const SYNK = (() => {
     osumaJono.push({ msg, seuraava: Date.now() + 400, yritys: 0 }); return false;
   };
   // 811 vuoro: :aloitapeli / :lopetapeli seuraajalta johtajalle (sama jono ja uusinta kuin osumalla; johtaja tarkistaa kasky-listan ja tilan)
-  const lahetaKatse = (k) => laheta({ t: 'katse', id: omaId(), k });
+  const lahetaKatse = (k) => { katseOdottaa = k; const nyt = Date.now(); while (lahetysAjat.length && nyt - lahetysAjat[0] >= 1000) lahetysAjat.shift();
+    if (kanava === 'kuplaScripts' && lahetysAjat.length >= Math.max(1, num(S().maxLahetysS, 3)) - 1) return false;
+    return laheta({ t: 'katse', id: omaId() }); };
   const lahetaVuoro = (o) => {
     const msg = { t: 'vuoro', id: omaId(), q: o.q, K: SAILO.K };
     if (!(msg.id > 0)) return false;
@@ -2250,6 +2255,7 @@ const SYNK = (() => {
     let m = null; try { m = JSON.parse(String(data)); } catch (x) { return; }
     if (!m || typeof m !== 'object') return;
     const id = Number(m.id); if (!(id > 0) || id === omaId()) return;
+    if (m.ka != null && AMMUNTA) AMMUNTA.katseSaapui(id, Number(m.ka));
     const nyt = Date.now(), raja = Math.max(1000, num(S().hiljaisuusMs, 10000));
     // Yksin oltuaan (kukaan muu ei kuulunut raja-ajan sisällä: verkkokatko / kanavalla ei katkeamisilmoitusta) ensimmäinen kontakti VALMIISEEN vertaiseen
     //   aloittaa 3 s kuuntelun alusta -> ei oteta johtajuutta vanhalla saarekkeen tilalla, vaan omaksutaan ensin vertaisen snapshotit.
@@ -2264,7 +2270,7 @@ const SYNK = (() => {
       SY.odottava = m; SY.snapAika = nyt; SY.snapJohtaja = id; tilasto.vastaanotettuSnap++;
     } else if (m.t === 'osuma' && ASETUS.ammuttava && AMMUNTA) {   // 811: ampujan osuma; vain auktoriteetti (johtaja / paikallinen) hyväksyy, tiki():ssä
       AMMUNTA.vastaanota(id, m, nyt); tilasto.vastaanotettuOsuma = (tilasto.vastaanotettuOsuma || 0) + 1;
-    } else if (m.t === 'katse' && AMMUNTA) { AMMUNTA.katseSaapui(id, Number(m.k));
+    } else if (m.t === 'katse') {
     } else if (m.t === 'vuoro' && ASETUS.vuoro && AMMUNTA) {   // 811: vuoropyyntö; vain auktoriteetti käsittelee (vuoroTick)
       AMMUNTA.vuoroVastaanota(id, m); tilasto.vastaanotettuVuoro = (tilasto.vastaanotettuVuoro || 0) + 1;
     } else if (m.t === 'kuoli' && isFinite(m.x) && isFinite(m.y)) {   // oma kaiku on jo suodatettu (id === omaId) ylempänä
@@ -3213,9 +3219,8 @@ AMMUNTA = (() => {
   //   muut eivät näe suuntaa. wasdIrti (shooter :2194 350 ms) on shooterissa aina 0 (ei koskaan asetettu) -> jätetty pois.
   let viimeKatse = null, viimeKatseAika = 0;
   const hiirenKulma = () => { const h = hiirenVektori(null, null, omaPaikka()); return h ? ((Math.round(Math.atan2(h.dx, -h.dy) * 180 / Math.PI / 45) * 45) % 360 + 360) % 360 : null; };   // shooter :2193
-  // kp 18:33 "lähetetään se omaa kanavaa pitkin": suunta muille SYNK-kanavalla (raakapaketti 3301 ei löydy kaikilta, istunnossa ei ole yhteyttä). Max 2/s, jotta 3/s raja riittää myös osumille.
-  let katseLahetetty = 0;
-  const lahetaKatse = (minä, k) => { const nyt = Date.now(); if (nyt - katseLahetetty < 500) return false; katseLahetetty = nyt; try { return SYNK.lahetaKatse(k); } catch (x) { return false; } };
+  // kp 18:33 "lähetetään se omaa kanavaa pitkin": suunta muille SYNK-kanavalla (raakapaketti 3301 ei löydy kaikilta, istunnossa ei ole yhteyttä).
+  const lahetaKatse = (minä, k) => { try { return SYNK.lahetaKatse(k); } catch (x) { return false; } };
   const katseTick = () => {
     if (!aseAktiivinen() || Date.now() < kavelyEstoAsti || (pidetyt.size && !wasdEste)) return;   // shooter :2194 (ohjausOn, kuollut, pidetyt)
     const k = hiirenKulma(); if (k == null || Date.now() - viimeKatseAika < 50) return;
