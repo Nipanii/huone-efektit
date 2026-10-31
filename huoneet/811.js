@@ -2,8 +2,9 @@
 // sona 31.10. "tehdää tähä huoneeseen kans sellanen ikkuna, score board UI · siihen pitäis tulla kaikkien tän radan läpi päässeiden pisteet"
 //   "rakennusvaiheessa tehdää mockup, mutta sitten kun huone alkaa olee valmis niin tehdään siitä toimiva scoreboard"
 //   "välilehtiä. Ainakin highscores ja ohjeet" · "Ohjeissa kerrotaan miten tätä viimeistä rataa pelataan"
+//   15:28 "voisko se aina olla päällä ja että sen voi vaan pienentää" · "värimaailma punainen" (ei sulkemista: ×-nappi poistettu, tilalla –/+)
 // TILA: MOCKUP. Pisteet ja ohjeteksti ovat paikkamerkkejä (MALLI_TULOKSET, OHJEET). Mitään ei lueta palvelimelta eikä tallenneta.
-// Ikkuna aukeaa huoneeseen tullessa, sulkeutuu ×:stä ja aukeaa uudelleen vasemman reunan napista. Raahattavissa otsikosta (683.js-malli).
+// Ikkuna on aina näkyvissä; otsikon –/+ pienentää otsikkoriviksi ja palauttaa. Raahattavissa otsikosta (683.js-malli).
 const huone = kupla.roomId();
 
 const OTSIKKO = 'Hallowen rata finaali';   // sona 15:27 'vaihdetaan 6/6 sanaksi finaali'
@@ -19,10 +20,11 @@ const OHJEET = [   // sona kirjoittaa oikeat ohjeet; nämä ovat paikkamerkkejä
   'Tämä on Halloween-radan viimeinen osa.',
   'Ohjeet tulevat tähän, kun rata on valmis.',
 ];
-const NAPPI_TEKSTI = 'Tulokset';
+// Värit (sona 15:28 punainen): tausta, reuna, korostus (otsikko + aktiivinen välilehti), himmeä teksti, kärkirivi
+const V = { tausta: 'rgba(26,10,12,.94)', reuna: '#6e1f26', korostus: '#ff5a4f', teksti: '#ecd2d0', himmea: '#b98783', valittu: '#4a1519', karki: '#ffb347' };
 const Z = 1000;
 
-let ikkuna = null, nappi = null, sisalto = null, valittu = 0, vedto = null;
+let ikkuna = null, sisalto = null, rivi = null, pieni = null, valittu = 0, vedto = null, pienennetty = false;
 const tabit = [];
 
 const siirra = (ev) => { if (!vedto || !ikkuna || ev.pointerId !== vedto.id) return;
@@ -34,8 +36,8 @@ const lopeta = (ev) => { if (!vedto || (ev && ev.pointerId !== undefined && ev.p
 const piirra = () => {
   if (!sisalto) return;
   tabit.forEach((t, i) => { const on = i === valittu;
-    t.style.background = on ? '#3a2f4a' : 'transparent'; t.style.color = on ? '#d9a35b' : '#a99bbd';
-    t.style.borderBottom = on ? '2px solid #d9a35b' : '2px solid transparent'; });
+    t.style.background = on ? V.valittu : 'transparent'; t.style.color = on ? V.korostus : V.himmea;
+    t.style.borderBottom = on ? '2px solid ' + V.korostus : '2px solid transparent'; });
   sisalto.textContent = '';
   if (valittu === 0) {
     const tbl = document.createElement('table');
@@ -43,40 +45,41 @@ const piirra = () => {
     const otsRivi = document.createElement('tr');
     for (const [t, a] of [['#', 'left'], ['Pelaaja', 'left'], ['Pisteet', 'right'], ['Aika', 'right']]) {
       const th = document.createElement('th'); th.textContent = t;
-      th.style.cssText = 'text-align:' + a + ';padding:3px 6px;color:#8f82a3;font-weight:normal;border-bottom:1px solid #4b3f5e';
+      th.style.cssText = 'text-align:' + a + ';padding:3px 6px;color:' + V.himmea + ';font-weight:normal;border-bottom:1px solid ' + V.reuna;
       otsRivi.appendChild(th); }
     tbl.appendChild(otsRivi);
     MALLI_TULOKSET.forEach(([nimi, p, aika], i) => {
       const tr = document.createElement('tr');
       const solut = [[String(i + 1), 'left'], [nimi, 'left'], [String(p), 'right'], [aika, 'right']];
       for (const [t, a] of solut) { const td = document.createElement('td'); td.textContent = t;
-        td.style.cssText = 'text-align:' + a + ';padding:3px 6px;' + (i === 0 ? 'color:#e8c46a;font-weight:bold' : '');
+        td.style.cssText = 'text-align:' + a + ';padding:3px 6px;' + (i === 0 ? 'color:' + V.karki + ';font-weight:bold' : '');
         tr.appendChild(td); }
       tbl.appendChild(tr); });
     sisalto.appendChild(tbl);
     const huom = document.createElement('div'); huom.textContent = 'Mockup: pisteet eivät ole oikeita.';
-    huom.style.cssText = 'margin-top:8px;font-size:11px;color:#7d7090;font-style:italic';
+    huom.style.cssText = 'margin-top:8px;font-size:11px;color:' + V.himmea + ';font-style:italic';
     sisalto.appendChild(huom);
   } else {
     for (const r of OHJEET) { const p = document.createElement('p'); p.textContent = r; p.style.cssText = 'margin:0 0 6px'; sisalto.appendChild(p); }
   }
 };
 
-const avaa = () => { if (ikkuna) ikkuna.style.display = ''; if (nappi) nappi.style.display = 'none'; };
-const sulje = () => { if (ikkuna) ikkuna.style.display = 'none'; if (nappi) nappi.style.display = ''; };
+const pienenna = (on) => { pienennetty = on;
+  if (rivi) rivi.style.display = on ? 'none' : 'flex'; if (sisalto) sisalto.style.display = on ? 'none' : '';
+  if (pieni) { pieni.textContent = on ? '+' : '–'; pieni.title = on ? 'Suurenna' : 'Pienennä'; } };
 
 const rakenna = () => {
   ikkuna = document.createElement('div'); ikkuna.className = 'h811-tulostaulu';
   ikkuna.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:' + Z + ';width:300px;max-width:92vw;box-sizing:border-box;'
-    + 'background:rgba(20,17,26,.94);border:1px solid #4b3f5e;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.6);font:13px sans-serif;color:#cfc6dc;user-select:none';
+    + 'background:' + V.tausta + ';border:1px solid ' + V.reuna + ';border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.6);font:13px sans-serif;color:' + V.teksti + ';user-select:none';
   const ots = document.createElement('div');
-  ots.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:7px 10px;font-weight:bold;letter-spacing:.5px;color:#d9a35b;cursor:move;touch-action:none;border-bottom:1px solid #4b3f5e';
+  ots.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:7px 10px;font-weight:bold;letter-spacing:.5px;color:' + V.korostus + ';cursor:move;touch-action:none';
   const ot = document.createElement('span'); ot.textContent = OTSIKKO;
-  const x = document.createElement('div'); x.textContent = '×'; x.title = 'Sulje';
-  x.style.cssText = 'cursor:pointer;font-size:17px;line-height:14px;color:#a99bbd;padding:0 2px;touch-action:manipulation';
-  x.addEventListener('pointerdown', ev => ev.stopPropagation());
-  x.addEventListener('click', ev => { ev.stopPropagation(); sulje(); });
-  ots.appendChild(ot); ots.appendChild(x);
+  pieni = document.createElement('div');
+  pieni.style.cssText = 'cursor:pointer;font-size:17px;line-height:14px;color:' + V.himmea + ';padding:0 4px;touch-action:manipulation';
+  pieni.addEventListener('pointerdown', ev => ev.stopPropagation());
+  pieni.addEventListener('click', ev => { ev.stopPropagation(); pienenna(!pienennetty); });
+  ots.appendChild(ot); ots.appendChild(pieni);
   ots.addEventListener('pointerdown', (ev) => { ev.stopPropagation(); if (ev.button && ev.button !== 0) return;
     const r0 = ikkuna.getBoundingClientRect();
     vedto = { id: ev.pointerId, dx: ev.clientX - r0.left, dy: ev.clientY - r0.top };
@@ -86,30 +89,26 @@ const rakenna = () => {
   ots.addEventListener('pointerup', lopeta);
   ots.addEventListener('pointercancel', lopeta);
   ots.addEventListener('lostpointercapture', lopeta);
-  const rivi = document.createElement('div'); rivi.style.cssText = 'display:flex;gap:2px;padding:6px 8px 0';
+  rivi = document.createElement('div'); rivi.style.cssText = 'display:flex;gap:2px;padding:6px 8px 0;border-top:1px solid ' + V.reuna;
   VALILEHDET.forEach((nimi, i) => { const t = document.createElement('div'); t.textContent = nimi;
     t.style.cssText = 'padding:5px 10px;cursor:pointer;border-radius:5px 5px 0 0;touch-action:manipulation';
     t.addEventListener('pointerdown', ev => ev.stopPropagation());
     t.addEventListener('click', ev => { ev.stopPropagation(); valittu = i; piirra(); });
     tabit.push(t); rivi.appendChild(t); });
-  sisalto = document.createElement('div'); sisalto.style.cssText = 'padding:10px 12px 12px;border-top:1px solid #4b3f5e;min-height:120px';
+  sisalto = document.createElement('div'); sisalto.style.cssText = 'padding:10px 12px 12px;border-top:1px solid ' + V.reuna + ';min-height:120px';
   ikkuna.appendChild(ots); ikkuna.appendChild(rivi); ikkuna.appendChild(sisalto);
   ikkuna.addEventListener('pointerdown', ev => ev.stopPropagation());
-  nappi = document.createElement('div'); nappi.className = 'h811-nappi'; nappi.textContent = NAPPI_TEKSTI;
-  nappi.style.cssText = 'position:fixed;left:8px;top:50%;transform:translateY(-50%);z-index:' + Z + ';display:none;padding:6px 10px;cursor:pointer;'
-    + 'background:rgba(20,17,26,.92);border:1px solid #4b3f5e;border-radius:6px;font:bold 12px sans-serif;color:#d9a35b;touch-action:manipulation';
-  nappi.addEventListener('pointerdown', ev => ev.stopPropagation());
-  nappi.addEventListener('click', ev => { ev.stopPropagation(); avaa(); });
-  document.body.appendChild(ikkuna); document.body.appendChild(nappi);
+  document.body.appendChild(ikkuna);
+  pienenna(false);
   piirra();
 };
 
-for (const el of document.querySelectorAll('.h811-tulostaulu, .h811-nappi')) el.remove();   // skriptipäivitys: ei tuplaikkunaa
+for (const el of document.querySelectorAll('.h811-tulostaulu, .h811-nappi')) el.remove();   // skriptipäivitys: ei tuplaikkunaa (h811-nappi = mockup-1:n avausnappi)
 rakenna();
-window.__h811 = { huone, avaa, sulje, versio: 'mockup-1' };
+window.__h811 = { huone, pienenna, versio: 'mockup-2' };
 
 return () => {
-  if (ikkuna) ikkuna.remove(); if (nappi) nappi.remove();
-  ikkuna = nappi = sisalto = null; vedto = null;
+  if (ikkuna) ikkuna.remove();
+  ikkuna = sisalto = rivi = pieni = null; vedto = null;
   if (window.__h811 && window.__h811.huone === huone) delete window.__h811;
 };
