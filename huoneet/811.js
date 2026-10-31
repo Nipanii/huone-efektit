@@ -88,11 +88,14 @@ const piirra = () => {
     huom.style.cssText = 'margin-top:8px;font-size:11px;color:' + V.himmea + ';font-style:italic';
     sisalto.appendChild(huom);
   } else {
-    for (const r of OHJEET) { const p = document.createElement('p'); p.textContent = r; p.style.cssText = 'margin:0 0 6px';
-      // sona 15:50 "korostaa tota tavoite kohtaa"
-      if (/^Tavoite/.test(r)) p.style.cssText = 'margin:2px 0 8px;padding:6px 8px;font-weight:bold;font-size:14px;color:#fff;background:' + V.valittu + ';border-left:4px solid ' + V.korostus + ';border-radius:4px';
-      sisalto.appendChild(p); }
+    // sona 15:50 "korostaa tota tavoite kohtaa" · 15:51 "vaikka se laatikkona alimmaiseksi"
+    const tavoite = OHJEET.filter(r => /^Tavoite/.test(r));
+    for (const r of OHJEET) { if (tavoite.includes(r)) continue;
+      const p = document.createElement('p'); p.textContent = r; p.style.cssText = 'margin:0 0 6px'; sisalto.appendChild(p); }
     sisalto.appendChild(ohjausKuva());
+    for (const r of tavoite) { const p = document.createElement('div'); p.textContent = r;
+      p.style.cssText = 'margin-top:10px;padding:8px 10px;font-weight:bold;font-size:14px;color:#fff;background:' + V.valittu + ';border:1px solid ' + V.korostus + ';border-left:4px solid ' + V.korostus + ';border-radius:5px';
+      sisalto.appendChild(p); }
   }
 };
 
