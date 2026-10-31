@@ -20,6 +20,7 @@ const OHJEET = [   // sona 15:42 "yksi pelaaja kerrallaan pelaa zombie rataa yks
   'Yksi pelaaja kerrallaan pelaa zombirataa yksin, muut voivat katsoa.',
   'Tavoite: tapa mahdollisimman monta zombia. 1 zombi = 1 piste.',
   'Rata on läpäisty, kun olet tappanut 25 zombia.',
+  'Ohjaus: liiku WASD-näppäimillä ja ammu hiirellä, kuten Kupla Shooterissa.',   // sona 15:43
 ];
 // Värit (sona 15:28 punainen): tausta, reuna, korostus (otsikko + aktiivinen välilehti), himmeä teksti, kärkirivi
 const V = { tausta: 'rgba(26,10,12,.94)', reuna: '#6e1f26', korostus: '#ff5a4f', teksti: '#ecd2d0', himmea: '#d6a5a0', valittu: '#4a1519', karki: '#ffb347' };
