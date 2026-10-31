@@ -201,6 +201,7 @@ ASETUS.synkka.aihe = 'z684.synk';
 // Aseet 811:ssä = Left 4 Kuplan aseet SELLAISENAAN (kp 16:02 "otetaan vanha bow ja gun ampumis nopeus siten miten ne oli jo tehty" ·
 //   "sword voi kans pitää sellasenaan"): arvot shooter-1.15.2.user.js:505-509 (asetus.vahinko = 1). Zombin HP 60 = shooter :177 zHp.
 //   m 'p' = lentävä ammus (nopeus ruutua/s, lento = kantama), 'h' = hitscan. veto = jännitys painettaessa, laukeaa irrotettaessa (lataus 0..1).
+//   kp 18:15 "zombit pitäs herkemmin targettaa pelaajaa kun niitä ampuu": aggroSade päälle. Pistooli 8, jousi ja miekka 3 (kp 16:00: pistooli vetää kauempaa, jousi hiljainen).
 //   VAIHE 2 / kp 16:01 -koukut (UUTTA, ei L4K:ssa): aani = laukauksen ääniveto (null = hiljainen) · aggroSade = osutun lähellä olevat zombit
 //   kohdistavat ampujaan (null = ei) · nollaaKontakti = käyttö nollaa oman kiinnijäämislaskurin kaikilta zombeilta (kp: "miekan käyttö nollais
 //   aina kiinni jäämis laskurin") · kontaktiKerroin = kiinnijäännin rajan kerroin ase kädessä (vaihtoehto B).
@@ -208,11 +209,11 @@ ASETUS.synkka.aihe = 'z684.synk';
 //   EI asukanavaa. Pyssy 1126, Jousi 1128, Miekka 1094 (L4K:n kasi-arvot). VIP-komento: ilman VIP:tä ase ei näy kädessä, peli toimii (shooter :101).
 ASETUS.aseet = {
   luoti: { ikoni: '🔫', nimi: 'Pistooli', kasi: 1126, m: 'p', tyyli: 'luoti', vari: '#ffd23f', nopeus: 21.6, auto: true, cd: 350, lento: 30, lineaari: [20, 30],
-    aani: null, aggroSade: null, nollaaKontakti: false, kontaktiKerroin: 1 },
+    aani: null, aggroSade: 8, nollaaKontakti: false, kontaktiKerroin: 1 },
   jousi: { ikoni: '🏹', nimi: 'Jousi', kasi: 1128, m: 'p', vari: '#c9c9c9', veto: true, nopeus: 15.12, lento: 14, cd: 1000, vahinko: 20, lataus: [10, 50, 1000], latausLento: [14, 24],
-    aani: null, aggroSade: null, nollaaKontakti: false, kontaktiKerroin: 1 },
+    aani: null, aggroSade: 3, nollaaKontakti: false, kontaktiKerroin: 1 },
   miekka: { ikoni: '🗡️', nimi: 'Miekka', kasi: 1094, m: 'h', vari: '#e8eef7', kantama: 2.5, vahinko: 34, veto: true, hidasKavely: true, cd: 700, lapi: [3, 1000], lapiVahinko: 50, lapiLapi: 50,
-    aani: null, aggroSade: null, nollaaKontakti: true, kontaktiKerroin: 1 },   // nollaaKontakti true = kp:n suosima suunta B (16:01), kp päättää
+    aani: null, aggroSade: 3, nollaaKontakti: true, kontaktiKerroin: 1 },   // nollaaKontakti true = kp:n suosima suunta B (16:01), kp päättää
 };
 ASETUS.ase = { valittu: 'luoti', jalkiMs: 450, ruumisMs: 1400 };   // jälki 450 ms = shooter :1727
 ASETUS.zombiHp = 60;
