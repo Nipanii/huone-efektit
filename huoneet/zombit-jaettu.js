@@ -190,7 +190,7 @@ const HUONEET = {
 HUONEET[817] = (() => { const DX = 12, DY = 12, h = JSON.parse(JSON.stringify(HUONEET[811]));
   h.siemen = 817; h.synkka = { aihe: 'z817.synk', url: null };
   h.safeHouse.ruudut = h.safeHouse.ruudut.map(([x, y, ax, ay]) => [x + DX, y + DY, ax, ay]);
-  h.aallot.puolet = h.aallot.puolet.map(p => Array.isArray(p) ? p.map(([x, y]) => [x + DX, y + DY]) : p);
+  h.aallot.puolet = ['ovi', h.aallot.puolet[1].map(([x, y]) => [x + DX, y + DY]), [[1, 25], [1, 26], [1, 27], [1, 28], [1, 29], [1, 30]]];
   const v = h.vuoro, siirra = (q, furni) => { q.x += DX; q.y += DY; q.furni = furni; };
   siirra(v.jono, 513063); siirra(v.alku, 512772); siirra(v.loppu, 513207);
   return h; })();
