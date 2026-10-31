@@ -3055,7 +3055,11 @@ AMMUNTA = (() => {
     if (!n) return 0;
     const hahmot = []; for (const h of piirtoPaikat.values()) hahmot.push(h);
     try { for (const o of e.getRoomObjects(huone, 100) || []) { if (!o || o.id < 0 || String(o.type) !== 'user') continue; const L = o.getLocation(); if (L) hahmot.push({ x: Number(L.x), y: Number(L.y), z: Number(L.z) || 0 }); } } catch (x) {}
-    for (const h of hahmot) { const s = p(h.x, h.y, h.z); if (!s) continue; const hw = hwOf(h.x, h.y, h.z); rctx.clearRect(s.x - 0.5 * hw, s.y - 5 * hw, hw, 5.15 * hw); }   // shooter :1903
+    // kp 21:40 "niil on joku aura": pyyhintä vain kitin edessä olevalta hahmolta (x+y >= kitin) ja vartalon korkuisena (3.25 hw, shooterin 5 hw meni yli pään). Ennen ohi kulkeva zombi pyyhki kitin. Pohja shooter :1903.
+    for (const h of hahmot) { const s = p(h.x, h.y, h.z); if (!s) continue; const hw = hwOf(h.x, h.y, h.z);
+      for (const k of lista) { if (h.x + h.y < k.x + k.y) continue; const a = p(k.x, k.y, k.z); if (!a) continue; const kw = hwOf(k.x, k.y, k.z);
+        const x0 = Math.max(s.x - 0.5 * hw, a.x - kw), x1 = Math.min(s.x + 0.5 * hw, a.x + kw), y0 = Math.max(s.y - 3.25 * hw, a.y - 2 * kw), y1 = Math.min(s.y + 0.15 * hw, a.y + kw);
+        if (x1 > x0 && y1 > y0) rctx.clearRect(x0, y0, x1 - x0, y1 - y0); } }
     jctx.drawImage(kitKoko, 0, 0); return n;
   };
 
