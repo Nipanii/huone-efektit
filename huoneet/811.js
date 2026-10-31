@@ -3,7 +3,10 @@
 //   "rakennusvaiheessa tehdää mockup, mutta sitten kun huone alkaa olee valmis niin tehdään siitä toimiva scoreboard"
 //   "välilehtiä. Ainakin highscores ja ohjeet" · "Ohjeissa kerrotaan miten tätä viimeistä rataa pelataan"
 //   15:28 "voisko se aina olla päällä ja että sen voi vaan pienentää" · "värimaailma punainen" (ei sulkemista: ×-nappi poistettu, tilalla –/+)
-// TILA: MOCKUP. Pisteet ja ohjeteksti ovat paikkamerkkejä (MALLI_TULOKSET, OHJEET). Mitään ei lueta palvelimelta eikä tallenneta.
+// TILA: Highscores-välilehti näyttää OIKEAT tulokset (sona 19:25 "voidaanko testaa jo scoreboard toimivuus"): window['__zombi' + huone].tulokset (zombit-jaettu.js julkaise(); johtajalla 20 viimeistä,
+//   seuraajalla 10 viimeistä snapshotin kentästä tu) + tämän selaimen localStorage ('h811.tulokset.<huone>'). Paras tulos / pelaaja (suurin tapot). Ohjeteksti on edelleen kiinteä (OHJEET).
+//   EI GLOBAALIA TALLENNUSTA: tulokset elävät johtajan muistissa (kunnes viimeinen client lähtee) ja jokaisen selaimen localStoragessa. Uusi pelaaja näkee vain sen, minkä SYNK-snapshot (10 viimeistä)
+//   kantaa hänen liittymisensä jälkeen. MALLI_TULOKSET / MALLI_EI_LAPI ovat enää vain esimerkkidataa eikä niitä piirretä.
 // Ikkuna on aina näkyvissä; otsikon –/+ pienentää otsikkoriviksi ja palauttaa. Raahattavissa otsikosta (683.js-malli).
 const huone = kupla.roomId();
 
@@ -91,6 +94,33 @@ const ohjausKuva = () => {
   const h = document.createElement('div'); h.textContent = OHJAUS_HUOM; h.style.cssText = 'margin-top:5px;font-size:11px;color:' + V.himmea + ';text-align:center';
   if (OHJAUS_HUOM) kaikki.appendChild(h); return kaikki; };
 
+// ---- OIKEAT TULOKSET (sona 19:25). Lähteet: (1) window['__zombi' + huone].tulokset = { id, nimi, tapot, lapi, run, syy, t }[] (t voi olla null, seuraajalla kentät vähemmän -> ei luoteta t:hen),
+//   (2) tämän selaimen localStorage. Yksi rivi / pelaaja: suurin tapot. Avain (id, run, tapot) ohittaa jo käsitellyn tuloksen; max-yhdistys on idempotentti, joten run-numeroiden
+//   törmäys (johtajan vaihtuessa run alkaa alusta) ei tuplaa eikä hävitä: pienempi tulos ei koskaan korvaa suurempaa. Jaettua tilaa EI kirjoiteta mihinkään (ei 2730, ei Datajakoa).
+const MUISTI = 'h811.tulokset.' + huone;
+const paras = new Map();   // id -> { id, nimi, tapot, lapi, run, fig }
+const nahty = new Set();   // 'id:run:tapot'
+const luePaikallinen = () => { try { const a = JSON.parse(localStorage.getItem(MUISTI) || '[]');
+  for (const r of Array.isArray(a) ? a : []) { if (!r || !(Number(r.id) > 0)) continue; const id = Number(r.id), tapot = Math.max(0, Number(r.tapot) | 0), cur = paras.get(id);
+    if (!cur || tapot > cur.tapot) paras.set(id, { id, nimi: String(r.nimi || ''), tapot, lapi: !!r.lapi, run: Number(r.run) | 0, fig: String(r.fig || '') }); } } catch (x) {} };
+const tallennaPaikallinen = () => { try { localStorage.setItem(MUISTI, JSON.stringify([...paras.values()])); } catch (x) {} };
+const huoneenFiguurit = () => { const m = new Map(); try {   // webID -> figure (kuten zombit-jaettu.js pelaajat()); vain nyt huoneessa olevat
+  const e = window.NitroDevTools && window.NitroDevTools.roomEngine, d = (o, k) => { const q = o && Object.getOwnPropertyDescriptor(o, k); return q && !q.get ? q.value : undefined; };
+  const sm = d(e, '_roomSessionManager'), s = sm && sm.getSession && sm.getSession(huone), ud = s && s.userDataManager;
+  for (const o of (e && e.getRoomObjects(huone, 100)) || []) { if (!o || o.id < 0 || String(o.type) !== 'user') continue; const u = ud && ud.getUserDataByIndex && ud.getUserDataByIndex(o.id);
+    if (u && Number(u.webID) > 0 && u.figure) m.set(Number(u.webID), String(u.figure)); } } catch (x) {} return m; };
+// Yhdistää julkaistut tulokset paikalliseen kokoelmaan. Palauttaa true jos jokin rivi muuttui.
+const yhdista = () => { const G = window['__zombi' + huone], lista = G && Array.isArray(G.tulokset) ? G.tulokset : []; let muuttui = false, figut = null;
+  for (const t of lista) { if (!t || !(Number(t.id) > 0)) continue; const id = Number(t.id), tapot = Math.max(0, Number(t.tapot) | 0), av = id + ':' + (Number(t.run) | 0) + ':' + tapot;
+    if (nahty.has(av)) continue; nahty.add(av);
+    const cur = paras.get(id), nimi = String(t.nimi || '').trim(); if (!figut) figut = huoneenFiguurit(); const fig = figut.get(id) || '';
+    if (!cur || tapot > cur.tapot) { paras.set(id, { id, nimi: nimi || (cur && cur.nimi) || '', tapot, lapi: !!t.lapi || tapot >= LAPI_RAJA, run: Number(t.run) | 0, fig: fig || (cur && cur.fig) || '' }); muuttui = true; }
+    else { let m = false; if (nimi && nimi !== cur.nimi) { cur.nimi = nimi; m = true; } if (fig && fig !== cur.fig) { cur.fig = fig; m = true; } if (m) muuttui = true; } }
+  if (muuttui) tallennaPaikallinen(); return muuttui; };
+const tulosRivit = () => { yhdista();
+  const jarj = (a, b) => b.tapot - a.tapot || String(a.nimi).localeCompare(String(b.nimi)) || a.id - b.id, kaikki = [...paras.values()].map(r => ({ ...r, nimi: r.nimi || ('#' + r.id) }));
+  return { lapi: kaikki.filter(r => r.lapi || r.tapot >= LAPI_RAJA).sort(jarj), eiLapi: kaikki.filter(r => !(r.lapi || r.tapot >= LAPI_RAJA)).sort(jarj) }; };
+luePaikallinen();
 const piirra = () => {
   if (!sisalto) return;
   tabit.forEach((t, i) => { const on = i === valittu;
@@ -115,24 +145,28 @@ const piirra = () => {
       im.style.cssText = 'width:28px;height:32px;object-fit:contain;object-position:center bottom;flex:none';
       let yritys = 0; im.onerror = () => { if (yritys++ < 3) setTimeout(() => { im.src = im.src.replace(/&r=\d+$|$/, '&r=' + yritys); }, 600 * yritys); };   // imager hylkää osan rinnakkaisista latauksista
       return im; };
+    const tyhjaNaama = () => { const d = document.createElement('div'); d.style.cssText = 'width:28px;height:32px;flex:none'; return d; };
     const rivi = (sija, nimi, p, tyyli, fig) => { const tr = document.createElement('tr');
       for (const [t, a] of [[sija, 'left'], [nimi, 'left'], [String(p), 'right']]) { const td = document.createElement('td');
         td.style.cssText = 'text-align:' + a + ';padding:3px 6px;vertical-align:middle;' + tyyli;
-        if (t === nimi && fig) { const d = document.createElement('div'); d.style.cssText = 'display:flex;align-items:center;gap:6px';
-          d.appendChild(naama(fig)); const s = document.createElement('span'); s.textContent = t; d.appendChild(s); td.appendChild(d); }
+        if (t === nimi && sija !== '') { const d = document.createElement('div'); d.style.cssText = 'display:flex;align-items:center;gap:6px';
+          d.appendChild(fig ? naama(fig) : tyhjaNaama()); const s = document.createElement('span'); s.textContent = t; d.appendChild(s); td.appendChild(d); }
         else td.textContent = t;
         tr.appendChild(td); }
       tbl.appendChild(tr); };
     osio('SUORITTANEET', V.korostus, 6);
-    MALLI_TULOKSET.forEach(([nimi, p, fig], i) => rivi(String(i + 1), nimi, p, i === 0 ? 'color:' + V.karki + ';font-weight:bold' : '', fig));
+    const R = tulosRivit();   // oikeat tulokset (sona 19:25); tyhjä osio -> yksi himmeä rivi
+    if (!R.lapi.length) rivi('', 'Ei vielä tuloksia', '', 'color:' + V.himmea, '');
+    R.lapi.forEach((r, i) => rivi(String(i + 1), r.nimi, r.tapot, i === 0 ? 'color:' + V.karki + ';font-weight:bold' : '', r.fig));
     osio('EPÄONNISTUNEET (<' + LAPI_RAJA + 'p)', V.himmea, 12);
-    MALLI_EI_LAPI.forEach(([nimi, p, fig]) => rivi('–', nimi, p, 'color:' + V.himmea, fig));
+    if (!R.eiLapi.length) rivi('', 'Ei vielä tuloksia', '', 'color:' + V.himmea, '');
+    R.eiLapi.forEach(r => rivi('–', r.nimi, r.tapot, 'color:' + V.himmea, r.fig));
     const rulla = document.createElement('div'); rulla.style.cssText = 'overflow-y:auto;overscroll-behavior:contain;scrollbar-color:rgba(255,255,255,.5) transparent';   // sona 16:03 valkoinen · 16:04 "opacity 50"
     rulla.addEventListener('wheel', ev => ev.stopPropagation(), { passive: true });   // rulla ei mene pelille (zoom)
     rulla.appendChild(tbl); sisalto.appendChild(rulla);
     const r = tbl.rows; let h = 0; for (let k = 0; k <= NAKYVAT + 1 && k < r.length; k++) h += r[k].getBoundingClientRect().height;   // otsikko + osio + 10 riviä
     rulla.style.maxHeight = Math.ceil(h || (NAKYVAT + 2) * 23) + 'px';
-    const huom = document.createElement('div'); huom.textContent = 'Vain paras tuloksesi tallennetaan. Voit yrittää rataa niin monta kertaa kuin haluat.';   // sona 16:10 (korvasi mockup-huomautuksen)
+    const huom = document.createElement('div'); huom.textContent = 'Vain paras tuloksesi tallennetaan. Voit yrittää rataa niin monta kertaa kuin haluat. Taulu näyttää tällä selaimella nähdyt tulokset.';   // sona 16:10 (korvasi mockup-huomautuksen)
     huom.style.cssText = 'margin-top:8px;font-size:11px;color:' + V.himmea + ';font-style:italic';
     sisalto.appendChild(huom);
   } else {
@@ -240,10 +274,15 @@ const veriTaakse = () => { const bg = tyhjio(), c = taustaCanvas(); if (!bg || !
   if (c.dataset.h811veri !== TAUSTA_VERSIO) { c.dataset.h811veri = TAUSTA_VERSIO; c.style.background = KURPITSA_TAUSTA + ' top left/120px 120px repeat,#0a0a0a'; } };
 veriTaakse(); const veriAjastin = setInterval(veriTaakse, 2000);
 
-window.__h811 = { huone, pienenna, versio: 'mockup-3' };
+// Päivitys ikkunan ollessa auki: 1 s välein; piirretään uudelleen vain kun rivit muuttuivat (kuvat eivät välky), vierityskohta säilyy.
+let viimeSig = '';
+const paivita = () => { if (!sisalto) return; const R = tulosRivit(), sig = JSON.stringify(R); if (sig === viimeSig) return; viimeSig = sig;
+  if (valittu !== 0 || pienennetty) return; const rt = sisalto.firstElementChild, y = rt ? rt.scrollTop : 0; piirra(); const uusi = sisalto.firstElementChild; if (uusi) uusi.scrollTop = y; };
+const tulosAjastin = setInterval(paivita, 1000);
+window.__h811 = { huone, pienenna, versio: 'tulokset-1', tulosRivit, paivita };
 
 return () => {
-  clearInterval(veriAjastin);
+  clearInterval(veriAjastin); clearInterval(tulosAjastin);
   { const bg = tyhjio(), c = taustaCanvas(); if (bg) bg.alpha = 1; if (c && c.dataset.h811veri) { c.style.background = ''; delete c.dataset.h811veri; } }
   if (ikkuna) ikkuna.remove();
   ikkuna = sisalto = rivi = pieni = null; vedto = null;
