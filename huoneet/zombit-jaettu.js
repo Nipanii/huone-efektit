@@ -3183,7 +3183,9 @@ AMMUNTA = (() => {
     try { h.sendWalkUpdate(x, y); } catch (x2) { return false; }
     return true;
   };
+  let wasdEste = false;   // shooter :2051 wasdEste (kävelyn este: seinää vasten seistessä katse vapaana)
   const wasdTick = () => {
+    wasdEste = false;   // shooter :2079
     if (!aseAktiivinen() || chatTila || !pidetyt.size || Date.now() < kavelyEstoAsti) { wasdMaali = null; return; }
     const A = aseNyt(); if (veto && !(A.hidasKavely || A.lataus)) { wasdMaali = null; return; }   // shooter 1.7.6 / 1.10.17
     let dx = 0, dy = 0; for (const k of pidetyt) { dx += WASD[k][0]; dy += WASD[k][1]; }
@@ -3191,11 +3193,28 @@ AMMUNTA = (() => {
     wasdSuunta = [dx, dy];
     const o = omaPaikka(); if (!o) return;
     const tx = Math.round(o.x) + dx, ty = Math.round(o.y) + dy;
-    if (!kuljettava(tx, ty)) { wasdMaali = null; return; }
+    if (!kuljettava(tx, ty)) { wasdEste = true; wasdMaali = null; return; }   // shooter :2089 (siellä wasdEste = !p.liikkuu; liikkuu-tietoa ei ole tässä)
     const avain = tx + ',' + ty; if (avain === wasdMaali) return;
     if (kavele(tx, ty)) wasdMaali = avain;
   };
   const wasdAjastin = setInterval(() => { try { wasdTick(); } catch (x) {} }, 100);
+  // ---- kohde 7 (kp 18:22 "hahmo ei pyöri siis hiiren suuntaa" · "niinku og shooteris"): hahmo kääntyy hiiren suuntaan. shooter-1.15.2.user.js:
+  //   hiirenKulma :2193 (8 suuntaa: round(atan2(dx,-dy)/45)*45), kääntösilmukka setInterval 30 ms :2194-2203, paikallinen käännös :2201-2202
+  //   (o.setDirection(new d.constructor(k, d.y, d.z)); o.model.setValue('head_direction', k)). Ehdot sellaisenaan: ei kun WASD pidossa (paitsi seinää vasten, wasdEste),
+  //   ei kuolleena (kavelyEstoAsti), uusi lähetys vain jos kulma vaihtuu tai hahmon oikea suunta eroaa (viimeKatse, 50 / 400 ms).
+  //   EI KOPIOITU: lahetaPaketti(3301, ...) (katsepaketti palvelimelle; paketit kielletty, testi G1) -> käännös on vain tällä clientilla (shooter :1804: palvelimen seuraava tilaviesti korjaa),
+  //   muut eivät näe suuntaa. wasdIrti (shooter :2194 350 ms) on shooterissa aina 0 (ei koskaan asetettu) -> jätetty pois.
+  let viimeKatse = null, viimeKatseAika = 0;
+  const hiirenKulma = () => { const h = hiirenVektori(null, null, omaPaikka()); return h ? ((Math.round(Math.atan2(h.dx, -h.dy) * 180 / Math.PI / 45) * 45) % 360 + 360) % 360 : null; };   // shooter :2193
+  const katseTick = () => {
+    if (!aseAktiivinen() || Date.now() < kavelyEstoAsti || (pidetyt.size && !wasdEste)) return;   // shooter :2194 (ohjausOn, kuollut, pidetyt)
+    const k = hiirenKulma(); if (k == null || Date.now() - viimeKatseAika < 50) return;
+    const minä = omaPaikka(); if (!minä) return;
+    let o = null, d = null; try { o = e.getRoomObject(huone, minä.i, 100); d = o && o.getDirection(); } catch (x) {} if (!o || !d) return;
+    if (k === viimeKatse && (d.x == null || d.x === k || Date.now() - viimeKatseAika < 400)) return;   // shooter :2198 (minä.suunta = hahmon oikea suunta)
+    try { o.setDirection(new d.constructor(k, d.y, d.z)); o.model.setValue('head_direction', k); viimeKatse = k; viimeKatseAika = Date.now(); tilasto.katse = (tilasto.katse || 0) + 1; } catch (x) {}   // shooter :2201-2202
+  };
+  const katseAjastin = setInterval(() => { try { katseTick(); } catch (x) {} }, 30);   // shooter :2203
   const onKentta = el => !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
   const chatPois = () => { chatTila = false; try { if (onKentta(document.activeElement)) document.activeElement.blur(); } catch (x) {} try { hudPaivita(); } catch (x) {} };
   // Vaihe 1c (kp 17:02 "nyt täs ei oo sitä vaihtoo chatin ja pelin välil" · "eli ei voi kirjottaa wasd kontrollien takii samalla"):
@@ -3398,7 +3417,7 @@ AMMUNTA = (() => {
   const sulje = () => {
     kameraSuljettu = true; if (window.__zombitKameraFn === kameraLukitse) { window.__zombitKameraFn = null; window.__zombitKameraAkt = null; }   // kääre jää, mutta ei tee mitään
     if (hudEl && hudEl.remove) hudEl.remove();
-    clearInterval(wasdAjastin); autoPois();
+    clearInterval(wasdAjastin); clearInterval(katseAjastin); autoPois();
     removeEventListener('keydown', nappain, true); removeEventListener('keyup', nosto, true); removeEventListener('blur', blur);
     for (const t of HIIRI_T) removeEventListener(t, hiiri, true);
     for (const r of ruumiit.values()) { try { e.removeRoomObjectUser(huone, r.g); } catch (x) {} SAILO.piirretytIdt.delete(r.g); }
@@ -3414,6 +3433,7 @@ AMMUNTA = (() => {
     purema, paranna, kontaktiKerroin, nollaaKontakti, hp: () => AM.hp, wasd: { pidetyt, tick: wasdTick, nappain, nosto }, hiiri,
     vuoroTick, vuoroPyyda, vuoroVastaanota, vuoro: () => VT.vu, VT, vuoroSallii, aseKaytossa: aseAktiivinen, vuoroTeksti,
     omaHpPalkki,
+    katse: { tick: katseTick, kulma: hiirenKulma },
     este: { esteMatka, esteKartta, peitossa, peittoLaatikot, lentoZ, kamera },   // kohde 1 (testausta varten, kuten shooter :1018 __kshEste)
     // vaihe 1c
     hpPalkit, kasiin, kasi: () => AM.kasiNyt, kameraAktiivinen, kameraLukitse, kameraVaihda, hudPaivita, hudTila, chat: () => chatTila, vaihdaAse };
