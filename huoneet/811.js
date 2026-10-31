@@ -24,7 +24,7 @@ const OHJEET = [   // sona 15:42 "yksi pelaaja kerrallaan pelaa zombie rataa yks
   'Rata on läpäisty, kun olet tappanut 25 zombia.',
 ];
 // Ohjaus kuvina (sona 15:43 "WASD-liikutaan ja hiirellä ammutaan" · 15:45 "divit joissa on wasd kirjaimet jotka kuvastaa suuntaa ja hiiren kuva ja pyssy")
-const OHJAUS_LIIKE = 'Liiku', OHJAUS_AMMU = 'Ammu (vasen nappi)', OHJAUS_HUOM = 'Kuten Kupla Shooterissa.';
+const OHJAUS_LIIKE = 'Liiku', OHJAUS_AMMU = 'Ammu (vasen nappi)', OHJAUS_HUOM = '';   // sona 16:00 poisti 'Kuten Kupla Shooterissa.'
 const HIIRI_SVG = '<svg width="38" height="54" viewBox="0 0 38 54"><rect x="2" y="2" width="34" height="50" rx="17" fill="none" stroke="currentColor" stroke-width="2.5"/>'
   + '<path d="M19 2 V22 M2 22 H36" stroke="currentColor" stroke-width="2"/><path d="M3.5 20 V19 A15.5 15.5 0 0 1 17.8 3.5 H18 V20 Z" fill="#ff5a4f"/></svg>';
 const ASE_SVG = '<svg width="58" height="36" viewBox="0 0 58 36"><path d="M4 8 H50 V6 H54 V16 H24 L21 32 H10 L13 16 H4 Z" fill="currentColor"/>'
@@ -61,7 +61,7 @@ const ohjausKuva = () => {
   box.appendChild(sarake(wasd, OHJAUS_LIIKE)); box.appendChild(sarake(ammu, OHJAUS_AMMU));
   const kaikki = document.createElement('div'); kaikki.appendChild(box);
   const h = document.createElement('div'); h.textContent = OHJAUS_HUOM; h.style.cssText = 'margin-top:5px;font-size:11px;color:' + V.himmea + ';text-align:center';
-  kaikki.appendChild(h); return kaikki; };
+  if (OHJAUS_HUOM) kaikki.appendChild(h); return kaikki; };
 
 const piirra = () => {
   if (!sisalto) return;
@@ -120,7 +120,7 @@ const rakenna = () => {
     + 'background:' + V.tausta + ';border:1px solid ' + V.reuna + ';border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.6);font:13px sans-serif;color:' + V.teksti + ';user-select:none';
   const ots = document.createElement('div');
   ots.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:7px 10px;font-weight:bold;letter-spacing:.5px;color:' + V.korostus + ';cursor:move;touch-action:none';
-  const ot = document.createElement('span'); ot.textContent = OTSIKKO;
+  const ot = document.createElement('span'); ot.textContent = '🎃 ' + OTSIKKO + ' 💀';   // sona 16:00 "halloween teemaisia koristeita kuten verta, pääkalloja ja kurpitsoja"
   pieni = document.createElement('div');
   pieni.style.cssText = 'cursor:pointer;font-size:17px;line-height:14px;color:' + V.himmea + ';padding:0 4px;touch-action:manipulation';
   pieni.addEventListener('pointerdown', ev => ev.stopPropagation());
@@ -143,6 +143,15 @@ const rakenna = () => {
     tabit.push(t); rivi.appendChild(t); });
   sisalto = document.createElement('div'); sisalto.style.cssText = 'padding:10px 12px 12px;border-top:1px solid ' + V.reuna + ';min-height:120px';
   ikkuna.appendChild(ots); ikkuna.appendChild(rivi); ikkuna.appendChild(sisalto);
+  // Koristeet (sona 16:00): veripisarat otsikon alareunasta + kurpitsa ja pääkallo alakulmissa. pointer-events:none, eivät estä klikkauksia.
+  const veri = document.createElement('div');
+  veri.style.cssText = 'position:absolute;left:0;right:0;top:30px;height:22px;pointer-events:none;overflow:hidden';
+  veri.innerHTML = '<svg width="100%" height="22" viewBox="0 0 300 22" preserveAspectRatio="none"><path fill="#8b0000" d="M0 0 H300 V3'
+    + ' Q292 3 290 9 Q288 15 286 9 Q284 3 262 3 Q258 3 257 14 Q256 21 254 14 Q253 3 215 3 Q211 3 210 7 Q209 11 207 7 Q206 3 160 3'
+    + ' Q156 3 155 16 Q154 22 152 16 Q151 3 98 3 Q94 3 93 8 Q92 12 90 8 Q89 3 48 3 Q44 3 43 12 Q42 18 40 12 Q39 3 14 3 Q10 3 9 6 Q8 9 6 6 Q5 3 0 3 Z"/></svg>';
+  const kulma = (merkki, puoli) => { const k = document.createElement('div'); k.textContent = merkki;
+    k.style.cssText = 'position:absolute;bottom:-9px;' + puoli + ':-8px;font-size:20px;pointer-events:none;filter:drop-shadow(0 1px 2px rgba(0,0,0,.7))'; return k; };
+  ikkuna.appendChild(veri); ikkuna.appendChild(kulma('🎃', 'left')); ikkuna.appendChild(kulma('💀', 'right'));
   ikkuna.addEventListener('pointerdown', ev => ev.stopPropagation());
   document.body.appendChild(ikkuna);
   pienenna(false);
