@@ -2052,12 +2052,16 @@ const omaRuutu = () => {
   return L ? { i, x: Math.round(L.x), y: Math.round(L.y) } : null;
 };
 let kuolemaKaynnissa = 0, safeIlmoitettu = 0, omaViimeSyoK = -1, odottavaKuolema = null, kavelyEstoAsti = 0, kavelyH = null, kavelyAlkup = null, kavelyOma = null;
+// 811 (kp 31.10. "kuollessa pystyy kävelee"): shooter pitää kuolleena kävelyn, ammunnan ja klikit poissa koko kuollutAsti-ajan (shooter-1.15.2 :1043 ammu, :2081 wasdTick, :2210 pelikankaalle),
+//   tässä kuolema + makuu (kavelyEstoAsti) PLUS odotus lopetus-teleporttiin (kuolemaLukkoAsti): vapautuu kun oma ruutu vaihtuu makuun jälkeen, uusi vuoro alkaa tai varaaika kuluu. Vain jos AMMUNTA (811); 684 ei aseta.
+let kuolemaLukkoAsti = 0, kuolemaLukkoRuutu = null;
+const kuolemaLukossa = (nyt) => nyt < kavelyEstoAsti || nyt < kuolemaLukkoAsti;
 const asennaKavelyEsto = () => {
   try {
     const h = e && e.objectEventHandler; if (!h || typeof h.sendWalkUpdate !== 'function') return;
     if (kavelyH === h && h.sendWalkUpdate === kavelyOma) return;
     const alkup = h.sendWalkUpdate;
-    kavelyOma = function (...a) { if (Date.now() < kavelyEstoAsti) return; return alkup.apply(this, a); };
+    kavelyOma = function (...a) { if (kuolemaLukossa(Date.now())) return; return alkup.apply(this, a); };
     h.sendWalkUpdate = kavelyOma; kavelyH = h; kavelyAlkup = alkup;
   } catch (x) {}
 };
@@ -2093,7 +2097,7 @@ const kuole = (syy, kaappari) => {
   const o = omaRuutu();
   if (o && o.i != null && makuuMs > 0) asetaHahmonAsento(o.i, 'lay');
   // 811 (ASETUS.salasana tyhjä, ei wiredejä): kuolema = makuu + run päättyy (AMMUNTA.omaKuolema), hahmo jää paikalleen eikä mitään sanota.
-  if (!String(ASETUS.salasana || '').trim()) { try { if (AMMUNTA) AMMUNTA.omaKuolema(); } catch (x) {} }
+  if (!String(ASETUS.salasana || '').trim()) { try { if (AMMUNTA) { kuolemaLukkoAsti = nyt + makuuMs + 300 + Math.max(1000, Number(ASETUS.kuolemaLukkoMaxMs) || 12000); kuolemaLukkoRuutu = o ? { x: o.x, y: o.y } : null; AMMUNTA.omaKuolema(); } } catch (x) {} }
   const laheta = () => {
     const o2 = omaRuutu() || o;
     if (!String(ASETUS.salasana || '').trim()) {
@@ -3001,6 +3005,10 @@ AMMUNTA = (() => {
     if (vu && vu.vaihe === 0 && tMs >= vu.alku) { vu.vaihe = 1; lokiin({ vuoro: 'peli alkoi', id: vu.id, nro: vu.nro }); }   // kaikki: sama alku-aika
     ASETUS.kohteet = vu && vu.vaihe === 1 ? [vu.id] : [];
     const s = vuoroSallii(); if (viimeSallii !== null && s !== viimeSallii) blur(); viimeSallii = s;   // ase pois / päälle kesken: pidetyt napit nollaan
+    if (kuolemaLukkoAsti) {   // vapautus: varaaika, uusi vuoro, tai oma ruutu vaihtunut makuun jälkeen (= lopetus-teleportti)
+      const n2 = Date.now(), o2 = (P || []).find(q => q && q.id === omaId());
+      if (n2 >= kuolemaLukkoAsti || (VT.vu && VT.vu.id === omaId() && VT.omaNro && VT.vu.nro !== VT.omaNro) || (n2 >= kavelyEstoAsti && kuolemaLukkoRuutu && o2 && (o2.x !== kuolemaLukkoRuutu.x || o2.y !== kuolemaLukkoRuutu.y))) { kuolemaLukkoAsti = 0; kuolemaLukkoRuutu = null; }
+    }
     omaVuoro(P);
     omaLoppu(P);
   };
@@ -3275,7 +3283,7 @@ AMMUNTA = (() => {
   const ammuSuuntaan = (dx, dy, cIn) => {
     const nyt = Date.now(), w = (ASETUS.ase && ASETUS.ase.valittu) || 'luoti', A = aseNyt();
     if (nyt - viimeLaukaus < Math.max(0, Number(A.cd) || 400)) return { syy: 'cooldown' };
-    if (nyt < kavelyEstoAsti) return { syy: 'makaa' };   // kuolemamakuun aikana ei ammuta
+    if (kuolemaLukossa(nyt)) return { syy: 'makaa' };   // kuolemamakuun aikana ei ammuta
     if (!vuoroSallii()) return { syy: 'ei vuoroa' };      // 811 vuoro: vain vuoron pelaaja ampuu
     const minä = omaPaikka(); if (!minä || !(Math.hypot(dx, dy) > 0)) return { syy: 'ei paikkaa' };
     const l = Math.hypot(dx, dy); dx /= l; dy /= l;
@@ -3480,7 +3488,7 @@ AMMUNTA = (() => {
   let wasdEste = false;   // shooter :2051 wasdEste (kävelyn este: seinää vasten seistessä katse vapaana)
   const wasdTick = () => {
     wasdEste = false;   // shooter :2079
-    if (!aseAktiivinen() || chatTila || !pidetyt.size || Date.now() < kavelyEstoAsti) { wasdMaali = null; return; }
+    if (!aseAktiivinen() || chatTila || !pidetyt.size || kuolemaLukossa(Date.now())) { wasdMaali = null; return; }
     const A = aseNyt(); if (veto && !(A.hidasKavely || A.lataus)) { wasdMaali = null; return; }   // shooter 1.7.6 / 1.10.17
     let dx = 0, dy = 0; for (const k of pidetyt) { dx += WASD[k][0]; dy += WASD[k][1]; }
     dx = Math.sign(dx); dy = Math.sign(dy); if (!dx && !dy) { wasdMaali = null; return; }
@@ -3503,7 +3511,7 @@ AMMUNTA = (() => {
   // kp 18:33 "lähetetään se omaa kanavaa pitkin": suunta muille SYNK-kanavalla (raakapaketti 3301 ei löydy kaikilta, istunnossa ei ole yhteyttä).
   const lahetaKatse = (minä, k) => { try { return SYNK.lahetaKatse(k); } catch (x) { return false; } };
   const katseTick = () => {
-    if (!aseAktiivinen() || Date.now() < kavelyEstoAsti || (pidetyt.size && !wasdEste)) return;   // shooter :2194 (ohjausOn, kuollut, pidetyt)
+    if (!aseAktiivinen() || kuolemaLukossa(Date.now()) || (pidetyt.size && !wasdEste)) return;   // shooter :2194 (ohjausOn, kuollut, pidetyt)
     const k = hiirenKulma(); if (k == null || Date.now() - viimeKatseAika < 50) return;
     const minä = omaPaikka(); if (!minä) return;
     let o = null, d = null; try { o = e.getRoomObject(huone, minä.i, 100); d = o && o.getDirection(); } catch (x) {} if (!o || !d) return;
@@ -3567,7 +3575,7 @@ AMMUNTA = (() => {
     if (chatTila) chatPois();
     hiiriX = ev.clientX; hiiriY = ev.clientY;
     const A = aseNyt();
-    if (A.veto) { if (!veto && Date.now() >= kavelyEstoAsti) veto = { t0: Date.now() }; return; }
+    if (A.veto) { if (!veto && !kuolemaLukossa(Date.now())) veto = { t0: Date.now() }; return; }
     ammu(ev.clientX, ev.clientY);
     if (A.auto && !autoT) autoT = setInterval(() => { if (!aseAktiivinen() || !aseNyt().auto) return autoPois(); ammu(); }, 40);
   };
