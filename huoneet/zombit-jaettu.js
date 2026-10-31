@@ -2655,7 +2655,7 @@ AMMUNTA = (() => {
   // shooter :829 vahinkoPohja (asetus.vahinko = 1): täysi miekka lapiVahinko · jousen lataus lineaarisesti · pistoolin lineaari etäisyydestä
   const vahinkoOf = (A, c, d) => {
     if (A.lapiVahinko && c != null && +c >= 1) return A.lapiVahinko;
-    if (A.lataus && c != null && isFinite(c)) { const q = Math.max(0, Math.min(1, +c)); return A.lataus[0] + (A.lataus[1] - A.lataus[0]) * q; }
+    if (A.lataus && c != null && isFinite(c)) { const q = Math.max(0, Math.min(1, +c)); if (q >= 1) return Math.max(A.lataus[1], zHpMax());   /* kp 19:30 täysi veto tappaa yhdellä */ return A.lataus[0] + (A.lataus[1] - A.lataus[0]) * q; }
     if (A.lineaari && d != null && isFinite(d)) { const [a0, L] = A.lineaari; return Math.max(0, a0 * (1 - Math.max(0, +d) / L)); }
     return Number(A.vahinko) || 12.5;
   };
