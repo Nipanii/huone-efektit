@@ -216,9 +216,25 @@ const rakenna = () => {
 
 for (const el of document.querySelectorAll('.h811-tulostaulu, .h811-nappi')) el.remove();   // skriptipäivitys: ei tuplaikkunaa (h811-nappi = mockup-1:n avausnappi)
 rakenna();
+
+// sona 16:41-16:44 "huoneen taustalle. Tuonne mustalle alueelle" · "Huoneen taakse tavallaan": tyhjiö on useRoomin valkoinen sprite
+//   tintillä 0x0A0A0A (master.children[0]); pixi itse on läpinäkyvä (backgroundAlpha 0). Sprite alpha 0 -> canvasin CSS-tausta näkyy
+//   huoneen takana. Mitattu robon clientissa 16:47 (tint 657930, punainen CSS näkyi). useRoom luo spriten uudelleen huoneen
+//   alustuksessa/uudelleenyhteydessä -> tarkistus 2 s välein.
+const TYHJIO_TINT = 0x0A0A0A;
+const tyhjio = () => { try { const e = window.NitroDevTools && window.NitroDevTools.roomEngine, cv = e && e.getRoomInstanceRenderingCanvas(e.activeRoomId, 1);
+  const bg = cv && cv.master && cv.master.children[0]; return bg && bg.tint === TYHJIO_TINT ? bg : null; } catch (e) { return null; } };
+const taustaCanvas = () => document.querySelector('.roomView-background > canvas');
+const veriTaakse = () => { const bg = tyhjio(), c = taustaCanvas(); if (!bg || !c) return;
+  if (bg.alpha !== 0) bg.alpha = 0;
+  if (!c.dataset.h811veri) { c.dataset.h811veri = '1'; c.style.background = VERI_TAUSTA + ' top left/300px auto repeat,#0a0a0a'; } };
+veriTaakse(); const veriAjastin = setInterval(veriTaakse, 2000);
+
 window.__h811 = { huone, pienenna, versio: 'mockup-3' };
 
 return () => {
+  clearInterval(veriAjastin);
+  { const bg = tyhjio(), c = taustaCanvas(); if (bg) bg.alpha = 1; if (c && c.dataset.h811veri) { c.style.background = ''; delete c.dataset.h811veri; } }
   if (ikkuna) ikkuna.remove();
   ikkuna = sisalto = rivi = pieni = null; vedto = null;
   if (window.__h811 && window.__h811.huone === huone) delete window.__h811;

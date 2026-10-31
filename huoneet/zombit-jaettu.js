@@ -2689,7 +2689,7 @@ AMMUNTA = (() => {
     const vu = VT.vu, nyt = Date.now();
     if (vu && vu.vaihe === 0 && vu.alku - nyt > Math.max(0, Number((VA() || {}).laskentaMs ?? 5000))) return { rivi1: 'Pelaaja ' + (vu.nimi || nimiId(vu.id) || vu.id), rivi2: '' };   // siirtovaihe
     if (vu && vu.vaihe === 0) return { rivi1: 'Peli alkaa', rivi2: String(Math.max(1, Math.min(5, Math.ceil((vu.alku - nyt) / 1000)))) };
-    if (vu) { const n = vu.id === omaId() ? omaTapot() : ((AM.pisteet[vu.id] || {}).tapot | 0); return { rivi1: 'Pelaaja ' + (vu.nimi || nimiId(vu.id) || vu.id) + ' pisteet ' + n, rivi2: '' }; }
+    if (vu) { const n = vu.id === omaId() ? omaTapot() : ((AM.pisteet[vu.id] || {}).tapot | 0); return { rivi1: 'Pelaaja ' + (vu.nimi || nimiId(vu.id) || vu.id) + ' pisteet ' + n, rivi2: '', osat: [['Pelaaja ', 0], [String((vu.nimi || nimiId(vu.id) || vu.id)), 1], [' pisteet ', 0], [String(n), 1]] }; }   // sona 17:01 nimi ja pisteet paksummalla
     const vv = VT.viimeinen;
     if (vv && VT.naytaLoppu === vv.nro && nyt < (VT.loppuAsti || 0)) {
       const t = [...AM.tulokset].reverse().find(q => q && q.id === vv.id); return { rivi1: 'Peli päättyi: ' + (vv.nimi || vv.id) + ' ' + (t ? t.tapot : 0) + ' pistettä', rivi2: '' };
@@ -2706,11 +2706,18 @@ AMMUNTA = (() => {
     if (!vEl) {
       vEl = document.createElement('div'); if (vEl.setAttribute) vEl.setAttribute('data-zombit-vuoro', String(huone));
       if (vEl.style) vEl.style.cssText = 'position:fixed;left:50%;top:7%;transform:translateX(-50%);z-index:99998;pointer-events:none;text-align:center;'
-        + 'color:#fff;font:900 30px/1.15 Impact,"Arial Black",sans-serif;letter-spacing:2px;text-shadow:0 0 10px rgba(160,0,0,.9),0 3px 8px #000,0 0 3px #000;white-space:nowrap';
+        + 'color:#fff;font:600 26px/1.15 "Arial",sans-serif;letter-spacing:1px;text-shadow:0 2px 4px #000;white-space:nowrap;'
+        + 'background:rgba(26,10,12,.88);border:2px solid #6e1f26;border-radius:10px;padding:8px 20px;box-shadow:0 3px 12px rgba(0,0,0,.7)';   // sona 17:01 "taustalle laatikko"
     }
     if (vEl.parentNode !== document.body && document.body.appendChild) document.body.appendChild(vEl);
     const sis = t.rivi1 + (t.rivi2 ? '\n' + t.rivi2 : '');
-    if (vEl.textContent !== sis) { vEl.textContent = sis; if (vEl.style) { vEl.style.whiteSpace = 'pre'; vEl.style.fontSize = t.rivi2 ? '34px' : '28px'; } }
+    if (vEl.dataset ? vEl.dataset.sis !== sis : vEl.textContent !== sis) {
+      if (vEl.dataset) vEl.dataset.sis = sis;
+      if (t.osat && vEl.appendChild) { vEl.textContent = '';   // sona 17:01: nimi ja pisteet paksummalla, muu teksti ohuempi
+        for (const [teksti, paksu] of t.osat) { const sp = document.createElement('span'); sp.textContent = teksti;
+          if (paksu && sp.style) sp.style.cssText = 'font:900 30px/1.15 Impact,"Arial Black",sans-serif;letter-spacing:2px;color:#ffb347'; vEl.appendChild(sp); } }
+      else vEl.textContent = sis;
+      if (vEl.style) { vEl.style.whiteSpace = 'pre'; vEl.style.fontSize = t.rivi2 ? '34px' : '26px'; vEl.style.fontWeight = t.osat ? '600' : '900'; } }
     if (vEl.style) vEl.style.display = '';
     VT.naytto = sis;
   };
