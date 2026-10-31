@@ -769,7 +769,8 @@ const valitseKohde = (z, dz, P, k, tMs, s0) => {
     const et = etaisyysPelaajaan(dz, p);
     if (et < 0) continue;   // yläkerroksessa tai muualla minne zombi ei pääse
     const raja = p.id === z.kohdeId ? meneta : huomaa;
-    if (et > raja) continue;   // näköpiirin ulkopuolella
+    // kp 19:24 "heti kun on este välissä ei enää targettaa": ammuttavassa näköpiiri mitataan suoraan, ei kävelyreittiä. Kävely kiertää esteen.
+    if ((ASETUS.ammuttava ? Math.min(et, Math.hypot(p.x - z.x, p.y - z.y)) : et) > raja) continue;   // näköpiirin ulkopuolella
     // Teleportannut (yli 3 ruutua tikissä = kuoli ja siirtyi ovelle, tai tuli huoneeseen) ei ole kohde ikkunan aikana.
     const l = liike(p.id); if (l.hyppy > 3) continue;
     const m = l.s;
