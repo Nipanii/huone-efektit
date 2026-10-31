@@ -174,7 +174,7 @@ const HUONEET = {
       siirtoMs: 2000,         // sona 16:59 "Ensin siirto ja sitten PELI ALKAA 5-1": aloitusSana + teleport ennen laskentaa
       lepoMs: 4000,           // edellisen pelin loputtua näin kauan ennen seuraavaa (tulos näkyy)
       poissaMs: 4000,         // vuoron pelaaja poissa huoneesta näin kauan -> vuoro päättyy
-      kavelyVaraMs: 3000,     // jos aloitusSanan jälkeen näin kauan ei olla aloitusruudussa: OMA kävely sinne (sendWalkUpdate, kuin lattiaklikkaus). null = pois
+      kavelyVaraMs: null,     // kohde 6 (kp 18:10 "ihan tyhmä toi et on toi autowalk"): varakävely POIS (oli 3000; arvo palauttaa sen). Jos aloitusSanan jälkeen näin kauan ei olla aloitusruudussa: OMA kävely sinne (sendWalkUpdate, kuin lattiaklikkaus). null = pois
       kasky: [1, 282, 281, 245],   // :aloitapeli / :lopetapeli sallittu (sama lista kuin :kuolematon). null = kaikille
       loppu: { x: 2, y: 2, furni: 511793 },   // sona 17:02: Matto 511793 @2,2 z 7.2 = lopetusSanan wired-teleportin kohde (jo siellä -> ei sanota)
       kamera: true,           // kp 17:01-17:02: L4K:n kameralukko (oma hahmo ruudun keskelle) vuoron pelaajalle koko vuoron ajan. Alt+K vaihtaa. false = pois
@@ -2686,7 +2686,10 @@ AMMUNTA = (() => {
   if (!Array.isArray(AM.vuoro.pyynnot)) AM.vuoro.pyynnot = [];
   const VT = AM.vuoro;
   const VA = () => ASETUS.vuoro || null;
-  const vuoroSallii = () => { if (!VA()) return true; const vu = VT.vu; return !!vu && vu.id === omaId() && vu.vaihe === 1; };
+  // kohde 6 (kp 18:09-18:10 "tos pelin alotuksessa toi peli HUD pitäs tulla heti" · "ei oo vaa ammuttavaa ennen ku peli alkaa" · "HUD heti etee" · "ja ase kätee"):
+  //   vuoron pelaajalla ase, HUD ja käsiesine (:handitem) ovat käytössä heti kun vuoro alkaa (vaihe 0: siirto + laskenta), eivät vasta vaiheessa 1. Ennen: vu.vaihe === 1.
+  //   Zombeja ei vaiheessa 0 vielä ole (ASETUS.kohteet = [] kunnes peli alkaa, nollaaPeli), joten ammuttavaa ei ole; osuman auktoriteettitarkistus (vaihe === 1) ennallaan.
+  const vuoroSallii = () => { if (!VA()) return true; const vu = VT.vu; return !!vu && vu.id === omaId(); };
   const nollaaPeli = () => {   // zombit pois ja aallot alkuun (ei automaattista uutta aaltoa: seuraava vuoro aloittaa)
     if (Array.isArray(SAILO.zombit)) SAILO.zombit.length = 0;
     AM.zhp.clear(); AM.aalto = { n: 0, k: 0, sp: 0, ku: 0, tauko: 0, alku: 0, seur: 0, idx: 0 };
