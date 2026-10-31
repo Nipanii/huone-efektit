@@ -162,7 +162,7 @@ const HUONEET = {
     // kp 16:03 "ei keksitä uudelleen niitä kun ne toimi jo hyvin": aallot ja syntypaikat Left 4 Kuplasta sellaisinaan (shooter-1.15.2.user.js:177-179
     //   zAloitus 6, zKasvu 3, zTaukoMs 6000; :1530-1546 zSynnyta/zAloitaAalto; :1507 zSyntyRuutu: valitut ruudut kiertäen, muuten oviruutu, muuten reunat).
     //   katto = samanaikaisten yläraja (L4K zKatto on johdettu SEN kanavan kaistasta; tässä maaraMax, koska snapshot kantaa kaikki zombit).
-    aallot: { aloitus: 10, kasvu: 5, taukoMs: 6000, alkuMs: 1500, katto: 16, syntyRuudut: [],   // kp 18:55 "tarvitaan enemmän": oli 6, 3, 8
+    aallot: { aloitus: 20, kasvu: 5, taukoMs: 6000, alkuMs: 1500, katto: 24, syntyRuudut: [],   // kp 18:55, 19:59 "lisää heti ekaan aaltoon": oli 6, 3, 8
       // kp 16:28 "zombeja pitää spawnata myös oikeesta portittomasta päästä": puolet kiertävät synty synnyltä (ovi, oikea pää, ovi, ...).
       //   Oikea pää = tie cpunk_c15_road (811-kopio.json: esineet x 38/40, y 13..17, z 0) sarakkeessa x 41; ensimmäinen kävelykelpoinen kelpaa.
       //   Ei-kävelykelpoinen puoli (esim. ovi korokkeella) ohitetaan ja käytetään seuraavaa.
