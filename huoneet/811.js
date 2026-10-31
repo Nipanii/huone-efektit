@@ -9,6 +9,7 @@ const huone = kupla.roomId();
 
 const OTSIKKO = 'Hallowen rata finaali';   // sona 15:27 'vaihdetaan 6/6 sanaksi finaali'
 const VALILEHDET = ['Highscores', 'Ohjeet'];
+const KORISTEET = false;   // sona 16:00 lisätty, 16:04 poistettu ("Ei ne sovikkaan"); koodi jätetty
 const NAKYVAT = 10;   // highscore-rivejä näkyvissä ilman vieritystä (sona 15:57)
 const MALLI_TULOKSET = [   // [nimi, pisteet = tapetut zombit, aika] — keksittyjä (sona 15:56 "25 pelaajaa ... keksittyjä suomalaisia etunimiä")
   ['Aino', 78, '06:41'], ['Eetu', 72, '06:12'], ['Helmi', 69, '07:03'], ['Onni', 65, '05:58'], ['Venla', 61, '06:30'],
@@ -86,7 +87,7 @@ const piirra = () => {
         tr.appendChild(td); }
       tbl.appendChild(tr); });
     // sona 15:57 "näkyy 10 pelaajaa, ja muuten pitää scrollata": korkeus mitataan otsikko + 10 riviä; otsikko pysyy ylhäällä; rulla ei mene pelille (zoom)
-    const rulla = document.createElement('div'); rulla.style.cssText = 'overflow-y:auto;overscroll-behavior:contain;scrollbar-color:#fff transparent';   // sona 16:03 "scrollaus bar:ista valkoinen"
+    const rulla = document.createElement('div'); rulla.style.cssText = 'overflow-y:auto;overscroll-behavior:contain;scrollbar-color:rgba(255,255,255,.5) transparent';   // sona 16:03 valkoinen · 16:04 "opacity 50"
     rulla.addEventListener('wheel', ev => ev.stopPropagation(), { passive: true });
     for (const th of otsRivi.children) th.style.cssText += ';position:sticky;top:0;background:' + V.tausta;
     rulla.appendChild(tbl); sisalto.appendChild(rulla);
@@ -104,7 +105,7 @@ const piirra = () => {
     // sona 15:57 '"Tavoite" otsikko ja siirrä leipäteksti sen alapuolelle. Ei boldia leipätekstillä.'
     if (tavoite.length) { const p = document.createElement('div');
       p.style.cssText = 'margin-top:10px;padding:8px 10px;color:#fff;background:' + V.valittu + ';border:1px solid ' + V.korostus + ';border-left:4px solid ' + V.korostus + ';border-radius:5px';
-      const o = document.createElement('div'); o.textContent = 'Tavoite'; o.style.cssText = 'font-weight:bold;font-size:14px;color:' + V.korostus + ';margin-bottom:3px'; p.appendChild(o);
+      const o = document.createElement('div'); o.textContent = 'TAVOITE'; o.style.cssText = 'font-weight:bold;font-size:14px;letter-spacing:.5px;color:' + V.korostus + ';margin-bottom:8px'; p.appendChild(o);   // sona 16:04 "padding ja all caps"
       for (const r of tavoite) { const t = document.createElement('div'); t.textContent = r.replace(/^Tavoite:\s*/, '').replace(/^./, c => c.toUpperCase()); t.style.cssText = 'font-weight:normal;font-size:13px;margin-top:' + (p.childElementCount > 1 ? 8 : 2) + 'px'; p.appendChild(t); }   // sona 16:02 "lisää paddingiä näiden tekstien väliin"
       sisalto.appendChild(p); }
   }
@@ -120,7 +121,7 @@ const rakenna = () => {
     + 'background:' + V.tausta + ';border:1px solid ' + V.reuna + ';border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.6);font:13px sans-serif;color:' + V.teksti + ';user-select:none';
   const ots = document.createElement('div');
   ots.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:7px 10px;font-weight:bold;letter-spacing:.5px;color:' + V.korostus + ';cursor:move;touch-action:none';
-  const ot = document.createElement('span'); ot.textContent = '🎃 ' + OTSIKKO + ' 💀';   // sona 16:00 "halloween teemaisia koristeita kuten verta, pääkalloja ja kurpitsoja"
+  const ot = document.createElement('span'); ot.textContent = OTSIKKO;   // sona 16:04 poisti koristeet ("Ei ne sovikkaan")
   pieni = document.createElement('div');
   pieni.style.cssText = 'cursor:pointer;font-size:17px;line-height:14px;color:' + V.himmea + ';padding:0 4px;touch-action:manipulation';
   pieni.addEventListener('pointerdown', ev => ev.stopPropagation());
@@ -151,7 +152,7 @@ const rakenna = () => {
     + ' Q156 3 155 16 Q154 22 152 16 Q151 3 98 3 Q94 3 93 8 Q92 12 90 8 Q89 3 48 3 Q44 3 43 12 Q42 18 40 12 Q39 3 14 3 Q10 3 9 6 Q8 9 6 6 Q5 3 0 3 Z"/></svg>';
   const kulma = (merkki, puoli) => { const k = document.createElement('div'); k.textContent = merkki;
     k.style.cssText = 'position:absolute;bottom:-9px;' + puoli + ':-8px;font-size:20px;pointer-events:none;filter:drop-shadow(0 1px 2px rgba(0,0,0,.7))'; return k; };
-  ikkuna.appendChild(veri); ikkuna.appendChild(kulma('🎃', 'left')); ikkuna.appendChild(kulma('💀', 'right'));
+  if (KORISTEET) { ikkuna.appendChild(veri); ikkuna.appendChild(kulma('🎃', 'left')); ikkuna.appendChild(kulma('💀', 'right')); }
   ikkuna.addEventListener('pointerdown', ev => ev.stopPropagation());
   document.body.appendChild(ikkuna);
   pienenna(false);
