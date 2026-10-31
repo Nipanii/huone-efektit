@@ -2840,16 +2840,23 @@ AMMUNTA = (() => {
     if (ASETUS.aidat && Array.isArray(snap.ai)) {
       const AT = aitaTila();
       if (AT && Array.isArray(snap.ai[0])) {
-        const vanhaTuhCount = AT.tuhoutuneetIds.size;
+        let aitaMuuttui = false;
         for (let i = 0; i < snap.ai[0].length && i < AT.palat.length; i++) {
           AT.palat[i].hp = Number(snap.ai[0][i]) || 0;
           if (AT.palat[i].hp <= 0) {
+            if (!AT.tuhoutuneetIds.has(AT.palat[i].id)) aitaMuuttui = true;
             AT.tuhoutuneetIds.add(AT.palat[i].id);
             AT.tuhoutuneetRuudut.add(AT.palat[i].x + ',' + AT.palat[i].y);
+          } else if (AT.tuhoutuneetIds.has(AT.palat[i].id)) {
+            // kp 20:16 "aidoilta puuttuu health bar kokonaa": johtaja nollasi portit (nollaaAidat) -> seuraajan tuhoutuneet-joukko tyhjenee myös
+            //   (ennen vain lisättiin: gateHpPalkit "tuhoutuneita > 0 -> ei palkkeja" piilotti palkit seuraajalta kaikista myöhemmistä peleistä)
+            aitaMuuttui = true; AT.tuhoutuneetIds.delete(AT.palat[i].id); AT.tuhoutuneetRuudut.delete(AT.palat[i].x + ',' + AT.palat[i].y);
+            try { for (const o of e.getRoomObjects(huone, 10) || []) { if (!o || o.id !== AT.palat[i].id) continue;
+              for (const q of (o.visualization && o.visualization.sprites) || []) if (q.alpha === 0) { q.alpha = 255; if (q.increaseUpdateCounter) q.increaseUpdateCounter(); } } } catch (x) {}
           }
         }
         AT.iskut = snap.ai[1] | 0;
-        if (AT.tuhoutuneetIds.size !== vanhaTuhCount) {
+        if (aitaMuuttui) {
           kitEsteMuisti = null;
           if (ruudukko) { const uusiR = rakenna(); if (uusiR && uusiR.ruudut.length) ruudukko = uusiR; }
         }
