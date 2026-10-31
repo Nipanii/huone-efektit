@@ -185,6 +185,10 @@ const HUONEET = {
     // url null: VPS-varakanavan polku /r/z684 on 684:n; 811:lle ei arvata polkua. Ilman kuplaScriptsiä 811 = paikallinen simulaatio.
     synkka: { aihe: 'z811.synk', url: null },
     eiKohteena: [],   // vuoro rajaa kohteet vuoron pelaajaan (ASETUS.kohteet); robo 245 voi olla testipelaaja :aloitapeli-komennolla
+    // kp "tarvitaan ne health kit random spawnit tänne": ensiapukitit pelin aikana (vuoron vaihe 1). Arvot sellaisenaan shooter-1.15.2.user.js:153-154
+    //   (ASETUS_OLETUS kitValiMs 20000, kitMax 2, kitIkaMs 60000, kitHp 50); logiikka :930-955 (spawn/poiminta), piirto :1876-1902. Vaatii kiinnijaanti 'hp'.
+    //   Puuttuva kitit = ei ensiapuja (684: null, ASETUS.kitit alempana).
+    kitit: { valiMs: 20000, max: 2, ikaMs: 60000, hp: 50 },
   },
 };
 // Huone 817 "Rata 6 B" = 811 levennettynä (kp 31.10. 16:10-17:31 "valmistele siirto 817:ään eli samat scriptit toimimaan siellä"): sama peli, kaikki ruudut x+12, y+12
@@ -218,6 +222,7 @@ ASETUS.aallot = null;   // 684: ei aaltoja (zombimäärä laskeMaara(P), tapettu
 ASETUS.ammuttava = false; ASETUS.teleKuolema = true; ASETUS.muuttunutKuolemasta = true; ASETUS.salaisetSanat = []; ASETUS.tappoRaja = 25;
 ASETUS.aloitusSana = ''; ASETUS.lopetusSana = ''; ASETUS.vuoro = null; ASETUS.safeHouse = null; ASETUS.aidat = null;   // 684: ei safe housea (811: HUONEET[811].safeHouse)   // 684: ei vuoroja eikä aloitussanaa (811: HUONEET[811])
 ASETUS.synkka.aihe = 'z684.synk';
+ASETUS.kitit = null;   // 684: ei ensiapukitteja (811/817: HUONEET[huone].kitit { valiMs, max, ikaMs, hp })
 // Aseet 811:ssä = Left 4 Kuplan aseet SELLAISENAAN (kp 16:02 "otetaan vanha bow ja gun ampumis nopeus siten miten ne oli jo tehty" ·
 //   "sword voi kans pitää sellasenaan"): arvot shooter-1.15.2.user.js:505-509 (asetus.vahinko = 1). Zombin HP 60 = shooter :177 zHp.
 //   m 'p' = lentävä ammus (nopeus ruutua/s, lento = kantama), 'h' = hitscan. veto = jännitys painettaessa, laukeaa irrotettaessa (lataus 0..1).
@@ -2418,6 +2423,14 @@ const SYNK = (() => {
     if (!auki()) return false;
     osumaJono.push({ msg, seuraava: Date.now() + 400, yritys: 0 }); return true;
   };
+  // 811 ensiapukitit (shooter :942 laheta({ a: 'p', i })): vuoron pelaaja otti kitin -> johtajalle t:'kitti'. Sama jono ja uusinta kuin osumalla; johtaja on idempotentti (kitti on tai ei ole).
+  const lahetaKitti = (i) => {
+    const msg = { t: 'kitti', id: omaId(), i: String(i).slice(0, 14), K: SAILO.K };
+    if (!(msg.id > 0)) return false;
+    if (laheta(msg)) { tilasto.lahetettyKitti = (tilasto.lahetettyKitti || 0) + 1; return true; }
+    if (!auki()) return false;
+    osumaJono.push({ msg, seuraava: Date.now() + 400, yritys: 0 }); return true;
+  };
   const kasitteleKuolemat = (P, K) => {
     if (!SY.kuolemat.length || !ruudukko) return;
     const jono = SY.kuolemat.splice(0), nyt = Date.now(), tikki = Math.max(50, Number(ASETUS.tikki) || 250), tMs = K * tikki, s0 = perusSiemen(), omaI = omaIndeksi();
@@ -2479,6 +2492,8 @@ const SYNK = (() => {
     } else if (m.t === 'katse') {
     } else if (m.t === 'vuoro' && ASETUS.vuoro && AMMUNTA) {   // 811: vuoropyyntö; vain auktoriteetti käsittelee (vuoroTick)
       AMMUNTA.vuoroVastaanota(id, m); tilasto.vastaanotettuVuoro = (tilasto.vastaanotettuVuoro || 0) + 1;
+    } else if (m.t === 'kitti' && ASETUS.kitit && AMMUNTA) {   // 811 ensiapukitit: vuoron pelaaja otti kitin; vain auktoriteetti poistaa sen (snapshotin ki vie poiston muille)
+      AMMUNTA.kittiVastaanota(id, m); tilasto.vastaanotettuKitti = (tilasto.vastaanotettuKitti || 0) + 1;
     } else if (m.t === 'kuoli' && isFinite(m.x) && isFinite(m.y)) {   // oma kaiku on jo suodatettu (id === omaId) ylempänä
       SY.kuolemat.push({ id, x: Math.round(m.x), y: Math.round(m.y), su: m.su, K: m.K, zn: m.zn, saapui: nyt });
       if (SY.kuolemat.length > 16) SY.kuolemat.shift();
@@ -2602,7 +2617,7 @@ const SYNK = (() => {
       sykkeet: [...SY.sykkeet].map(([id, h]) => ({ id, ikaMs: nyt - h.t, valmisIkaMs: h.tv ? nyt - h.tv : null })), ...tilasto,
     };
   };
-  return { seuraa, johtajaId, kasitteleSnap, kasitteleKuolemat, lahetaKuolema, lahetaOsuma, lahetaVuoro, lahetaKatse, lahetaLaukaus, kaynnista, sulje, tiedot, snapLaheta, omaksuSnap, rakennaSnap };
+  return { seuraa, johtajaId, kasitteleSnap, kasitteleKuolemat, lahetaKuolema, lahetaOsuma, lahetaVuoro, lahetaKitti, lahetaKatse, lahetaLaukaus, kaynnista, sulje, tiedot, snapLaheta, omaksuSnap, rakennaSnap };
 })();
 tila.synkka = SYNK.tiedot; tila._synk = SYNK;
 
@@ -2753,6 +2768,7 @@ AMMUNTA = (() => {
   const kasittele = (P, K) => {
     const nyt = Date.now();
     healTick(nyt);
+    kitTick(nyt, P);   // ensiapukitit (811/817)
     for (const [n, v] of [...AM.odottavat]) if (nyt > v.asti) AM.odottavat.delete(n);
     for (const [a, asti] of [...AM.ennuste]) if (nyt > asti) { AM.ennuste.delete(a); tilasto.ennusteVanheni++; }
     for (const [a, v] of [...AM.hpEnn]) if (nyt > v.asti) AM.hpEnn.delete(a);
@@ -2819,6 +2835,7 @@ AMMUNTA = (() => {
   // seuraaja: pisteet, HP:t, tuoreet tapot (ruumis kaikille) ja päättyneet runit johtajan snapshotista
   const omaksu = (snap, P) => {
     vuoroOmaksu(snap);   // 811 vuoro: johtajan päätös voittaa
+    kitOmaksu(snap);   // ensiapukitit (ki) vuoron jälkeen: kitPeli() lukee VT:tä
     if (ASETUS.safeHouse && Array.isArray(snap.sh)) { const S = safeHouseTila(); if (S) { S.hp = Math.max(0, Number(snap.sh[0]) || 0); S.max = Math.max(1, Number(snap.sh[1]) || S.max); S.iskut = snap.sh[2] | 0; S.ix = snap.sh[3]; S.iy = snap.sh[4]; } }   // vaihe 1c
     if (ASETUS.aidat && Array.isArray(snap.ai)) {
       const AT = aitaTila();
@@ -2864,6 +2881,7 @@ AMMUNTA = (() => {
   };
   const snapLisaa = (snap) => {
     vuoroSnap(snap);   // 811 vuoro (vu, vn, vv)
+    kitSnapLisaa(snap);   // ensiapukitit (ki), vain jos ASETUS.kitit
     if (ASETUS.safeHouse) { const S = safeHouseTila(); if (S) snap.sh = [Math.round(S.hp * 10) / 10, S.max, S.iskut | 0, S.ix, S.iy]; }   // vaihe 1c
     if (ASETUS.aidat) { const AT = aitaTila(); if (AT) snap.ai = [AT.palat.map(p => Math.round(p.hp * 10) / 10), AT.iskut | 0]; }   // vaihe 1c
     const ta = {}, P = pelaajat(), lasna = new Set(P.map(p => p.id));
@@ -2884,6 +2902,91 @@ AMMUNTA = (() => {
   // vaihe 1c, sona 17:14 "Poista tuo 'Kaadoit zombin (x/25)' Ei sellasta käyttöliittymään ollenkaan.": ei tappoilmoitusta (pisteet näkyvät vuorokerroksessa).
   //   ASETUS.tappoIlmoitus === true palauttaa vanhan (oletus pois). AMMUNTA on vain ammuttavissa huoneissa (811) -> 684 ei muutu.
   const ilmoitaTappo = (t) => { tilasto.tappoIlmoitus = (tilasto.tappoIlmoitus || 0) + 1; if (ASETUS.tappoIlmoitus !== true) return; try { ilmoita(t === raja() ? 'LÄPI! ' + t + ' zombia' : t > raja() ? 'Kaadoit zombin (' + t + ')' : 'Kaadoit zombin (' + t + '/' + raja() + ')'); } catch (x) {} };
+
+  // ---- ENSIAPUKITIT (811/817, kp "tarvitaan ne health kit random spawnit tänne"). Kopio shooter-1.15.2.user.js:930-955 (kitTick) ja :1876-1902 (piirto);
+  //   ASETUS.kitit { valiMs, max, ikaMs, hp } = shooterin kitValiMs/kitMax/kitIkaMs/kitHp. Erot shooterista:
+  //   (a) jakaja = auktoriteetti() (johtaja tai yksin); kitit kulkevat snapshotin kentässä ki [[id, x, y, ikaMs]] eikä 'h'-viesteinä (kanavan raja 3 viestiä/s),
+  //   (b) vain vuoron pelaaja ottaa, vain pelin aikana (vuoron vaihe 1), ei kuolleena, HP < max (shooter :941 sama ehto),
+  //   (c) otto: oma HP + paranna(hp) omalla koneella (HP on clientin oma); seuraaja kertoo johtajalle t:'kitti' (shooterin 'p'); AM.kitOtetut estää snapshotia herättämästä otettua (shooter :1111),
+  //   (d) ruutu = ruudukko.ok (zombien kävelyalue, ei !canStandOn-kalusteita) + kuljettava() + ei pelaajan eikä kitin ruutu. 684: ASETUS.kitit null -> ei tehdä mitään, snapshotiin ei lisätä.
+  if (!(AM.kitit instanceof Map)) AM.kitit = new Map();   // id -> { x, y, t0 }
+  if (!(AM.kitOtetut instanceof Set)) AM.kitOtetut = new Set();
+  if (!(AM.kitViimeksi >= 0)) AM.kitViimeksi = 0;
+  if (!(AM.kitN >= 0)) AM.kitN = 0;
+  const kitAsetus = () => { const K = ASETUS.kitit; if (!K || typeof K !== 'object') return null;
+    return { valiMs: Math.max(0, Number(K.valiMs ?? 20000)), max: Math.max(0, Math.floor(Number(K.max ?? 2))), ikaMs: Math.max(1, Number(K.ikaMs ?? 60000)), hp: Math.max(0, Number(K.hp ?? 50)) }; };
+  const kitPeli = () => !!(hpTila() && VA() && VT.vu && VT.vu.vaihe === 1);   // vain pelin aikana
+  const kitOtettu = (i) => { AM.kitOtetut.add(i); if (AM.kitOtetut.size > 60) AM.kitOtetut = new Set([...AM.kitOtetut].slice(-30)); };
+  const kitKorkeus = (x, y) => { try { return e.getFurnitureStackingHeightMap(huone).getTileHeight(x, y) || 0; } catch (x2) { return 0; } };   // shooter :1032
+  const kitTick = (nyt, P) => {
+    const KA = kitAsetus(); if (!KA) return;
+    if (!kitPeli()) { if (AM.kitit.size) AM.kitit.clear(); return; }
+    for (const [i, k] of [...AM.kitit]) if (nyt - k.t0 > KA.ikaMs) AM.kitit.delete(i);   // shooter :940
+    const minä = omaPaikka();
+    if (minä && VT.vu.id === omaId() && !kuolemaLukossa(nyt) && AM.hp > 0 && AM.hp < hpMax()) for (const [i, k] of [...AM.kitit]) if (Math.hypot(minä.x - k.x, minä.y - k.y) < 0.8) {   // shooter :941
+      AM.kitit.delete(i); kitOtettu(i); tilasto.kitteja = (tilasto.kitteja || 0) + 1;
+      paranna(KA.hp); lokiin({ kitti: i, hp: Math.round(AM.hp) });
+      if (!auktoriteetti()) SYNK.lahetaKitti(i);
+      try { ilmoita('Ensiapu +' + KA.hp + ' (HP ' + Math.ceil(AM.hp) + ')'); } catch (x) {}   // shooter :942
+      break; }
+    if (!auktoriteetti() || !ruudukko || AM.kitit.size >= KA.max || nyt - AM.kitViimeksi < KA.valiMs) return;   // shooter :943-945
+    AM.kitViimeksi = nyt;
+    try {
+      const W = ruudukko.W, H = ruudukko.H, varatut = new Set((P || []).map(q => Math.round(q.x) + ',' + Math.round(q.y)));
+      for (const [, k] of AM.kitit) varatut.add(k.x + ',' + k.y);
+      for (let n = 0; n < 80; n++) {   // shooter :951-954
+        const x = Math.floor(Math.random() * W), y = Math.floor(Math.random() * H);
+        if (!ruudukko.ok[y * W + x] || varatut.has(x + ',' + y) || !kuljettava(x, y)) continue;
+        const i = 'k' + nyt.toString(36) + (AM.kitN++).toString(36);
+        AM.kitit.set(i, { x, y, t0: nyt }); lokiin({ kittiSpawn: i, x, y }); return;
+      }
+    } catch (x) {}
+  };
+  // johtaja: seuraajan t:'kitti' (vain vuoron pelaajalta) poistaa kitin; snapshotin ki vie poiston muille
+  const kittiVastaanota = (id, m) => {
+    if (!kitAsetus() || !auktoriteetti() || !VA() || !(VT.vu && VT.vu.id === id)) return false;
+    const i = String(m.i || '').slice(0, 14); if (!i) return false;
+    kitOtettu(i); return AM.kitit.delete(i);
+  };
+  const kitSnapLisaa = (snap) => { if (!kitAsetus()) return; const nyt = Date.now(); snap.ki = [...AM.kitit].slice(0, 4).map(([i, k]) => [i, k.x, k.y, Math.max(0, Math.round(nyt - k.t0))]); };
+  const kitOmaksu = (snap) => {
+    if (!kitAsetus() || !Array.isArray(snap.ki)) return;
+    const nyt = Date.now(), uusi = new Map();
+    for (const a of snap.ki) { if (!Array.isArray(a)) continue; const i = String(a[0] || '').slice(0, 14); if (!i || AM.kitOtetut.has(i)) continue;
+      uusi.set(i, { x: a[1] | 0, y: a[2] | 0, t0: nyt - Math.max(0, Number(a[3]) || 0) }); }
+    AM.kitit = uusi;
+  };
+  // piirto (shooter :1876-1902): valkoinen laatikko, punainen risti, kevyt keinunta; esineen takana vain peittyvä osa läpikuultava (peittoLaatikot);
+  //   hahmojen vartalokaista pyyhitään pois, jottei kitti piirry hahmon päälle (shooter :1903, kp 12:21). Oma kangas -> jkanvas.
+  const kitKoko = (typeof document !== 'undefined' && document.createElement) ? document.createElement('canvas') : null;
+  const kitKokoCtx = kitKoko && kitKoko.getContext ? kitKoko.getContext('2d') : null;
+  const kitApu = (typeof document !== 'undefined' && document.createElement) ? document.createElement('canvas') : null;   // yhden kitin apukangas (shooter 1.11.3)
+  const kitApuCtx = kitApu && kitApu.getContext ? kitApu.getContext('2d') : null;
+  const kitPiirrettavat = () => (kitAsetus() && AM.kitit.size) ? [...AM.kitit].map(([i, k]) => ({ i, x: k.x, y: k.y, z: kitKorkeus(k.x, k.y) })) : [];
+  const piirraKitit = (p, nyt, W, H, lista) => {
+    if (!lista.length || !kitKoko || !kitKokoCtx || !kitApu || !kitApuCtx) return 0;
+    const rctx = kitKokoCtx, kctx = kitApuCtx, hwOf = (x, y, z) => { const a = p(x, y, z), q = p(x + 1, y, z); return a && q ? Math.max(8, Math.abs(q.x - a.x)) : 22; };
+    if (kitKoko.width !== W || kitKoko.height !== H) { kitKoko.width = W; kitKoko.height = H; }
+    rctx.clearRect(0, 0, W, H); let n = 0;
+    for (const k of lista) { const a = p(k.x, k.y, k.z), q = p(k.x + 1, k.y, k.z); if (!a || !q) continue;
+      const hw = Math.max(8, Math.abs(q.x - a.x)), r = 0.32 * hw, y0 = a.y - r - 2 - Math.sin(nyt / 300) * 2;
+      const piirraKit = (c, ox, oy) => {
+        c.fillStyle = 'rgba(0,0,0,.25)'; c.beginPath(); c.ellipse(a.x - ox, a.y - oy, r * 1.1, r * 0.45, 0, 0, Math.PI * 2); c.fill();
+        c.fillStyle = '#fff'; c.strokeStyle = '#7a0a10'; c.lineWidth = 2; c.beginPath(); c.roundRect ? c.roundRect(a.x - ox - r, y0 - oy - r, 2 * r, 2 * r, 3) : c.rect(a.x - ox - r, y0 - oy - r, 2 * r, 2 * r); c.fill(); c.stroke();
+        c.fillStyle = '#e5242f'; c.fillRect(a.x - ox - r * 0.18, y0 - oy - r * 0.65, r * 0.36, r * 1.3); c.fillRect(a.x - ox - r * 0.65, y0 - oy - r * 0.18, r * 1.3, r * 0.36); };
+      const pr = peittoLaatikot(p, k.x, k.y);
+      if (!pr.length) { piirraKit(rctx, 0, 0); n++; continue; }
+      const kx = Math.floor(a.x - r * 1.2 - 4), ky = Math.floor(y0 - r - 4), kw = Math.ceil(r * 2.4 + 8), kh = Math.max(1, Math.ceil(a.y + r * 0.5 + 4 - ky));
+      kitApu.width = kw; kitApu.height = kh; piirraKit(kctx, kx, ky);
+      rctx.globalAlpha = 0.35; rctx.drawImage(kitApu, kx, ky); rctx.globalAlpha = 1;
+      kctx.save(); kctx.beginPath(); for (const q2 of pr) kctx.rect(q2.x - kx, q2.y - ky, q2.w, q2.h); kctx.clip(); kctx.clearRect(0, 0, kw, kh); kctx.restore();
+      rctx.drawImage(kitApu, kx, ky); n++; }
+    if (!n) return 0;
+    const hahmot = []; for (const h of piirtoPaikat.values()) hahmot.push(h);
+    try { for (const o of e.getRoomObjects(huone, 100) || []) { if (!o || o.id < 0 || String(o.type) !== 'user') continue; const L = o.getLocation(); if (L) hahmot.push({ x: Number(L.x), y: Number(L.y), z: Number(L.z) || 0 }); } } catch (x) {}
+    for (const h of hahmot) { const s = p(h.x, h.y, h.z); if (!s) continue; const hw = hwOf(h.x, h.y, h.z); rctx.clearRect(s.x - 0.5 * hw, s.y - 5 * hw, hw, 5.15 * hw); }   // shooter :1903
+    jctx.drawImage(kitKoko, 0, 0); return n;
+  };
 
   // ---- AALLOT (kp 16:03: Left 4 Kuplasta sellaisinaan; shooter-1.15.2.user.js zIsantaTick :1573-1582, zSynnyta :1529, zAloitaAalto :1544,
   //   zSyntyRuutu :1507, zOvenTila :1491, zReunaRuudut :1203). Vain auktoriteetti synnyttää; seuraaja ottaa zombit ja aaltotilan snapshotista (aa).
@@ -3433,12 +3536,13 @@ AMMUNTA = (() => {
     while (jaljet.length && nyt - jaljet[0].t0 > (jaljet[0].lapi ? 750 : kesto)) jaljet.shift();
     if (!jkanvas || !jctx || !document.body) return;
     const W = window.innerWidth || 0, H = window.innerHeight || 0;
-    const palkit = hpPalkit(nyt), omaP = omaHpPalkki(), shP = safeHouseHpPalkki(), gP = gateHpPalkit();
-    if (!jaljet.length && !luodit.length && !palkit.length && !veto && !omaP && !shP && !gP.length) { if (jkanvas.width) jctx.clearRect(0, 0, jkanvas.width, jkanvas.height); return; }
+    const palkit = hpPalkit(nyt), omaP = omaHpPalkki(), shP = safeHouseHpPalkki(), gP = gateHpPalkit(), kitL = kitPiirrettavat();
+    if (!jaljet.length && !luodit.length && !palkit.length && !veto && !omaP && !shP && !gP.length && !kitL.length) { if (jkanvas.width) jctx.clearRect(0, 0, jkanvas.width, jkanvas.height); return; }
     if (jkanvas.parentNode !== document.body) document.body.appendChild(jkanvas);
     if (jkanvas.width !== W || jkanvas.height !== H) { jkanvas.width = W; jkanvas.height = H; jkanvas.style.width = W + 'px'; jkanvas.style.height = H + 'px'; }
     jctx.clearRect(0, 0, W, H);
     const p = kamera(); if (!p) return;
+    piirraKitit(p, nyt, W, H, kitL);   // ensiapukitit lattialle ensin: luodit, palkit ym. piirtyvät niiden päälle
     for (const j of jaljet) {   // miekka: shooter :1853-1858 sellaisenaan
       if (j.lapi) { pyorahdysPiirto(j, nyt, p); continue; }
       const ika = nyt - j.t0; if (ika > 300) continue; const k0 = Math.atan2(j.dy, j.dx); jctx.save(); jctx.globalAlpha = 1 - ika / 300; jctx.strokeStyle = j.vari || '#e8eef7'; jctx.lineWidth = 4; jctx.lineCap = 'round'; jctx.beginPath();
@@ -3774,6 +3878,7 @@ AMMUNTA = (() => {
     purema, paranna, kontaktiKerroin, nollaaKontakti, hp: () => AM.hp, wasd: { pidetyt, tick: wasdTick, nappain, nosto }, hiiri,
     vuoroTick, vuoroPyyda, vuoroVastaanota, vuoro: () => VT.vu, VT, vuoroSallii, aseKaytossa: aseAktiivinen, vuoroTeksti,
     omaHpPalkki, safeHouseHpPalkki, gateHpPalkit,
+    kitit: () => AM.kitit, kitTick, kittiVastaanota, kitPeli, kitPiirrettavat,   // ensiapukitit (testausta varten)
     katse: { tick: katseTick, kulma: hiirenKulma },
     este: { esteMatka, esteKartta, peitossa, peittoLaatikot, lentoZ, kamera },   // kohde 1 (testausta varten, kuten shooter :1018 __kshEste)
     // vaihe 1c
