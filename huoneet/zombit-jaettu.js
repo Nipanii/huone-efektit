@@ -2722,7 +2722,7 @@ AMMUNTA = (() => {
     const vu = VT.vu; if (!vu) return false;
     VT.vu = null; VT.poissa = 0; VT.lepo = (tMs ?? SAILO.K * tikkiMs()) + Math.max(0, Number((VA() || {}).lepoMs ?? 4000));
     if (kirjaa) runLoppu(vu.id, vu.nimi, syy);
-    VT.viimeinen = { id: vu.id, nimi: vu.nimi, syy, nro: vu.nro };
+    VT.viimeinen = { id: vu.id, nimi: vu.nimi, syy, nro: vu.nro, t: Date.now() };
     nollaaPeli(); ASETUS.kohteet = [];
     lokiin({ vuoro: 'päättyi', id: vu.id, syy, nro: vu.nro });
     return true;
@@ -2804,7 +2804,7 @@ AMMUNTA = (() => {
     if (!VA()) return;
     const vu = VT.vu, tB = SAILO.K * tikkiMs();
     snap.vu = vu ? [vu.id, String(vu.nimi || '').slice(0, 24), vu.vaihe, Math.round(vu.alku - tB), vu.nro, vu.tapa === 'jono' ? 1 : 0] : null;
-    snap.vn = VT.nro; if (VT.viimeinen) snap.vv = [VT.viimeinen.id, String(VT.viimeinen.nimi || '').slice(0, 24), VT.viimeinen.nro, String(VT.viimeinen.syy || '')];
+    snap.vn = VT.nro; if (VT.viimeinen) snap.vv = [VT.viimeinen.id, String(VT.viimeinen.nimi || '').slice(0, 24), VT.viimeinen.nro, String(VT.viimeinen.syy || ''), Date.now() - (VT.viimeinen.t || 0)];
   };
   const vuoroOmaksu = (snap) => {
     if (!VA() || !('vu' in snap)) return;
@@ -2812,7 +2812,7 @@ AMMUNTA = (() => {
     if (Array.isArray(a)) VT.vu = { id: a[0] | 0, nimi: a[1] || null, vaihe: a[2] ? 1 : 0, alku: tB + (Number(a[3]) || 0), nro: a[4] | 0, tapa: a[5] ? 'jono' : 'kasky' };
     else VT.vu = null;
     if (isFinite(snap.vn)) VT.nro = Math.max(VT.nro, snap.vn | 0);
-    if (Array.isArray(snap.vv)) VT.viimeinen = { id: snap.vv[0] | 0, nimi: snap.vv[1] || null, nro: snap.vv[2] | 0, syy: snap.vv[3] || '' };
+    if (Array.isArray(snap.vv)) VT.viimeinen = { id: snap.vv[0] | 0, nimi: snap.vv[1] || null, nro: snap.vv[2] | 0, syy: snap.vv[3] || '', t: Date.now() - (Number(snap.vv[4]) || 1e9) };
   };
   // Näyttö kaikille (sona 16:28-16:29): oma DOM-kerros pelin päällä, ei 811.js-ikkunassa (ikkuna on sonan tulostaulu; tila myös window.__zombi811.vuoro)
   let vEl = null;
@@ -2841,7 +2841,7 @@ AMMUNTA = (() => {
   const vuoroNaytto = () => {
     if (!VA()) return;
     const loppuMs = Math.max(0, Number((VA() || {}).loppuNakyyMs ?? 6000)), haivytysMs = Math.max(0, Number((VA() || {}).haivytysMs ?? 1500));   // sona 17:07-17:08 "näkyvillä 6 sec kun peli loppuu" + häivytys
-    const vv = VT.viimeinen; if (vv && VT.nahtyLoppu !== vv.nro) { VT.nahtyLoppu = vv.nro; if (VT.alustettu) { VT.naytaLoppu = vv.nro; VT.loppuAsti = Date.now() + loppuMs + haivytysMs; } }
+    const vv = VT.viimeinen; if (vv && VT.nahtyLoppu !== vv.nro) { VT.nahtyLoppu = vv.nro; if (VT.alustettu && Date.now() - (vv.t || 0) < loppuMs + haivytysMs) { VT.naytaLoppu = vv.nro;   /* kp 18:39 vanha kuolema ei näy uudelleen huoneeseen tullessa tai skriptin päivittyessä */ VT.loppuAsti = Date.now() + loppuMs + haivytysMs; } }
     VT.alustettu = true;
     const t = vuoroTeksti();
     if (!t) { if (vEl && vEl.style) vEl.style.display = 'none'; return; }
