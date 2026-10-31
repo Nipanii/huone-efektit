@@ -174,7 +174,7 @@ const HUONEET = {
       siirtoMs: 2000,         // sona 16:59 "Ensin siirto ja sitten PELI ALKAA 5-1": aloitusSana + teleport ennen laskentaa
       lepoMs: 4000,           // edellisen pelin loputtua näin kauan ennen seuraavaa (tulos näkyy)
       poissaMs: 4000,         // vuoron pelaaja poissa huoneesta näin kauan -> vuoro päättyy
-      kavelyVaraMs: 3000,     // jos aloitusSanan jälkeen näin kauan ei olla aloitusruudussa: OMA kävely sinne (sendWalkUpdate, kuin lattiaklikkaus). null = pois
+      kavelyVaraMs: null,     // kohde 6 (kp 18:10 "ihan tyhmä toi et on toi autowalk"): varakävely POIS (oli 3000; arvo palauttaa sen). Jos aloitusSanan jälkeen näin kauan ei olla aloitusruudussa: OMA kävely sinne (sendWalkUpdate, kuin lattiaklikkaus). null = pois
       kasky: [1, 282, 281, 245],   // :aloitapeli / :lopetapeli sallittu (sama lista kuin :kuolematon). null = kaikille
       loppu: { x: 2, y: 2, furni: 511793 },   // sona 17:02: Matto 511793 @2,2 z 7.2 = lopetusSanan wired-teleportin kohde (jo siellä -> ei sanota)
       kamera: true,           // kp 17:01-17:02: L4K:n kameralukko (oma hahmo ruudun keskelle) vuoron pelaajalle koko vuoron ajan. Alt+K vaihtaa. false = pois
@@ -215,7 +215,8 @@ ASETUS.aseet = {
   miekka: { ikoni: '🗡️', nimi: 'Miekka', kasi: 1094, m: 'h', vari: '#e8eef7', kantama: 2.5, vahinko: 34, veto: true, hidasKavely: true, cd: 700, lapi: [3, 1000], lapiVahinko: 50, lapiLapi: 50,
     aani: null, aggroSade: 3, nollaaKontakti: true, kontaktiKerroin: 1 },   // nollaaKontakti true = kp:n suosima suunta B (16:01), kp päättää
 };
-ASETUS.ase = { valittu: 'luoti', jalkiMs: 450, ruumisMs: 1400 };   // jälki 450 ms = shooter :1727
+ASETUS.ase = { valittu: 'luoti', jalkiMs: 450, ruumisMs: 1400 };
+ASETUS.esteKorkeus = 2;   // shooter 1.13.0 asetus.esteKorkeus (ESTE_KORKEUS :963): esine estää vain jos sen näkyvä korkeus > tämä   // jälki 450 ms = shooter :1727
 ASETUS.zombiHp = 60;
 // Kiinnijäänti 811:ssä (kp 16:01, kp päättää): 'kontakti' = 684-tyylinen kertyvä laskuri -> kuolema (vaihtoehto B, oletus) ·
 //   'hp' = kiinnijäänti vähentää omaa HP:ta ASETUS.hp.purema ja laskuri nollautuu; kuolema vasta kun HP 0 (vaihtoehto A).
@@ -2686,7 +2687,10 @@ AMMUNTA = (() => {
   if (!Array.isArray(AM.vuoro.pyynnot)) AM.vuoro.pyynnot = [];
   const VT = AM.vuoro;
   const VA = () => ASETUS.vuoro || null;
-  const vuoroSallii = () => { if (!VA()) return true; const vu = VT.vu; return !!vu && vu.id === omaId() && vu.vaihe === 1; };
+  // kohde 6 (kp 18:09-18:10 "tos pelin alotuksessa toi peli HUD pitäs tulla heti" · "ei oo vaa ammuttavaa ennen ku peli alkaa" · "HUD heti etee" · "ja ase kätee"):
+  //   vuoron pelaajalla ase, HUD ja käsiesine (:handitem) ovat käytössä heti kun vuoro alkaa (vaihe 0: siirto + laskenta), eivät vasta vaiheessa 1. Ennen: vu.vaihe === 1.
+  //   Zombeja ei vaiheessa 0 vielä ole (ASETUS.kohteet = [] kunnes peli alkaa, nollaaPeli), joten ammuttavaa ei ole; osuman auktoriteettitarkistus (vaihe === 1) ennallaan.
+  const vuoroSallii = () => { if (!VA()) return true; const vu = VT.vu; return !!vu && vu.id === omaId(); };
   const nollaaPeli = () => {   // zombit pois ja aallot alkuun (ei automaattista uutta aaltoa: seuraava vuoro aloittaa)
     if (Array.isArray(SAILO.zombit)) SAILO.zombit.length = 0;
     AM.zhp.clear(); AM.aalto = { n: 0, k: 0, sp: 0, ku: 0, tauko: 0, alku: 0, seur: 0, idx: 0 };
@@ -2915,7 +2919,9 @@ AMMUNTA = (() => {
     const rect = cv.getBoundingClientRect(), w = rc._width || rc.width || rect.width, h = rc._height || rc.height || rect.height;
     const kx = rect.width / (w || rect.width || 1), ky = rect.height / (h || rect.height || 1);
     const Vc = (g.direction && g.direction.constructor) || V, sc = rc._scale || rc.scale || 1, ox = rc._screenOffsetX ?? rc.screenOffsetX ?? 0, oy = rc._screenOffsetY ?? rc.screenOffsetY ?? 0;
-    return (x, y, z) => { const p = g.getScreenPoint(new Vc(x, y, z)); return p ? { x: rect.left + ((p.x + w / 2) * sc + ox) * kx, y: rect.top + ((p.y + h / 2) * sc + oy) * ky } : null; };   // L4K 1.6.5: zoom kertoo myös w/2:n
+    const f = (x, y, z) => { const p = g.getScreenPoint(new Vc(x, y, z)); return p ? { x: rect.left + ((p.x + w / 2) * sc + ox) * kx, y: rect.top + ((p.y + h / 2) * sc + oy) * ky } : null; };   // L4K 1.6.5: zoom kertoo myös w/2:n
+    f.laatikko = bb => bb && bb.width > 0 ? { x: rect.left + bb.x * kx, y: rect.top + bb.y * ky, w: bb.width * kx, h: bb.height * ky } : null;   // shooter :487 kamera (kohde 1: peitto)
+    return f;
   };
   const omaPaikka = () => { const i = omaIndeksi(); if (i == null || i < 0) return null; const o = e.getRoomObject(huone, i, 100), L = o && o.getLocation(); return L ? { i, x: Number(L.x), y: Number(L.y), z: Number(L.z) || 0 } : null; };
   let hiiriX = null, hiiriY = null;
@@ -2937,8 +2943,56 @@ AMMUNTA = (() => {
     const s = ((mx - x) * dx + (my - y) * dy) / l2, matka = s * Math.sqrt(l2);
     if (matka < 0.3 || matka > K) return null; return Math.hypot(x + dx * s - mx, y + dy * s - my) < R ? matka : null; };
   const lattiaa = (x, y) => { try { const wg = e.getLegacyWallGeometry(huone); return !wg || wg.isRoomTile(Math.round(x), Math.round(y)); } catch (x2) { return true; } };
-  const esteMatka = (x, y, dx, dy, L) => { const l = Math.hypot(dx, dy) || 1; for (let s = 0.5; s <= L; s += 0.25) if (!lattiaa(x + dx / l * s, y + dy / l * s)) return s - 0.25; return L; };
-  const nakyy = (x, y, tx, ty) => { const m = Math.hypot(tx - x, ty - y); return m < 0.6 || esteMatka(x, y, (tx - x) / m, (ty - y) / m, m) >= m - 0.5; };   // shooter :904
+  // ---- kohde 1 (kp 18:05 "miks bullet collision puuttuu" · "ettei voi ampuu seinien läpi"): L4K:n estelogiikka SELLAISENAAN
+  //   (shooter-1.15.2.user.js: ESTE_KORKEUS :963, esteKartta :965-984, esteMatka :987-1000, peittoLaatikot :1006-1014, peitossa :1015-1017, lentoZ :2151).
+  //   Sovitus (ei logiikkaa): RE() -> e, rid -> huone, inst.getRoomObjectsForCategory(10) -> e.getRoomObjects(huone, 10), asetus.esteKorkeus -> ASETUS.esteKorkeus,
+  //   sisäinen `e` -> `ent` (varjostus), huoneRuutu: jos validPosition puuttuu (testimock) lattiaa() ratkaisee, ei muuta.
+  const lentoZ = (z0, hz, hd, st) => { if (hz == null || !(hd > 0.3)) return z0; return Math.max(Math.min(0, hz), Math.min(Math.max(4, hz + 1), z0 + (hz - z0) * st / hd)); };   // shooter :2151
+  let esteMuisti = null;
+  const esteKartta = () => {   // shooter :965
+    const nyt = Date.now(); if (esteMuisti && esteMuisti.ek === ASETUS.esteKorkeus && nyt - esteMuisti.t < 1000) return esteMuisti;
+    const out = { ek: ASETUS.esteKorkeus, t: nyt, ruudut: new Set(), idt: new Map(), hm: null, seinat: true, peittajat: [] };
+    try {
+      const cv = e.getRoomInstanceRenderingCanvas(huone, 1), g = cv && cv.geometry, oc = cv && cv._objectCache && cv._objectCache._data; out.hm = e.getFurnitureStackingHeightMap(huone);
+      try { const ro = e.getRoomObject(huone, -1, 0), v = ro && ro.model.getValue('room_wall_visibility'); if (v === false || v === 0) out.seinat = false; } catch (x) {}
+      if (g) { const Vk = g.direction.constructor, a = g.getScreenPoint(new Vk(0, 0, 0)), b = g.getScreenPoint(new Vk(0, 0, 1)), yks = (a.y - b.y) * (cv._scale || 1);
+        if (yks > 0) for (const o of e.getRoomObjects(huone, 10) || []) {
+          const bb = e.getRoomObjectBoundingRectangle(huone, o.id, 10, 1), sp = e.getRoomObjectScreenLocation(huone, o.id, 10, 1); if (!bb || !sp || !(bb.height > 0)) continue; const nousu = (sp.y - bb.y) / yks; if (nousu <= 1) continue;
+          { const ent = oc && oc.get(String(o.instanceId)), ss = ent && ent._sprites && ent._sprites._sprites; let ala = -1e9, yla = 1e9;   // shooter 1.11.4 zoom + 1.10.7 katosta roikkuva ei ulotu luodin korkeudelle
+            if (ss) for (const q of ss) { const t = q._sprite; if (!t || !t._visible || !t._texture) continue; yla = Math.min(yla, q._y); if (/_sd_|shadow/i.test(t._libraryAssetName || '')) continue; ala = Math.max(ala, q._y + t._height); }
+            if (ala > -1e9 && (sp.y - (bb.y + (ala - yla) * (cv._scale || 1))) / yks > 1) continue; }
+          const l = o.getLocation(), m = o.model, r = Math.round(((o.getDirection() && o.getDirection().x) || 0) / 45) % 4; let sx = m.getValue('furniture_size_x') || 1, sy = m.getValue('furniture_size_y') || 1; if (r === 2) [sx, sy] = [sy, sx];   // shooter 1.11.3
+          if (nousu <= ASETUS.esteKorkeus) continue;   // shooter 1.10.9: peittäjiksi vain esteet (matala ruoho ei estä)
+          const x0 = Math.round(l.x), y0 = Math.round(l.y); out.peittajat.push({ id: o.id, x0, y0, x1: x0 + sx - 1, y1: y0 + sy - 1 });
+          for (let i = 0; i < sx; i++) for (let j = 0; j < sy; j++) { const kk = (Math.round(l.x) + i) + ',' + (Math.round(l.y) + j); out.ruudut.add(kk); out.idt.set(kk, o.id); } } }
+    } catch (x) {}
+    return esteMuisti = out;
+  };
+  const esteMatka = (x, y, dx, dy, L = 40, rata = null) => {   // shooter :987
+    const k = esteKartta(), hm = k.hm; if (!hm || !(dx || dy)) return Infinity;
+    const P = rata ? kamera() : null;
+    const kuvassa = (s, kk) => { if (!P || !P.laatikko) return true; const id = k.idt.get(kk); if (id == null) return true; let r = null; try { r = P.laatikko(e.getRoomObjectBoundingRectangle(huone, id, 10, 1)); } catch (x2) {} if (!r) return true;
+      const q = P(x + dx * s, y + dy * s, rata.z + lentoZ(1, rata.hz, rata.hd, s)); return !q || (q.x >= r.x && q.x <= r.x + r.w && q.y >= r.y && q.y <= r.y + r.h); };
+    const huoneRuutu = (tx, ty) => { try { if (typeof hm.validPosition !== 'function') return lattiaa(tx, ty); return tx >= 0 && ty >= 0 && tx < hm.width && ty < hm.height && hm.validPosition(tx, ty); } catch (x2) { return false; } };
+    let px = Math.round(x), py = Math.round(y), ex = px, ey = py, ulkona = !huoneRuutu(px, py);
+    for (let s = 0.05; s <= L; s += 0.05) {
+      const tx = Math.round(x + dx * s), ty = Math.round(y + dy * s); if (tx === ex && ty === ey) continue; ex = tx; ey = ty;
+      if (!huoneRuutu(tx, ty)) { if (!ulkona && k.seinat && (tx < px || ty < py)) return Math.max(0, s - 0.05); ulkona = true; continue; }
+      ulkona = false; px = tx; py = ty; if (k.ruudut.has(tx + ',' + ty)) { if (!rata) return s; const kk = tx + ',' + ty; for (let s2 = s; s2 <= L && Math.round(x + dx * s2) === tx && Math.round(y + dy * s2) === ty; s2 += 0.05) if (kuvassa(s2, kk)) return s2; }
+    }
+    return Infinity;
+  };
+  const peittoLaatikot = (f, bx, by) => {   // shooter :1006
+    const k = esteKartta(), syv = bx + by, out = []; if (!f.laatikko) return out;
+    for (const q of k.peittajat) {
+      if (q.x1 + q.y1 <= syv + 0.25 || bx < q.x0 - 4 || bx > q.x1 + 4 || by < q.y0 - 4 || by > q.y1 + 4) continue;
+      let r = null; try { r = f.laatikko(e.getRoomObjectBoundingRectangle(huone, q.id, 10, 1)); } catch (x) {}
+      if (r) out.push(r);
+    }
+    return out;
+  };
+  const peitossa = (f, bx, by, a) => peittoLaatikot(f, bx, by).some(r => a.x >= r.x && a.x <= r.x + r.w && a.y >= r.y && a.y <= r.y + r.h);   // shooter :1015
+  const nakyy = (x, y, tx, ty) => { const m = Math.hypot(tx - x, ty - y); if (m < 0.6) return true; try { return esteMatka(x, y, (tx - x) / m, (ty - y) / m, m) >= m - 0.5; } catch (x2) { return true; } };   // shooter :904
   // Elävät, piirretyt zombit kohteina (tavalliset; muuttuneita ei 811:ssä synny)
   const kohteet = () => {
     const out = [];
@@ -2985,7 +3039,7 @@ AMMUNTA = (() => {
     const x = Math.round(minä.x), y = Math.round(minä.y);
     if (A.m === 'p') {   // projektiili (jousi, pistooli): lentää, osuma lasketaan radalta luotiTickissä (shooter :1745)
       const LL = A.latausLento && c != null ? A.latausLento[0] + (A.latausLento[1] - A.latausLento[0]) * c : (A.lento || 12);
-      luodit.push({ x: minä.x, y: minä.y, z: minä.z, dx, dy, t0: nyt, w, c, LL, este: esteMatka(minä.x, minä.y, dx, dy, 40), pm: null });
+      luodit.push({ x: minä.x, y: minä.y, z: minä.z, dx, dy, t0: nyt, w, c, LL, este: esteMatka(minä.x, minä.y, dx, dy, 40, { z: minä.z }), pm: null });   // shooter :1054 (rata: kuva-alueen sisällä)
       return { lensi: w, c };
     }
     // hitscan (miekka): normaalisti ensimmäinen kohde kantamalla; täysi lataus = pyörähdys, kaikki säteellä lapi[0] (shooter :1049-1062)
@@ -3065,13 +3119,17 @@ AMMUNTA = (() => {
     } else { ctx.globalAlpha = Math.max(0, 0.6 * (1 - (ika - PYOR_MS) / 350)); ctx.lineWidth = 2; ctx.shadowBlur = 4; kaari(k0, k0 + 2 * Math.PI, 72); }
     ctx.restore();
   }
+  // ---- kohde 2 (kp 18:07 "omalle pelaajalle tosiaa health bar"): oman pelaajan HP-palkki hahmon yläpuolelle, shooter-1.15.2 `palkki` :1862-1866 sellaisenaan
+  //   (z+2.9, leveys 40, tausta #000a 42x7, väri >0.5 #3ddc5a / >0.25 #f5c542 / muuten #e5484d, arvo <= 0 -> 💀; osuus = HP / max kuten shooter 1.12.0). HP = AM.hp.
+  //   Piirretään kun oma pelaaja on pelissä (vuoroSallii); shooter piirtää omankin palkin aina (:1909). Huom: kiinnijaanti 'kontakti' -tilassa AM.hp ei muutu (täynnä).
+  const omaHpPalkki = () => { if (!vuoroSallii()) return null; const m = omaPaikka(); return m ? { x: m.x, y: m.y, z: m.z, hp: AM.hp } : null; };
   const piirraJaljet = (nyt) => {
     const kesto = Math.max(50, Number(ASETUS.ase.jalkiMs) || 450);
     while (jaljet.length && nyt - jaljet[0].t0 > (jaljet[0].lapi ? 750 : kesto)) jaljet.shift();
     if (!jkanvas || !jctx || !document.body) return;
     const W = window.innerWidth || 0, H = window.innerHeight || 0;
-    const palkit = hpPalkit(nyt);
-    if (!jaljet.length && !luodit.length && !palkit.length && !veto) { if (jkanvas.width) jctx.clearRect(0, 0, jkanvas.width, jkanvas.height); return; }
+    const palkit = hpPalkit(nyt), omaP = omaHpPalkki();
+    if (!jaljet.length && !luodit.length && !palkit.length && !veto && !omaP) { if (jkanvas.width) jctx.clearRect(0, 0, jkanvas.width, jkanvas.height); return; }
     if (jkanvas.parentNode !== document.body) document.body.appendChild(jkanvas);
     if (jkanvas.width !== W || jkanvas.height !== H) { jkanvas.width = W; jkanvas.height = H; jkanvas.style.width = W + 'px'; jkanvas.style.height = H + 'px'; }
     jctx.clearRect(0, 0, W, H);
@@ -3085,12 +3143,12 @@ AMMUNTA = (() => {
     for (const b of luodit) {   // shooter :1842-1851: lentävä luoti = hehkuva viiru + kärki, jousi = nuoli
       const A = aseOf(b.w), matka = Math.min((nyt - b.t0) / 1000 * (A.nopeus || 8), b.LL, b.este), bx = b.x + b.dx * matka, by = b.y + b.dy * matka;
       if (A.tyyli === 'luoti') {
-        const v = Math.min(0.7, matka), a = p(bx, by, b.z + 1), t = p(bx - b.dx * v, by - b.dy * v, b.z + 1); if (!a || !t) continue;
+        const v = Math.min(0.7, matka), a = p(bx, by, b.z + 1), t = p(bx - b.dx * v, by - b.dy * v, b.z + 1); if (!a || !t || peitossa(p, bx, by, a)) continue;   // shooter :1845 peitossa: ei piirretä esteen takana
         jctx.lineCap = 'round'; jctx.strokeStyle = 'rgba(255,200,80,.5)'; jctx.lineWidth = 5; jctx.beginPath(); jctx.moveTo(t.x, t.y); jctx.lineTo(a.x, a.y); jctx.stroke();
         jctx.strokeStyle = '#fff6d0'; jctx.lineWidth = 2; jctx.beginPath(); jctx.moveTo((t.x + a.x) / 2, (t.y + a.y) / 2); jctx.lineTo(a.x, a.y); jctx.stroke();
         jctx.fillStyle = '#fff'; jctx.beginPath(); jctx.arc(a.x, a.y, 2.5, 0, Math.PI * 2); jctx.fill(); continue;
       }
-      const a = p(bx, by, b.z + 1), t = p(bx - b.dx * 0.3, by - b.dy * 0.3, b.z + 1); if (a && t) nuoli(a, t, A.vari);
+      const a = p(bx, by, b.z + 1), t = p(bx - b.dx * 0.3, by - b.dy * 0.3, b.z + 1); if (a && t && !peitossa(p, bx, by, a)) nuoli(a, t, A.vari);   // shooter :1850
     }
     if (veto) {   // shooter :1867-1868 latauspalkki
       const A = aseNyt(), m = omaPaikka(), sc = m && (A.lataus || A.lapi) && p(m.x, m.y, m.z + 3.3);
@@ -3099,6 +3157,13 @@ AMMUNTA = (() => {
     for (const b of palkit) {   // L4K :1685-1687
       const sc = p(b.x, b.y, b.z + 2.7); if (!sc) continue; const w = 30;
       jctx.fillStyle = '#000a'; jctx.fillRect(sc.x - w / 2 - 1, sc.y - 1, w + 2, 6); jctx.fillStyle = '#8bd24a'; jctx.fillRect(sc.x - w / 2, sc.y, w * b.os, 4);
+    }
+    if (omaP) {   // shooter :1862-1866 palkki(omaNimi(), hp)
+      const sc = p(omaP.x, omaP.y, omaP.z + 2.9);
+      if (sc) { const w = 40; jctx.fillStyle = '#000a'; jctx.fillRect(sc.x - w / 2 - 1, sc.y - 1, w + 2, 7);
+        const os = Math.min(1, Math.max(0, omaP.hp) / hpMax());
+        jctx.fillStyle = os > 0.5 ? '#3ddc5a' : os > 0.25 ? '#f5c542' : '#e5484d'; jctx.fillRect(sc.x - w / 2, sc.y, w * os, 5);
+        if (omaP.hp <= 0) { jctx.font = '16px sans-serif'; jctx.fillText('💀', sc.x - 8, sc.y - 4); } }
     }
   };
 
@@ -3121,7 +3186,9 @@ AMMUNTA = (() => {
     try { h.sendWalkUpdate(x, y); } catch (x2) { return false; }
     return true;
   };
+  let wasdEste = false;   // shooter :2051 wasdEste (kävelyn este: seinää vasten seistessä katse vapaana)
   const wasdTick = () => {
+    wasdEste = false;   // shooter :2079
     if (!aseAktiivinen() || chatTila || !pidetyt.size || Date.now() < kavelyEstoAsti) { wasdMaali = null; return; }
     const A = aseNyt(); if (veto && !(A.hidasKavely || A.lataus)) { wasdMaali = null; return; }   // shooter 1.7.6 / 1.10.17
     let dx = 0, dy = 0; for (const k of pidetyt) { dx += WASD[k][0]; dy += WASD[k][1]; }
@@ -3129,11 +3196,28 @@ AMMUNTA = (() => {
     wasdSuunta = [dx, dy];
     const o = omaPaikka(); if (!o) return;
     const tx = Math.round(o.x) + dx, ty = Math.round(o.y) + dy;
-    if (!kuljettava(tx, ty)) { wasdMaali = null; return; }
+    if (!kuljettava(tx, ty)) { wasdEste = true; wasdMaali = null; return; }   // shooter :2089 (siellä wasdEste = !p.liikkuu; liikkuu-tietoa ei ole tässä)
     const avain = tx + ',' + ty; if (avain === wasdMaali) return;
     if (kavele(tx, ty)) wasdMaali = avain;
   };
   const wasdAjastin = setInterval(() => { try { wasdTick(); } catch (x) {} }, 100);
+  // ---- kohde 7 (kp 18:22 "hahmo ei pyöri siis hiiren suuntaa" · "niinku og shooteris"): hahmo kääntyy hiiren suuntaan. shooter-1.15.2.user.js:
+  //   hiirenKulma :2193 (8 suuntaa: round(atan2(dx,-dy)/45)*45), kääntösilmukka setInterval 30 ms :2194-2203, paikallinen käännös :2201-2202
+  //   (o.setDirection(new d.constructor(k, d.y, d.z)); o.model.setValue('head_direction', k)). Ehdot sellaisenaan: ei kun WASD pidossa (paitsi seinää vasten, wasdEste),
+  //   ei kuolleena (kavelyEstoAsti), uusi lähetys vain jos kulma vaihtuu tai hahmon oikea suunta eroaa (viimeKatse, 50 / 400 ms).
+  //   EI KOPIOITU: lahetaPaketti(3301, ...) (katsepaketti palvelimelle; paketit kielletty, testi G1) -> käännös on vain tällä clientilla (shooter :1804: palvelimen seuraava tilaviesti korjaa),
+  //   muut eivät näe suuntaa. wasdIrti (shooter :2194 350 ms) on shooterissa aina 0 (ei koskaan asetettu) -> jätetty pois.
+  let viimeKatse = null, viimeKatseAika = 0;
+  const hiirenKulma = () => { const h = hiirenVektori(null, null, omaPaikka()); return h ? ((Math.round(Math.atan2(h.dx, -h.dy) * 180 / Math.PI / 45) * 45) % 360 + 360) % 360 : null; };   // shooter :2193
+  const katseTick = () => {
+    if (!aseAktiivinen() || Date.now() < kavelyEstoAsti || (pidetyt.size && !wasdEste)) return;   // shooter :2194 (ohjausOn, kuollut, pidetyt)
+    const k = hiirenKulma(); if (k == null || Date.now() - viimeKatseAika < 50) return;
+    const minä = omaPaikka(); if (!minä) return;
+    let o = null, d = null; try { o = e.getRoomObject(huone, minä.i, 100); d = o && o.getDirection(); } catch (x) {} if (!o || !d) return;
+    if (k === viimeKatse && (d.x == null || d.x === k || Date.now() - viimeKatseAika < 400)) return;   // shooter :2198 (minä.suunta = hahmon oikea suunta)
+    try { o.setDirection(new d.constructor(k, d.y, d.z)); o.model.setValue('head_direction', k); viimeKatse = k; viimeKatseAika = Date.now(); tilasto.katse = (tilasto.katse || 0) + 1; } catch (x) {}   // shooter :2201-2202
+  };
+  const katseAjastin = setInterval(() => { try { katseTick(); } catch (x) {} }, 30);   // shooter :2203
   const onKentta = el => !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
   const chatPois = () => { chatTila = false; try { if (onKentta(document.activeElement)) document.activeElement.blur(); } catch (x) {} try { hudPaivita(); } catch (x) {} };
   // Vaihe 1c (kp 17:02 "nyt täs ei oo sitä vaihtoo chatin ja pelin välil" · "eli ei voi kirjottaa wasd kontrollien takii samalla"):
@@ -3336,7 +3420,7 @@ AMMUNTA = (() => {
   const sulje = () => {
     kameraSuljettu = true; if (window.__zombitKameraFn === kameraLukitse) { window.__zombitKameraFn = null; window.__zombitKameraAkt = null; }   // kääre jää, mutta ei tee mitään
     if (hudEl && hudEl.remove) hudEl.remove();
-    clearInterval(wasdAjastin); autoPois();
+    clearInterval(wasdAjastin); clearInterval(katseAjastin); autoPois();
     removeEventListener('keydown', nappain, true); removeEventListener('keyup', nosto, true); removeEventListener('blur', blur);
     for (const t of HIIRI_T) removeEventListener(t, hiiri, true);
     for (const r of ruumiit.values()) { try { e.removeRoomObjectUser(huone, r.g); } catch (x) {} SAILO.piirretytIdt.delete(r.g); }
@@ -3351,6 +3435,9 @@ AMMUNTA = (() => {
     ammu, ammuSuuntaan, asetaAse, ase: () => aseOn, valitseAse, aseNyt, runLoppu, tilasto, AM, auktoriteetti, luodit: () => luodit.length,
     purema, paranna, kontaktiKerroin, nollaaKontakti, hp: () => AM.hp, wasd: { pidetyt, tick: wasdTick, nappain, nosto }, hiiri,
     vuoroTick, vuoroPyyda, vuoroVastaanota, vuoro: () => VT.vu, VT, vuoroSallii, aseKaytossa: aseAktiivinen, vuoroTeksti,
+    omaHpPalkki,
+    katse: { tick: katseTick, kulma: hiirenKulma },
+    este: { esteMatka, esteKartta, peitossa, peittoLaatikot, lentoZ, kamera },   // kohde 1 (testausta varten, kuten shooter :1018 __kshEste)
     // vaihe 1c
     hpPalkit, kasiin, kasi: () => AM.kasiNyt, kameraAktiivinen, kameraLukitse, kameraVaihda, hudPaivita, hudTila, chat: () => chatTila, vaihdaAse };
 })();
