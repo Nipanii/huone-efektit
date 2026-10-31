@@ -2789,11 +2789,18 @@ AMMUNTA = (() => {
   // Näyttö kaikille (sona 16:28-16:29): oma DOM-kerros pelin päällä, ei 811.js-ikkunassa (ikkuna on sonan tulostaulu; tila myös window.__zombi811.vuoro)
   let vEl = null;
   try { if (document.querySelectorAll) for (const v of document.querySelectorAll('[data-zombit-vuoro]')) v.remove(); } catch (x) {}
+  // sona 17:53: naamakuva nimen vasemmalle, pisteet omassa laatikossa päälaatikon sisällä. Kuva-elementti talteen: pisteen vaihtuessa ei uutta latausta.
+  const vuoroNaamat = new Map();
+  const vuoroPelaaja = (vu, n) => { const p = (pelaajat() || []).find(q => q && q.id === vu.id); return { nimi: String(vu.nimi || nimiId(vu.id) || vu.id), fig: (p && p.figuuri) || '', n }; };
+  const vuoroNaama = (fig) => { let im = vuoroNaamat.get(fig); if (im) return im; im = document.createElement('img'); im.alt = '';
+    im.src = 'https://kupla.cc/avatarimage?figure=' + encodeURIComponent(fig) + '&headonly=1&direction=2&head_direction=2';
+    if (im.style) im.style.cssText = 'width:34px;height:38px;object-fit:contain;object-position:center bottom;flex:none;margin:0 6px';
+    vuoroNaamat.set(fig, im); return im; };
   const vuoroTeksti = () => {
     const vu = VT.vu, nyt = Date.now();
-    if (vu && vu.vaihe === 0 && vu.alku - nyt > Math.max(0, Number((VA() || {}).laskentaMs ?? 5000))) return { rivi1: 'Pelaaja ' + (vu.nimi || nimiId(vu.id) || vu.id), rivi2: '' };   // siirtovaihe
+    if (vu && vu.vaihe === 0 && vu.alku - nyt > Math.max(0, Number((VA() || {}).laskentaMs ?? 5000))) return { rivi1: 'Pelaaja ' + (vu.nimi || nimiId(vu.id) || vu.id), rivi2: '', pelaaja: vuoroPelaaja(vu) };   // siirtovaihe
     if (vu && vu.vaihe === 0) return { rivi1: 'Peli alkaa', rivi2: String(Math.max(1, Math.min(5, Math.ceil((vu.alku - nyt) / 1000)))) };
-    if (vu) { const n = vu.id === omaId() ? omaTapot() : ((AM.pisteet[vu.id] || {}).tapot | 0); return { rivi1: 'Pelaaja ' + (vu.nimi || nimiId(vu.id) || vu.id) + ' pisteet ' + n, rivi2: '', osat: [['Pelaaja ', 0], [String((vu.nimi || nimiId(vu.id) || vu.id)), 1], [' pisteet ', 0], [String(n), 1]] }; }   // sona 17:01 nimi ja pisteet paksummalla
+    if (vu) { const n = vu.id === omaId() ? omaTapot() : ((AM.pisteet[vu.id] || {}).tapot | 0); return { rivi1: 'Pelaaja ' + (vu.nimi || nimiId(vu.id) || vu.id) + ' pisteet ' + n, rivi2: '', osat: [['Pelaaja ', 0], [String((vu.nimi || nimiId(vu.id) || vu.id)), 1], [' pisteet ', 0], [String(n), 1]], pelaaja: vuoroPelaaja(vu, n) }; }   // sona 17:01 nimi ja pisteet paksummalla
     const vv = VT.viimeinen;
     if (vv && VT.naytaLoppu === vv.nro && nyt < (VT.loppuAsti || 0)) {
       const t = [...AM.tulokset].reverse().find(q => q && q.id === vv.id), n = t ? t.tapot : 0, nimi = String(vv.nimi || nimiId(vv.id) || vv.id);
@@ -2823,10 +2830,17 @@ AMMUNTA = (() => {
     const op = loppuva && haivytysMs > 0 ? Math.max(0, Math.min(1, jaljella / haivytysMs)) : 1;
     if (vEl.style) { vEl.style.opacity = String(Math.round(op * 100) / 100); vEl.style.transition = 'opacity .25s linear'; }
     VT.nayttoOpacity = op;
-    const sis = t.rivi1 + (t.rivi2 ? '\n' + t.rivi2 : '');
+    const sis = t.rivi1 + (t.rivi2 ? '\n' + t.rivi2 : '') + (t.pelaaja ? '|' + t.pelaaja.fig : '');
     if (vEl.dataset ? vEl.dataset.sis !== sis : vEl.textContent !== sis) {
       if (vEl.dataset) vEl.dataset.sis = sis;
-      if (t.osat && vEl.appendChild) { vEl.textContent = '';   // sona 17:01: nimi ja pisteet paksummalla, muu teksti ohuempi
+      if (t.pelaaja && vEl.appendChild) { vEl.textContent = ''; const P = t.pelaaja, PAKSU = 'font:900 30px/1.15 Impact,"Arial Black",sans-serif;letter-spacing:2px;color:#ffb347';
+        const sp = (teksti, css) => { const x = document.createElement('span'); x.textContent = teksti; if (css && x.style) x.style.cssText = css; return x; };
+        const rivi = document.createElement('div'); if (rivi.style) rivi.style.cssText = 'display:flex;align-items:center;justify-content:center';
+        rivi.appendChild(sp('Pelaaja')); if (P.fig) rivi.appendChild(vuoroNaama(P.fig)); else rivi.appendChild(sp(' ')); rivi.appendChild(sp(P.nimi, PAKSU));
+        if (P.n != null) { const lt = document.createElement('div'); if (lt.style) lt.style.cssText = 'margin-left:14px;padding:2px 12px;background:rgba(0,0,0,.45);border:1px solid #6e1f26;border-radius:7px';
+          lt.appendChild(sp('pisteet ')); lt.appendChild(sp(String(P.n), PAKSU)); rivi.appendChild(lt); }
+        vEl.appendChild(rivi); }
+      else if (t.osat && vEl.appendChild) { vEl.textContent = '';   // sona 17:01: nimi ja pisteet paksummalla, muu teksti ohuempi
         for (const [teksti, paksu] of t.osat) { const sp = document.createElement('span'); sp.textContent = teksti;
           if (paksu && sp.style) sp.style.cssText = 'font:900 30px/1.15 Impact,"Arial Black",sans-serif;letter-spacing:2px;color:#ffb347'; vEl.appendChild(sp); }
         if (t.kuoli && t.rivi2) {   // sona 17:06-17:07: pisteet ISOLLA omalla rivillään (sama oranssi kuin nimi)
