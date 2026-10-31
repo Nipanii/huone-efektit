@@ -20,8 +20,13 @@ const OHJEET = [   // sona 15:42 "yksi pelaaja kerrallaan pelaa zombie rataa yks
   'Yksi pelaaja kerrallaan pelaa zombirataa yksin, muut voivat katsoa.',
   'Tavoite: tapa mahdollisimman monta zombia. 1 zombi = 1 piste.',
   'Rata on läpäisty, kun olet tappanut 25 zombia.',
-  'Ohjaus: liiku WASD-näppäimillä ja ammu hiirellä, kuten Kupla Shooterissa.',   // sona 15:43
 ];
+// Ohjaus kuvina (sona 15:43 "WASD-liikutaan ja hiirellä ammutaan" · 15:45 "divit joissa on wasd kirjaimet jotka kuvastaa suuntaa ja hiiren kuva ja pyssy")
+const OHJAUS_LIIKE = 'Liiku', OHJAUS_AMMU = 'Ammu (vasen nappi)', OHJAUS_HUOM = 'Kuten Kupla Shooterissa.';
+const HIIRI_SVG = '<svg width="38" height="54" viewBox="0 0 38 54"><rect x="2" y="2" width="34" height="50" rx="17" fill="none" stroke="currentColor" stroke-width="2.5"/>'
+  + '<path d="M19 2 V22 M2 22 H36" stroke="currentColor" stroke-width="2"/><path d="M3.5 20 V19 A15.5 15.5 0 0 1 17.8 3.5 H18 V20 Z" fill="#ff5a4f"/></svg>';
+const ASE_SVG = '<svg width="58" height="36" viewBox="0 0 58 36"><path d="M4 8 H50 V6 H54 V16 H24 L21 32 H10 L13 16 H4 Z" fill="currentColor"/>'
+  + '<path d="M20 16 Q22 23 28 22" stroke="currentColor" stroke-width="2.5" fill="none"/><circle cx="56" cy="11" r="1.6" fill="#ffb347"/></svg>';
 // Värit (sona 15:28 punainen): tausta, reuna, korostus (otsikko + aktiivinen välilehti), himmeä teksti, kärkirivi
 const V = { tausta: 'rgba(26,10,12,.94)', reuna: '#6e1f26', korostus: '#ff5a4f', teksti: '#ecd2d0', himmea: '#d6a5a0', valittu: '#4a1519', karki: '#ffb347' };
 const Z = 1000;
@@ -34,6 +39,27 @@ const siirra = (ev) => { if (!vedto || !ikkuna || ev.pointerId !== vedto.id) ret
   ikkuna.style.left = Math.min(Math.max(0, ev.clientX - vedto.dx), Math.max(0, iw - w)) + 'px';
   ikkuna.style.top = Math.min(Math.max(0, ev.clientY - vedto.dy), Math.max(0, ih - h)) + 'px'; };
 const lopeta = (ev) => { if (!vedto || (ev && ev.pointerId !== undefined && ev.pointerId !== vedto.id)) return; vedto = null; };
+
+// WASD-näppäimet nuolineen + hiiri (vasen nappi korostettu) + ase. Kaikki DOMia ja inline-SVG:tä, ei ulkoisia kuvia.
+const nappain = (kirjain, nuoli) => { const k = document.createElement('div');
+  k.style.cssText = 'width:30px;height:30px;box-sizing:border-box;border:1px solid ' + V.korostus + ';border-bottom-width:3px;border-radius:5px;background:' + V.valittu
+    + ';display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;color:' + V.teksti;
+  const a = document.createElement('div'); a.textContent = nuoli; a.style.cssText = 'font-size:9px;color:' + V.korostus;
+  const b = document.createElement('div'); b.textContent = kirjain; b.style.cssText = 'font:bold 13px sans-serif';
+  k.appendChild(a); k.appendChild(b); return k; };
+const ohjausKuva = () => {
+  const box = document.createElement('div');
+  box.style.cssText = 'margin-top:8px;padding:8px;border:1px solid ' + V.reuna + ';border-radius:6px;display:flex;justify-content:space-around;align-items:flex-end;gap:8px';
+  const sarake = (sisus, teksti) => { const s = document.createElement('div'); s.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:5px';
+    s.appendChild(sisus); const t = document.createElement('div'); t.textContent = teksti; t.style.cssText = 'font-size:11px;color:' + V.himmea; s.appendChild(t); return s; };
+  const wasd = document.createElement('div'); wasd.style.cssText = 'display:grid;grid-template-columns:repeat(3,30px);gap:3px';
+  [['', ''], ['W', '▲'], ['', ''], ['A', '◀'], ['S', '▼'], ['D', '▶']].forEach(([k, n]) => { if (!k) { wasd.appendChild(document.createElement('div')); return; } wasd.appendChild(nappain(k, n)); });
+  const ammu = document.createElement('div'); ammu.style.cssText = 'display:flex;align-items:center;gap:6px;color:' + V.teksti;
+  ammu.innerHTML = HIIRI_SVG + ASE_SVG;
+  box.appendChild(sarake(wasd, OHJAUS_LIIKE)); box.appendChild(sarake(ammu, OHJAUS_AMMU));
+  const kaikki = document.createElement('div'); kaikki.appendChild(box);
+  const h = document.createElement('div'); h.textContent = OHJAUS_HUOM; h.style.cssText = 'margin-top:5px;font-size:11px;color:' + V.himmea + ';text-align:center';
+  kaikki.appendChild(h); return kaikki; };
 
 const piirra = () => {
   if (!sisalto) return;
@@ -63,6 +89,7 @@ const piirra = () => {
     sisalto.appendChild(huom);
   } else {
     for (const r of OHJEET) { const p = document.createElement('p'); p.textContent = r; p.style.cssText = 'margin:0 0 6px'; sisalto.appendChild(p); }
+    sisalto.appendChild(ohjausKuva());
   }
 };
 
@@ -107,7 +134,7 @@ const rakenna = () => {
 
 for (const el of document.querySelectorAll('.h811-tulostaulu, .h811-nappi')) el.remove();   // skriptipäivitys: ei tuplaikkunaa (h811-nappi = mockup-1:n avausnappi)
 rakenna();
-window.__h811 = { huone, pienenna, versio: 'mockup-2' };
+window.__h811 = { huone, pienenna, versio: 'mockup-3' };
 
 return () => {
   if (ikkuna) ikkuna.remove();
