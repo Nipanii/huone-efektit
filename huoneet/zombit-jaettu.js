@@ -199,7 +199,6 @@ HUONEET[817] = (() => { const DX = 12, DY = 12, h = JSON.parse(JSON.stringify(HU
   siirra(v.jono, 513063); siirra(v.alku, 512772); siirra(v.loppu, 513207);
   // Kohde 5 (kp 18:04, 18:12): aitamekaniikka 817. Palakohtainen HP (50), isku kuten safe house.
   //   Kun pala tuhoutuu: piilotetaan paikallisesti, ruudukko aukeaa, kaikki zombit kulkevat aukosta.
-  h.eiZombeja = [[0, 33, 60, 60]];   // kp 19:01 "zombit näky tuol mustalla alueella": aitarivin y33 aukot päästivät etelään
   h.aidat = {
     hp: 20, vahinko: 1, iskuMs: 1000, valahdysMs: 300,
     // kp 18:51-18:52 "targettaa vääriä esteitä" + osoitti Portti 513142: vain portit ovat kohteita.
