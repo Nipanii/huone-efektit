@@ -206,7 +206,7 @@ ASETUS.synkka.aihe = 'z684.synk';
 //   kasi = käsiesine (vaihe 1c, kp 17:00 "ase handitemit puuttuu"): L4K:n oma tapa = `:handitem <id>` chat-komentona (shooter :24-25, :35, :505-509, :587),
 //   EI asukanavaa. Pyssy 1126, Jousi 1128, Miekka 1094 (L4K:n kasi-arvot). VIP-komento: ilman VIP:tä ase ei näy kädessä, peli toimii (shooter :101).
 ASETUS.aseet = {
-  luoti: { ikoni: '🔫', nimi: 'Pistooli', kasi: 1126, m: 'p', vari: '#ffd23f', nopeus: 21.6, auto: true, cd: 350, lento: 30, lineaari: [20, 30],
+  luoti: { ikoni: '🔫', nimi: 'Pistooli', kasi: 1126, m: 'p', tyyli: 'luoti', vari: '#ffd23f', nopeus: 21.6, auto: true, cd: 350, lento: 30, lineaari: [20, 30],
     aani: null, aggroSade: null, nollaaKontakti: false, kontaktiKerroin: 1 },
   jousi: { ikoni: '🏹', nimi: 'Jousi', kasi: 1128, m: 'p', vari: '#c9c9c9', veto: true, nopeus: 15.12, lento: 14, cd: 1000, vahinko: 20, lataus: [10, 50, 1000], latausLento: [14, 24],
     aani: null, aggroSade: null, nollaaKontakti: false, kontaktiKerroin: 1 },
@@ -2952,7 +2952,7 @@ AMMUNTA = (() => {
     for (const k of kohteet()) { const m = sateella(x, y, dx, dy, k.x, k.y, KA, lapi ? PYORAHDYS : OSUMA_SADE); if (m != null && nakyy(x, y, k.x, k.y)) osumat.push(Object.assign({ m }, k)); }
     osumat.sort((a, b) => a.m - b.m);
     if (!lapi) osumat = osumat.slice(0, 1);
-    jaljet.push({ x: minä.x, y: minä.y, z: minä.z, dx, dy, pituus: lapi ? KA : osumat[0] ? osumat[0].m : KA, t0: nyt, vari: A.vari, lapi });
+    jaljet.push({ x: minä.x, y: minä.y, z: minä.z, dx, dy, pituus: lapi ? KA : osumat[0] ? osumat[0].m : KA, t0: nyt, vari: A.vari, lapi, w, i: minä.i });
     while (jaljet.length > 20) jaljet.shift();
     const lapiKerroin = (k) => {   // shooter :923 varjossa: linjalla lähempänä toinen kohde -> lapiLapi %
       const p = A.lapiLapi != null ? +A.lapiLapi : 100; if (p >= 100) return 1;
@@ -2995,30 +2995,64 @@ AMMUNTA = (() => {
     }
     return out;
   };
+  function nuoli(a, b, karki) {   // shooter :1770-1781 sellaisenaan
+    const ctx = jctx, kulma = Math.atan2(a.y - b.y, a.x - b.x), L = 22, K = 7, c = Math.cos(kulma), s = Math.sin(kulma);
+    const hx = a.x - c * L, hy = a.y - s * L;
+    ctx.lineCap = 'round'; ctx.strokeStyle = '#000'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(a.x, a.y); ctx.stroke();
+    ctx.strokeStyle = '#8b5a2b'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(a.x, a.y); ctx.stroke();
+    ctx.fillStyle = karki; ctx.strokeStyle = '#000'; ctx.lineWidth = 1; ctx.beginPath();
+    ctx.moveTo(a.x + c * 3, a.y + s * 3);
+    ctx.lineTo(a.x - Math.cos(kulma - 0.5) * K, a.y - Math.sin(kulma - 0.5) * K); ctx.lineTo(a.x - Math.cos(kulma + 0.5) * K, a.y - Math.sin(kulma + 0.5) * K); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = '#eee'; ctx.lineWidth = 2;
+    for (const sivu of [-0.6, 0.6]) { ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(hx - Math.cos(kulma + sivu) * 6, hy - Math.sin(kulma + sivu) * 6); ctx.stroke(); }
+  }
+  // shooter :1805-1822 pyörähdys: kaari kiertää 360° PYOR_MS:ssa, perässä häipyvä vana, lopuksi rengas häipyy; hahmo pyörii 8 suunnan läpi paikallisesti.
+  const PYOR_MS = 360, PYOR_KUVA = 2;
+  function pyorahdysPiirto(j, nyt, p) {
+    const ctx = jctx, ika = nyt - j.t0, vari = j.vari || '#e8eef7', k0 = Math.atan2(j.dy, j.dx); if (ika > PYOR_MS + 350) return;
+    const o = j.i != null ? (() => { try { return e.getRoomObject(huone, j.i, 100); } catch (x) { return null; } })() : null;
+    if (o) { try { const d = o.getDirection(); if (j.suunta0 == null) j.suunta0 = d.x;
+      if (ika < PYOR_MS) { const uusi = (Math.round(j.suunta0 / 45) * 45 + 45 * Math.floor(ika / (PYOR_MS / 8))) % 360; if (d.x !== uusi) o.setDirection(new d.constructor(uusi, d.y, d.z)); }
+      else if (!j.palautettu) { j.palautettu = true; o.setDirection(new d.constructor(j.suunta0, d.y, d.z)); } } catch (x) {} }
+    const RK = PYOR_KUVA, piste = k => p(j.x + RK * Math.cos(k), j.y + RK * Math.sin(k), j.z + 0.8);
+    const kaari = (a0, a1, n) => { ctx.beginPath(); for (let i = 0; i <= n; i++) { const q = piste(a0 + (a1 - a0) * i / n); if (q) i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); } ctx.stroke(); };
+    ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = vari; ctx.shadowColor = vari;
+    if (ika < PYOR_MS) {
+      const kulku = k0 + 2 * Math.PI * (ika / PYOR_MS);
+      for (const [pit, lev, alfa] of [[Math.PI * 0.9, 2, 0.25], [Math.PI * 0.55, 3, 0.5], [Math.PI * 0.25, 4, 0.95]]) { ctx.globalAlpha = alfa; ctx.lineWidth = lev; ctx.shadowBlur = 6; kaari(kulku - pit, kulku, 40); }
+    } else { ctx.globalAlpha = Math.max(0, 0.6 * (1 - (ika - PYOR_MS) / 350)); ctx.lineWidth = 2; ctx.shadowBlur = 4; kaari(k0, k0 + 2 * Math.PI, 72); }
+    ctx.restore();
+  }
   const piirraJaljet = (nyt) => {
     const kesto = Math.max(50, Number(ASETUS.ase.jalkiMs) || 450);
     while (jaljet.length && nyt - jaljet[0].t0 > (jaljet[0].lapi ? 750 : kesto)) jaljet.shift();
     if (!jkanvas || !jctx || !document.body) return;
     const W = window.innerWidth || 0, H = window.innerHeight || 0;
     const palkit = hpPalkit(nyt);
-    if (!jaljet.length && !luodit.length && !palkit.length) { if (jkanvas.width) jctx.clearRect(0, 0, jkanvas.width, jkanvas.height); return; }
+    if (!jaljet.length && !luodit.length && !palkit.length && !veto) { if (jkanvas.width) jctx.clearRect(0, 0, jkanvas.width, jkanvas.height); return; }
     if (jkanvas.parentNode !== document.body) document.body.appendChild(jkanvas);
     if (jkanvas.width !== W || jkanvas.height !== H) { jkanvas.width = W; jkanvas.height = H; jkanvas.style.width = W + 'px'; jkanvas.style.height = H + 'px'; }
     jctx.clearRect(0, 0, W, H);
     const p = kamera(); if (!p) return;
-    const viiva = (a, b, vari, lev, alpha) => { if (!a || !b) return; jctx.save(); jctx.globalAlpha = alpha; jctx.strokeStyle = vari; jctx.lineWidth = lev; jctx.lineCap = 'round'; jctx.beginPath(); jctx.moveTo(a.x, a.y); jctx.lineTo(b.x, b.y); jctx.stroke(); jctx.restore(); };
-    for (const j of jaljet) {
-      const ika = nyt - j.t0;
-      if (j.lapi) {   // pyörähdys: rengas säteellä pituus
-        const o = p(j.x, j.y, j.z + 0.6), r = p(j.x + j.pituus, j.y, j.z + 0.6); if (!o || !r) continue;
-        jctx.save(); jctx.globalAlpha = Math.max(0, 1 - ika / 750); jctx.strokeStyle = j.vari || '#e8eef7'; jctx.lineWidth = 4;
-        jctx.beginPath(); jctx.ellipse(o.x, o.y, Math.abs(r.x - o.x) * 1.4, Math.abs(r.x - o.x) * 0.7, 0, 0, Math.PI * 2); jctx.stroke(); jctx.restore(); continue;
-      }
-      viiva(p(j.x, j.y, j.z + 1.2), p(j.x + j.dx * j.pituus, j.y + j.dy * j.pituus, j.z + 1.2), j.vari || '#ffd23f', 5, Math.max(0, 1 - ika / kesto));
+    for (const j of jaljet) {   // miekka: shooter :1853-1858 sellaisenaan
+      if (j.lapi) { pyorahdysPiirto(j, nyt, p); continue; }
+      const ika = nyt - j.t0; if (ika > 300) continue; const k0 = Math.atan2(j.dy, j.dx); jctx.save(); jctx.globalAlpha = 1 - ika / 300; jctx.strokeStyle = j.vari || '#e8eef7'; jctx.lineWidth = 4; jctx.lineCap = 'round'; jctx.beginPath();
+      for (let i = 0; i <= 12; i++) { const k = k0 - Math.PI / 3 + i * Math.PI / 18, q = p(j.x + 1.2 * Math.cos(k), j.y + 1.2 * Math.sin(k), j.z + 0.8); if (q) i ? jctx.lineTo(q.x, q.y) : jctx.moveTo(q.x, q.y); }
+      jctx.stroke(); jctx.restore();
     }
-    for (const b of luodit) {   // ammus: lyhyt viiva lentopaikassa
-      const A = aseOf(b.w), m = Math.min((nyt - b.t0) / 1000 * (A.nopeus || 8), b.LL, b.este), t = Math.max(0, m - 0.6);
-      viiva(p(b.x + b.dx * t, b.y + b.dy * t, b.z + 1.2), p(b.x + b.dx * m, b.y + b.dy * m, b.z + 1.2), A.vari || '#ffd23f', 3, 1);
+    for (const b of luodit) {   // shooter :1842-1851: lentävä luoti = hehkuva viiru + kärki, jousi = nuoli
+      const A = aseOf(b.w), matka = Math.min((nyt - b.t0) / 1000 * (A.nopeus || 8), b.LL, b.este), bx = b.x + b.dx * matka, by = b.y + b.dy * matka;
+      if (A.tyyli === 'luoti') {
+        const v = Math.min(0.7, matka), a = p(bx, by, b.z + 1), t = p(bx - b.dx * v, by - b.dy * v, b.z + 1); if (!a || !t) continue;
+        jctx.lineCap = 'round'; jctx.strokeStyle = 'rgba(255,200,80,.5)'; jctx.lineWidth = 5; jctx.beginPath(); jctx.moveTo(t.x, t.y); jctx.lineTo(a.x, a.y); jctx.stroke();
+        jctx.strokeStyle = '#fff6d0'; jctx.lineWidth = 2; jctx.beginPath(); jctx.moveTo((t.x + a.x) / 2, (t.y + a.y) / 2); jctx.lineTo(a.x, a.y); jctx.stroke();
+        jctx.fillStyle = '#fff'; jctx.beginPath(); jctx.arc(a.x, a.y, 2.5, 0, Math.PI * 2); jctx.fill(); continue;
+      }
+      const a = p(bx, by, b.z + 1), t = p(bx - b.dx * 0.3, by - b.dy * 0.3, b.z + 1); if (a && t) nuoli(a, t, A.vari);
+    }
+    if (veto) {   // shooter :1867-1868 latauspalkki
+      const A = aseNyt(), m = omaPaikka(), sc = m && (A.lataus || A.lapi) && p(m.x, m.y, m.z + 3.3);
+      if (sc) { const q = Math.min(1, (nyt - veto.t0) / latausMs(A)), w = 40; jctx.fillStyle = '#000a'; jctx.fillRect(sc.x - w / 2 - 1, sc.y - 1, w + 2, 6); jctx.fillStyle = q >= 1 ? '#ffd23f' : '#9ecbff'; jctx.fillRect(sc.x - w / 2, sc.y, w * q, 4); }
     }
     for (const b of palkit) {   // L4K :1685-1687
       const sc = p(b.x, b.y, b.z + 2.7); if (!sc) continue; const w = 30;
