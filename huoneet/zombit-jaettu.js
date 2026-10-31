@@ -189,6 +189,7 @@ const HUONEET = {
     //   (ASETUS_OLETUS kitValiMs 20000, kitMax 2, kitIkaMs 60000, kitHp 50); logiikka :930-955 (spawn/poiminta), piirto :1876-1902. Vaatii kiinnijaanti 'hp'.
     //   Puuttuva kitit = ei ensiapuja (684: null, ASETUS.kitit alempana).
     kitit: { valiMs: 20000, max: 2, ikaMs: 60000, hp: 50 },
+    poistaAseet: ['jousi'],   // kp 20:17 "poistetaan bow yksinkertaistamisen vuoksi": 811/817:n asevalikoima = pistooli + miekka (684: ei ammuntaa, ASETUS.aseet ennallaan)
   },
 };
 // Huone 817 "Rata 6 B" = 811 levennettynä (kp 31.10. 16:10-17:31 "valmistele siirto 817:ään eli samat scriptit toimimaan siellä"): sama peli, kaikki ruudut x+12, y+12
@@ -254,7 +255,9 @@ const huone = Number((kupla && kupla.roomId && kupla.roomId()) || (e && e.active
   for (const [k, v] of Object.entries(h)) {
     if (k === 'synkka') Object.assign(ASETUS.synkka, v);
     else ASETUS[k] = (v && typeof v === 'object') ? JSON.parse(JSON.stringify(v)) : v;
-  } }
+  }
+  for (const w of (Array.isArray(ASETUS.poistaAseet) ? ASETUS.poistaAseet : [])) if (ASETUS.aseet) delete ASETUS.aseet[w];   // huonekohtainen asevalikoima (811/817: ei jousta)
+  if (ASETUS.ase && ASETUS.aseet && !ASETUS.aseet[ASETUS.ase.valittu]) ASETUS.ase.valittu = ['luoti', 'miekka', 'jousi'].find(w => ASETUS.aseet[w]) || ASETUS.ase.valittu; }
 const dv = (o, k) => { const d = o && Object.getOwnPropertyDescriptor(o, k); return d && !d.get ? d.value : undefined; };
 const omaId = () => { const s = e && dv(e, '_sessionDataManager'); return Number((s && (dv(s, '_userId') || s.userId)) || 0); };
 if (!e || !huone) return () => {};
@@ -3694,7 +3697,7 @@ AMMUNTA = (() => {
     if (tulostuva && ev.code !== 'Space') {
       ev.preventDefault(); ev.stopImmediatePropagation();
       if (ev.repeat) return;
-      if (k === '1' || k === '2' || k === '3') { const w = ASEJARJ[+k - 1]; if (valitseAse(w)) { try { ilmoita(aseOf(w).ikoni + ' ' + aseOf(w).nimi); } catch (x) {} } }
+      if (k === '1' || k === '2' || k === '3') { const w = ASEJARJ_N()[+k - 1]; if (valitseAse(w)) { try { ilmoita(aseOf(w).ikoni + ' ' + aseOf(w).nimi); } catch (x) {} } }
       else if (k === 'q') vaihdaAse(1);
       return;
     }
@@ -3794,7 +3797,7 @@ AMMUNTA = (() => {
     hudO.hpT = lisaa(hudO.hp, tyyli(d('span'), 'position:absolute;inset:0;text-align:center;line-height:14px;font-weight:bold;font-size:11px;text-shadow:0 1px 2px #000'));
     const ala = lisaa(h, tyyli(d('div'), 'display:flex;align-items:flex-end;gap:8px'));
     const slotit = lisaa(ala, tyyli(d('div'), 'display:flex;gap:8px;padding:6px;background:rgba(14,24,40,.94);border:2px solid #283f5d;border-radius:12px;box-shadow:0 4px 14px rgba(0,0,0,.55)'));
-    ASEJARJ.forEach((w, i) => {
+    ASEJARJ_N().forEach((w, i) => {   // vain huoneen aseet, numerointi ilman aukkoa
       const A = aseOf(w), b = tyyli(d('button'), SLOT);
       const nro = lisaa(b, tyyli(d('b'), 'position:absolute;left:4px;top:2px;font-size:10px;color:#8ea3bf')); nro.textContent = String(i + 1);
       const ik = lisaa(b, tyyli(d('em'), 'font-style:normal;font-size:26px;line-height:28px')); ik.textContent = A.ikoni || '';
@@ -3885,7 +3888,7 @@ AMMUNTA = (() => {
     purema, paranna, kontaktiKerroin, nollaaKontakti, hp: () => AM.hp, wasd: { pidetyt, tick: wasdTick, nappain, nosto }, hiiri,
     vuoroTick, vuoroPyyda, vuoroVastaanota, vuoro: () => VT.vu, VT, vuoroSallii, aseKaytossa: aseAktiivinen, vuoroTeksti,
     omaHpPalkki, safeHouseHpPalkki, gateHpPalkit,
-    kitit: () => AM.kitit, kitTick, kittiVastaanota, kitPeli, kitPiirrettavat,   // ensiapukitit (testausta varten)
+    aseJarj: () => ASEJARJ_N(), kitit: () => AM.kitit, kitTick, kittiVastaanota, kitPeli, kitPiirrettavat,   // ensiapukitit (testausta varten)
     katse: { tick: katseTick, kulma: hiirenKulma },
     este: { esteMatka, esteKartta, peitossa, peittoLaatikot, lentoZ, kamera },   // kohde 1 (testausta varten, kuten shooter :1018 __kshEste)
     // vaihe 1c
@@ -3995,7 +3998,7 @@ const kuule = ev => {
     ev.preventDefault(); ev.stopImmediatePropagation();
     const s = (ma[1] || '').toLowerCase(), on = AMMUNTA.asetaAse(s ? !(s === 'pois' || s === 'off') : !AMMUNTA.ase());
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, ''); el.dispatchEvent(new Event('input', { bubbles: true }));
-    ilmoita(on ? ':ase päällä: WASD liikkuu, hiiri ampuu (1 pistooli, 2 jousi, 3 miekka)' : ':ase pois: klikkaus kävelee'); return;
+    ilmoita(on ? ':ase päällä: WASD liikkuu, hiiri ampuu (' + AMMUNTA.aseJarj().map((w, i) => (i + 1) + ' ' + String((ASETUS.aseet[w] || {}).nimi || w).toLowerCase()).join(', ') + ')' : ':ase pois: klikkaus kävelee'); return;
   }
   const m = KOMENTO.exec((el.value || '').trim()); if (!m || !saaSafe()) return;
   ev.preventDefault(); ev.stopImmediatePropagation();
