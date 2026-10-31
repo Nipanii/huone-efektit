@@ -9,12 +9,13 @@ const huone = kupla.roomId();
 
 const OTSIKKO = 'Hallowen rata finaali';   // sona 15:27 'vaihdetaan 6/6 sanaksi finaali'
 const VALILEHDET = ['Highscores', 'Ohjeet'];
-const MALLI_TULOKSET = [   // [nimi, pisteet, aika] — keksittyjä, vain ulkoasua varten
-  ['Pelaaja 1', 980, '04:12'],
-  ['Pelaaja 2', 870, '05:01'],
-  ['Pelaaja 3', 760, '05:47'],
-  ['Pelaaja 4', 640, '06:30'],
-  ['Pelaaja 5', 510, '07:15'],
+const NAKYVAT = 10;   // highscore-rivejä näkyvissä ilman vieritystä (sona 15:57)
+const MALLI_TULOKSET = [   // [nimi, pisteet = tapetut zombit, aika] — keksittyjä (sona 15:56 "25 pelaajaa ... keksittyjä suomalaisia etunimiä")
+  ['Aino', 78, '06:41'], ['Eetu', 72, '06:12'], ['Helmi', 69, '07:03'], ['Onni', 65, '05:58'], ['Venla', 61, '06:30'],
+  ['Leevi', 58, '05:44'], ['Siiri', 55, '06:05'], ['Elias', 52, '05:21'], ['Iida', 49, '05:50'], ['Väinö', 47, '04:58'],
+  ['Kerttu', 44, '05:12'], ['Niilo', 42, '04:47'], ['Lilja', 40, '04:39'], ['Topias', 38, '04:55'], ['Aada', 36, '04:20'],
+  ['Eino', 34, '04:08'], ['Pihla', 33, '04:31'], ['Veeti', 31, '03:57'], ['Emilia', 30, '03:49'], ['Aatos', 29, '04:02'],
+  ['Hilla', 28, '03:40'], ['Joonas', 27, '03:33'], ['Seela', 26, '03:28'], ['Oiva', 25, '03:15'], ['Minea', 25, '03:22'],
 ];
 const OHJEET = [   // sona 15:42 "yksi pelaaja kerrallaan pelaa zombie rataa yksin ja muut voivat katsoa ... 25 zombieta. 1 zombi = 1 piste."
   'Yksi pelaaja kerrallaan pelaa zombirataa yksin, muut voivat katsoa.',
@@ -71,19 +72,25 @@ const piirra = () => {
     const tbl = document.createElement('table');
     tbl.style.cssText = 'width:100%;border-collapse:collapse;font:13px sans-serif';
     const otsRivi = document.createElement('tr');
-    for (const [t, a] of [['#', 'left'], ['Pelaaja', 'left'], ['Pisteet', 'right'], ['Aika', 'right']]) {
+    for (const [t, a] of [['#', 'left'], ['Pelaaja', 'left'], ['Pisteet', 'right']]) {   // sona 15:57 "otetaan aika pois"
       const th = document.createElement('th'); th.textContent = t;
       th.style.cssText = 'text-align:' + a + ';padding:3px 6px;color:' + V.himmea + ';font-weight:normal;border-bottom:1px solid ' + V.reuna;
       otsRivi.appendChild(th); }
     tbl.appendChild(otsRivi);
-    MALLI_TULOKSET.forEach(([nimi, p, aika], i) => {
+    MALLI_TULOKSET.forEach(([nimi, p], i) => {
       const tr = document.createElement('tr');
-      const solut = [[String(i + 1), 'left'], [nimi, 'left'], [String(p), 'right'], [aika, 'right']];
+      const solut = [[String(i + 1), 'left'], [nimi, 'left'], [String(p), 'right']];
       for (const [t, a] of solut) { const td = document.createElement('td'); td.textContent = t;
         td.style.cssText = 'text-align:' + a + ';padding:3px 6px;' + (i === 0 ? 'color:' + V.karki + ';font-weight:bold' : '');
         tr.appendChild(td); }
       tbl.appendChild(tr); });
-    sisalto.appendChild(tbl);
+    // sona 15:57 "näkyy 10 pelaajaa, ja muuten pitää scrollata": korkeus mitataan otsikko + 10 riviä; otsikko pysyy ylhäällä; rulla ei mene pelille (zoom)
+    const rulla = document.createElement('div'); rulla.style.cssText = 'overflow-y:auto;overscroll-behavior:contain';
+    rulla.addEventListener('wheel', ev => ev.stopPropagation(), { passive: true });
+    for (const th of otsRivi.children) th.style.cssText += ';position:sticky;top:0;background:' + V.tausta;
+    rulla.appendChild(tbl); sisalto.appendChild(rulla);
+    const r = tbl.rows; let h = 0; for (let i = 0; i <= NAKYVAT && i < r.length; i++) h += r[i].getBoundingClientRect().height;
+    rulla.style.maxHeight = Math.ceil(h || (NAKYVAT + 1) * 23) + 'px';
     const huom = document.createElement('div'); huom.textContent = 'Mockup: pisteet eivät ole oikeita.';
     huom.style.cssText = 'margin-top:8px;font-size:11px;color:' + V.himmea + ';font-style:italic';
     sisalto.appendChild(huom);
