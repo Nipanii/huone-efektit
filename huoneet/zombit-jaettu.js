@@ -162,7 +162,7 @@ const HUONEET = {
     // kp 16:03 "ei keksitä uudelleen niitä kun ne toimi jo hyvin": aallot ja syntypaikat Left 4 Kuplasta sellaisinaan (shooter-1.15.2.user.js:177-179
     //   zAloitus 6, zKasvu 3, zTaukoMs 6000; :1530-1546 zSynnyta/zAloitaAalto; :1507 zSyntyRuutu: valitut ruudut kiertäen, muuten oviruutu, muuten reunat).
     //   katto = samanaikaisten yläraja (L4K zKatto on johdettu SEN kanavan kaistasta; tässä maaraMax, koska snapshot kantaa kaikki zombit).
-    aallot: { aloitus: 20, kasvu: 10, taukoMs: 6000, alkuMs: 1500, katto: 24, syntyRuudut: [],   // kp 18:55, 19:59 "lisää heti ekaan aaltoon": oli 6, 3, 8
+    aallot: { aloitus: 22, kasvu: 12, maarat: [22, 33, 45], taukoMs: 6000, alkuMs: 1500, katto: 24, syntyRuudut: [],   // kp 18:55, 19:59 "lisää heti ekaan aaltoon": oli 6, 3, 8
       // kp 16:28 "zombeja pitää spawnata myös oikeesta portittomasta päästä": puolet kiertävät synty synnyltä (ovi, oikea pää, ovi, ...).
       //   Oikea pää = tie cpunk_c15_road (811-kopio.json: esineet x 38/40, y 13..17, z 0) sarakkeessa x 41; ensimmäinen kävelykelpoinen kelpaa.
       //   Ei-kävelykelpoinen puoli (esim. ovi korokkeella) ohitetaan ja käytetään seuraavaa.
@@ -2892,7 +2892,9 @@ AMMUNTA = (() => {
   //   Syntyruutu: aallot.syntyRuudut kiertäen (ensimmäinen vapaa), muuten oviruutu (varattu -> vapaa naapuri; L4K odottaa 3 s, tässä heti),
   //   muuten kävelyalueen reunaruutu arvottuna (deterministinen siemenestä).
   if (!AM.aalto || typeof AM.aalto !== 'object') AM.aalto = { n: 0, k: 0, sp: 0, ku: 0, tauko: 0, alku: 0, seur: 0, idx: 0 };
-  const aaltoK = (n) => { const A = ASETUS.aallot || {}; return Math.max(1, Math.min(999, Math.round((Number(A.aloitus) || 6) + (Number(A.kasvu) || 0) * (n - 1)))); };
+  const aaltoK = (n) => { const A = ASETUS.aallot || {}, M = A.maarat;   // kp 20:14 "waven lopussa 100 pistettä": 22+33+45, sitten kasvu viimeisestä
+    if (Array.isArray(M) && M.length) return n <= M.length ? M[Math.max(1, n) - 1] : Math.min(999, M[M.length - 1] + (Number(A.kasvu) || 0) * (n - M.length));
+    return Math.max(1, Math.min(999, Math.round((Number(A.aloitus) || 6) + (Number(A.kasvu) || 0) * (n - 1)))); };
   const aaltoIlmoitus = (a) => { lokiin({ aalto: a.n, zombeja: a.k }); try { ilmoita('🧟 Aalto ' + a.n + ': ' + a.k + (a.k === 1 ? ' zombi' : ' zombia')); } catch (x) {} };
   const aloitaAalto = (n, tMs) => { AM.aalto = { n, k: aaltoK(n), sp: 0, ku: 0, tauko: 0, alku: 0, seur: tMs + 800, idx: AM.aalto.idx || 0 }; aaltoIlmoitus(AM.aalto); };
   const syntyRuutu = (Z, k) => {
