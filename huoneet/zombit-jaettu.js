@@ -143,7 +143,7 @@ const HUONEET = {
     // kp 20:26 "rakennetaan siihen onnittelu wired": kun vuoron pelaajan tapot ensimmäisen kerran ajossa >= tappoRaja, pelaajan OMA client sanoo voittoSanan
     //   (sama mekanismi kuin aloitusSana za811: sanoSalainen + piiloSanat + salaisetSanat) -> wired (kp rakentaa huoneeseen) onnittelee. Peli jatkuu. Tyhjä = ei sanota (684).
     voittoSana: 'zv811',
-    teleKuolema: false, muuttunutKuolemasta: false, ammuttava: true, aariviivat: true,
+    teleKuolema: false, muuttunutKuolemasta: false, ammuttava: true, aariviivat: false,
     maaraPohja: 4, maaraMin: 5, maaraMax: 8,   // OMA VALINTA (säädettävä): yksinpelaajalle 5 zombia kerrallaan (684:n kaavalla 3)
     tappoRaja: 100,   // kp 19:59 läpi 100 tapolla, keruu jatkuu sen jälkeen
     askelVali: [667, 1167],   // vaihe 1c, kp 17:14 "lisätään kans zombien base nopeutta vähän": +20 % nopeus (ms/ruutu / 1.2), oli ASETUS.askelVali [800, 1400]. Vain 811.
