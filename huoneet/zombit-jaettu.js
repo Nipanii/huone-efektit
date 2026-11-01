@@ -4276,7 +4276,6 @@ AMMUNTA = (() => {
   // ---- kohde 2 (kp 18:07 "omalle pelaajalle tosiaa health bar"): oman pelaajan HP-palkki hahmon yläpuolelle, shooter-1.15.2 `palkki` :1862-1866 sellaisenaan
   //   (z+2.9, leveys 40, tausta #000a 42x7, väri >0.5 #3ddc5a / >0.25 #f5c542 / muuten #e5484d, arvo <= 0 -> 💀; osuus = HP / max kuten shooter 1.12.0). HP = AM.hp.
   //   Piirretään kun oma pelaaja on pelissä (vuoroSallii); shooter piirtää omankin palkin aina (:1909). Huom: kiinnijaanti 'kontakti' -tilassa AM.hp ei muutu (täynnä).
-  let shViimeHp = null, shPalkkiValahdys = -1e15;
   const safeHouseHpPalkki = () => {
     if (!ASETUS.safeHouse || (VA() && !VT.vu)) return null;   // kp 19:50: vain pelin aikana
     const S = safeHouseTila(); if (!S || !(S.max > 0)) return null;
@@ -4389,11 +4388,6 @@ AMMUNTA = (() => {
         jctx.fillStyle = '#000a'; jctx.fillRect(sc.x - w / 2 - 1, sc.y - 1, w + 2, 7);
         const os = shP.os;
         jctx.fillStyle = os > 0.5 ? '#3ddc5a' : os > 0.25 ? '#f5c542' : '#e5484d'; jctx.fillRect(sc.x - w / 2, sc.y, w * os, 5);
-        // kp 1.11. 21:03-21:11: safe house ottaa vahinkoa -> palkki paksuuntuu ja vilkkuu punainen/valkoinen 1,2 s viimeisestä iskusta
-        if (shViimeHp != null && shP.hp < shViimeHp - 0.001) shPalkkiValahdys = nyt;
-        shViimeHp = shP.hp;
-        const shIka = nyt - shPalkkiValahdys;
-        if (shIka < 1200) { const v = Math.floor(shIka / 120) % 2 === 0, ly = sc.y - 5; jctx.save(); jctx.fillStyle = '#5a0000'; jctx.fillRect(sc.x - w / 2 - 2, ly - 2, w + 4, 19); jctx.fillStyle = v ? '#fff' : '#ff2a2a'; jctx.fillRect(sc.x - w / 2, ly, w * os, 15); jctx.strokeStyle = v ? '#ff2a2a' : '#fff'; jctx.lineWidth = 2; jctx.shadowColor = '#ff2a2a'; jctx.shadowBlur = 16; jctx.strokeRect(sc.x - w / 2 - 3, ly - 3, w + 6, 21); jctx.restore(); }
         if (shP.hp <= 0) { jctx.font = '16px sans-serif'; jctx.fillText('💀', sc.x - 8, sc.y - 4); }
       }
     }
@@ -4657,6 +4651,14 @@ AMMUNTA = (() => {
   };
   const hudTila = () => ({ nakyy: aseAktiivinen(), ase: ASETUS.ase.valittu, chat: chatTila, kamera: kameraAktiivinen(), k: omaTapot(), hp: hpTila() ? Math.round(AM.hp) : null, sh: safeHouseHpPalkki(), kuplat: !!kuplaTyyli,
     tilaTeksti: chatTila ? '💬 CHAT · Esc = peli' : '🎮 PELI · Enter = chat' });
+  // kp 1.11. 21:03-21:16: safe house ottaa vahinkoa -> HUD-palkki vilkkuu punainen/valkoinen 1,2 s viimeisestä iskusta, vain vuoron pelaajalle
+  let shHudHp = null, shHudAnim = null;
+  const shHudVilku = () => {
+    const el = hudO.sh; if (!el || typeof el.animate !== 'function') return;
+    if (shHudAnim && shHudAnim.playState === 'running') { shHudAnim.currentTime = Number(shHudAnim.currentTime) % 240; return; }
+    const a = { background: '#ff2a2a', borderColor: '#fff', boxShadow: '0 0 18px 5px #ff2a2a' }, b = { background: '#5a0000', borderColor: '#ff2a2a', boxShadow: '0 0 6px 1px #ff2a2a' };
+    shHudAnim = el.animate([{ ...a, offset: 0, easing: 'step-end' }, { ...b, offset: 0.5, easing: 'step-end' }, { ...b, offset: 1 }], { duration: 240, iterations: 5 });
+  };
   const hudPaivita = () => {
     const t = hudTila(); tila.hud = t; kuplatLapi(!!t.nakyy);
     if (!t.nakyy) { if (hudEl && hudEl.style) hudEl.style.display = 'none'; return t; }
@@ -4665,7 +4667,7 @@ AMMUNTA = (() => {
     if (hudEl.style) hudEl.style.display = 'flex';
     for (const [w, b] of Object.entries(hudO.slotit)) { const css = w === t.ase ? SLOT_ON : SLOT; if (b.style && b.dataset ? b.dataset.on !== String(w === t.ase) : true) { tyyli(b, css); if (b.dataset) b.dataset.on = String(w === t.ase); } }
     if (hudO.sh && hudO.sh.style) hudO.sh.style.display = t.sh ? '' : 'none';
-    if (t.sh) { if (hudO.shI && hudO.shI.style) hudO.shI.style.width = t.sh.os * 100 + '%'; if (hudO.shT) hudO.shT.textContent = 'Safe house ' + Math.round(t.sh.hp) + ' / ' + t.sh.max; }
+    if (t.sh) { if (hudO.shI && hudO.shI.style) hudO.shI.style.width = t.sh.os * 100 + '%'; if (hudO.shT) hudO.shT.textContent = 'Safe house ' + Math.round(t.sh.hp) + ' / ' + t.sh.max; if (shHudHp != null && t.sh.hp < shHudHp - 0.001 && vuoroSallii()) shHudVilku(); shHudHp = t.sh.hp; } else shHudHp = null;
     if (hudO.hp && hudO.hp.style) hudO.hp.style.display = t.hp == null ? 'none' : '';
     if (t.hp != null && hudO.hpI && hudO.hpI.style) { const os = Math.max(0, Math.min(1, t.hp / hpMax())); hudO.hpI.style.width = os * 100 + '%';
       hudO.hpI.style.background = os > 0.5 ? 'linear-gradient(180deg,#5ee37c,#2fb34f)' : os > 0.25 ? 'linear-gradient(180deg,#ffd75e,#e0a91e)' : 'linear-gradient(180deg,#ff6b6f,#d83a3f)';   // L4K :3175
