@@ -4276,6 +4276,7 @@ AMMUNTA = (() => {
   // ---- kohde 2 (kp 18:07 "omalle pelaajalle tosiaa health bar"): oman pelaajan HP-palkki hahmon yläpuolelle, shooter-1.15.2 `palkki` :1862-1866 sellaisenaan
   //   (z+2.9, leveys 40, tausta #000a 42x7, väri >0.5 #3ddc5a / >0.25 #f5c542 / muuten #e5484d, arvo <= 0 -> 💀; osuus = HP / max kuten shooter 1.12.0). HP = AM.hp.
   //   Piirretään kun oma pelaaja on pelissä (vuoroSallii); shooter piirtää omankin palkin aina (:1909). Huom: kiinnijaanti 'kontakti' -tilassa AM.hp ei muutu (täynnä).
+  let shViimeHp = null, shPalkkiValahdys = -1e15;
   const safeHouseHpPalkki = () => {
     if (!ASETUS.safeHouse || (VA() && !VT.vu)) return null;   // kp 19:50: vain pelin aikana
     const S = safeHouseTila(); if (!S || !(S.max > 0)) return null;
@@ -4388,6 +4389,11 @@ AMMUNTA = (() => {
         jctx.fillStyle = '#000a'; jctx.fillRect(sc.x - w / 2 - 1, sc.y - 1, w + 2, 7);
         const os = shP.os;
         jctx.fillStyle = os > 0.5 ? '#3ddc5a' : os > 0.25 ? '#f5c542' : '#e5484d'; jctx.fillRect(sc.x - w / 2, sc.y, w * os, 5);
+        // kp 1.11. 21:03-21:11: safe house ottaa vahinkoa -> palkki paksuuntuu ja vilkkuu punainen/valkoinen 1,2 s viimeisestä iskusta
+        if (shViimeHp != null && shP.hp < shViimeHp - 0.001) shPalkkiValahdys = nyt;
+        shViimeHp = shP.hp;
+        const shIka = nyt - shPalkkiValahdys;
+        if (shIka < 1200) { const v = Math.floor(shIka / 120) % 2 === 0, ly = sc.y - 5; jctx.save(); jctx.fillStyle = '#5a0000'; jctx.fillRect(sc.x - w / 2 - 2, ly - 2, w + 4, 19); jctx.fillStyle = v ? '#fff' : '#ff2a2a'; jctx.fillRect(sc.x - w / 2, ly, w * os, 15); jctx.strokeStyle = v ? '#ff2a2a' : '#fff'; jctx.lineWidth = 2; jctx.shadowColor = '#ff2a2a'; jctx.shadowBlur = 16; jctx.strokeRect(sc.x - w / 2 - 3, ly - 3, w + 6, 21); jctx.restore(); }
         if (shP.hp <= 0) { jctx.font = '16px sans-serif'; jctx.fillText('💀', sc.x - 8, sc.y - 4); }
       }
     }
