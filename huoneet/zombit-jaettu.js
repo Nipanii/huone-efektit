@@ -2061,8 +2061,10 @@ void main(void) {
     if (outSprite) outSprite.visible = false;
     if (aariContainer) aariContainer.visible = false;
   };
+  // vuoroSallii on AMMUNTA:n sisällä eikä näy tänne: sen kutsu heitti ReferenceErrorin ja koukun try nieli sen, joten ääriviivat eivät piirtyneet kenellekään (63cba6c-8378154).
+  const aariSallii = () => { if (!ASETUS.vuoro) return true; const V = SAILO.ammunta && SAILO.ammunta.vuoro, vu = V && V.vu; return !!vu && vu.id === omaId() && (vu.vaihe === 1 || V.siirtynyt === vu.nro); };
   const aja = () => {
-    if (suljettu || !ASETUS.aariviivat || !vuoroSallii()) { piilota(); return; }   // kp 1.11. 20:12: vain pelaajalle, spectatorit ei näe
+    if (suljettu || !ASETUS.aariviivat || !aariSallii()) { piilota(); return; }   // kp 1.11. 20:12: vain pelaajalle, spectatorit ei näe
     const t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
     tilasto.kehykset++;
     try {
