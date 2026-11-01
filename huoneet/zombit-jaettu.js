@@ -109,6 +109,7 @@ const ASETUS = {
     'hd-195-4.ch-225-70.lg-285-70.sh-310-70.hr-130-35',
     'hd-610-4.ch-645-80.lg-710-80.sh-740-80.hr-530-37'
   ],
+  aariviivat: false,
 };
 Object.defineProperty(ASETUS, 'menetä', { get: () => ASETUS.meneta, set: v => { ASETUS.meneta = v; } });
 
@@ -123,7 +124,7 @@ const HUONEET = {
   684: {
     kuolemaOvi: { x: 29, y: 5 }, eiSpawnia: [[20, 34, 28, 37]], eiZombeja: [[20, 33, 29, 37]],
     salasana: 'zk684', salaisetSanat: ['zk684', 'zl684', 'zc684', '73514k'], siemen: 684,
-    teleKuolema: true, muuttunutKuolemasta: true, ammuttava: false,
+    teleKuolema: true, muuttunutKuolemasta: true, ammuttava: false, aariviivat: false,
     synkka: { aihe: 'z684.synk', url: 'wss://49-12-45-218.sslip.io/r/z684' },
   },
   811: {   // sona 31.10. 15:42-15:43: yksi pelaaja kerrallaan, 1 zombi = 1 piste, läpi 25 tapolla, WASD + hiiri. "älä lisää tänne wiredejä".
@@ -142,7 +143,7 @@ const HUONEET = {
     // kp 20:26 "rakennetaan siihen onnittelu wired": kun vuoron pelaajan tapot ensimmäisen kerran ajossa >= tappoRaja, pelaajan OMA client sanoo voittoSanan
     //   (sama mekanismi kuin aloitusSana za811: sanoSalainen + piiloSanat + salaisetSanat) -> wired (kp rakentaa huoneeseen) onnittelee. Peli jatkuu. Tyhjä = ei sanota (684).
     voittoSana: 'zv811',
-    teleKuolema: false, muuttunutKuolemasta: false, ammuttava: true,
+    teleKuolema: false, muuttunutKuolemasta: false, ammuttava: true, aariviivat: true,
     maaraPohja: 4, maaraMin: 5, maaraMax: 8,   // OMA VALINTA (säädettävä): yksinpelaajalle 5 zombia kerrallaan (684:n kaavalla 3)
     tappoRaja: 100,   // kp 19:59 läpi 100 tapolla, keruu jatkuu sen jälkeen
     askelVali: [667, 1167],   // vaihe 1c, kp 17:14 "lisätään kans zombien base nopeutta vähän": +20 % nopeus (ms/ruutu / 1.2), oli ASETUS.askelVali [800, 1400]. Vain 811.
@@ -246,6 +247,7 @@ ASETUS.synkka.aihe = 'z684.synk';
 ASETUS.voittoSana = '';   // 684: ei voittosanaa (811/817: HUONEET[huone].voittoSana)
 ASETUS.tulosUrl = '';   // 684: ei tulostaulupalvelinta (811/817: HUONEET[huone].tulosUrl)
 ASETUS.tormays = false;   // 811/817: HUONEET[huone].tormays
+ASETUS.aariviivat = false;   // 684: pois (811/817: HUONEET[huone].aariviivat = true)
 ASETUS.kitit = null;   // 684: ei ensiapukitteja (811/817: HUONEET[huone].kitit { valiMs, max, ikaMs, hp })
 // Aseet 811:ssä = Left 4 Kuplan aseet SELLAISENAAN (kp 16:02 "otetaan vanha bow ja gun ampumis nopeus siten miten ne oli jo tehty" ·
 //   "sword voi kans pitää sellasenaan"): arvot shooter-1.15.2.user.js:505-509 (asetus.vahinko = 1). Zombin HP 60 = shooter :177 zHp.
@@ -1911,6 +1913,389 @@ const piirraLammikot = () => {
 };
 
 const piirretyt = new Map(), piirrettyAsento = new Map();   // n -> objekti-id, n -> viimeksi piirretty asento
+// ---- Esteiden takaiset ääriviivat (ASETUS.aariviivat, Pixi v8 / WebGL ilman CPU-readbackia, #8dff5a):
+//   Huonekankaan _sortableSprites-listassa (järjestetty b.z - a.z, render():n jälkeen) suuremman indeksin kaluste/seinä-sprite piirtyy
+//   hahmon päälle. Poimitaan peitetyt zombit + oma hahmo, ryhmitellään syvyysjärjestyksessä eriin + ei-leikkaaviin alikerroksiin,
+//   piirretään esteet occRT-maskiin ja hahmot aariFilter-shaderin (4-naapurin alfa-reuna, leikattu uOccTexture.a >= 0.5) läpi outRT-tekstuuriin.
+const AARIVIIVAT = (() => {
+  let koukutettuRc = null, alkupUpdate = null, koukkuFn = null, viimeKoukkuMs = 0;
+  let renderer = null, ContainerC = null, SpriteC = null, FilterC = null, GlProgramC = null, RenderTextureC = null;
+  let aariContainer = null, outSprite = null, occContainer = null, avaRoot = null, avaContainer = null, aariFilter = null;
+  let occRT = null, outRT = null, rtW = 0, rtH = 0, suljettu = false;
+  const occPool = [], avaPool = [];
+  const tilasto = { kehykset: 0, piirretytKehykset: 0, ohitetutKehykset: 0, zombit: 0, peitossa: 0, esteet: 0, erit: 0, aikaMs: 0, keskiMs: 0, maxMs: 0, rtKoko: '0x0' };
+  const haeRc = () => {
+    try { return (e.getRoomInstanceRenderingCanvas && (e.getRoomInstanceRenderingCanvas(huone, 1) || e.getActiveRoomInstanceRenderingCanvas())) || null; } catch (x) { return null; }
+  };
+  const etsiRenderer = (tex) => {
+    const ev = tex && tex.source && tex.source._events; if (!ev) return null;
+    for (const k of Object.keys(ev)) {
+      const v = ev[k], L = Array.isArray(v) ? v : (v ? [v] : []);
+      for (const h of L) { const r = h && h.context && (h.context._renderer || h.context.renderer); if (r && typeof r.render === 'function') return r; }
+    }
+    return null;
+  };
+  const varmistaPixi = (rc, sp0) => {
+    if (renderer && ContainerC && SpriteC && FilterC && GlProgramC && RenderTextureC) return true;
+    const master = rc && (rc.master || rc._master), display = rc && (rc.display || rc._display);
+    if (!master || !display) return false;
+    if (!ContainerC) ContainerC = master.constructor;
+    if (!SpriteC) {
+      const d0 = (display.children && display.children[0]) || (master.children && master.children[0]);
+      if (d0) SpriteC = Object.getPrototypeOf(d0.constructor).prototype && Object.getPrototypeOf(d0.constructor).prototype.destroy ? Object.getPrototypeOf(d0.constructor) : d0.constructor;
+    }
+    if (!FilterC || !GlProgramC) {
+      const f0 = (master.filters && master.filters[0]) || (display.filters && display.filters[0]);
+      if (f0 && f0.glProgram) { { let C = Object.getPrototypeOf(f0.constructor); while (C && !Object.prototype.hasOwnProperty.call(C, 'from')) C = Object.getPrototypeOf(C); FilterC = C; }   /* hallinnan AdjustmentFilter ohittaa glProgramin: peruste on ensimmäinen luokka, jolla on oma static from (Filter) */ GlProgramC = f0.glProgram.constructor; }
+    }
+    if (!RenderTextureC && sp0 && sp0.texture && sp0.texture.constructor && typeof sp0.texture.constructor.create === 'function') {
+      RenderTextureC = sp0.texture.constructor;
+    }
+    if (!renderer) {
+      if (sp0 && sp0.texture) renderer = etsiRenderer(sp0.texture);
+      if (!renderer && display.children) for (let i = 0; i < display.children.length && !renderer; i++) if (display.children[i] && display.children[i].texture) renderer = etsiRenderer(display.children[i].texture);
+      if (!renderer && master.children) for (let i = 0; i < master.children.length && !renderer; i++) if (master.children[i] && master.children[i].texture) renderer = etsiRenderer(master.children[i].texture);
+    }
+    return !!(renderer && ContainerC && SpriteC && FilterC && GlProgramC && RenderTextureC);
+  };
+  const varmistaRT = (w, h) => {
+    const nw = Math.max(rtW, Math.min(4096, Math.max(128, Math.ceil(w / 128) * 128)));
+    const nh = Math.max(rtH, Math.min(4096, Math.max(128, Math.ceil(h / 128) * 128)));
+    if (!occRT || !outRT) {
+      rtW = nw; rtH = nh;
+      occRT = RenderTextureC.create({ width: rtW, height: rtH, dynamic: true, scaleMode: 'nearest' });
+      outRT = RenderTextureC.create({ width: rtW, height: rtH, dynamic: true, scaleMode: 'nearest' });
+      tilasto.rtKoko = rtW + 'x' + rtH;
+    } else if (nw > rtW || nh > rtH) {
+      rtW = nw; rtH = nh;
+      occRT.resize(rtW, rtH);
+      outRT.resize(rtW, rtH);
+      tilasto.rtKoko = rtW + 'x' + rtH;
+    }
+    if (!aariFilter) {
+      const glProgram = GlProgramC.from({
+        vertex: `in vec2 aPosition;
+out vec2 vTextureCoord;
+out vec2 vOccCoord;
+out vec2 vPx;
+uniform vec4 uInputSize;
+uniform vec4 uOutputFrame;
+uniform vec4 uOutputTexture;
+void main(void) {
+  vec2 pos = aPosition * uOutputFrame.zw + uOutputFrame.xy;
+  vOccCoord = pos / uOutputTexture.xy;
+  vPx = uInputSize.zw;
+  pos.x = pos.x * (2.0 / uOutputTexture.x) - 1.0;
+  pos.y = pos.y * (2.0 * uOutputTexture.z / uOutputTexture.y) - uOutputTexture.z;
+  gl_Position = vec4(pos, 0.0, 1.0);
+  vTextureCoord = aPosition * (uOutputFrame.zw * uInputSize.zw);
+}`,
+        fragment: `in vec2 vTextureCoord;
+in vec2 vOccCoord;
+in vec2 vPx;
+out vec4 finalColor;
+uniform sampler2D uTexture;
+uniform sampler2D uOccTexture;
+void main(void) {
+  if (texture(uOccTexture, vOccCoord).a < 0.5) {
+    finalColor = vec4(0.0);
+    return;
+  }
+  float c = texture(uTexture, vTextureCoord).a;
+  if (c <= 0.5) {
+    finalColor = vec4(0.0);
+    return;
+  }
+  vec2 px = vPx;
+  float aL = texture(uTexture, vTextureCoord + vec2(-px.x, 0.0)).a;
+  float aR = texture(uTexture, vTextureCoord + vec2(px.x, 0.0)).a;
+  float aU = texture(uTexture, vTextureCoord + vec2(0.0, -px.y)).a;
+  float aD = texture(uTexture, vTextureCoord + vec2(0.0, px.y)).a;
+  if (min(min(aL, aR), min(aU, aD)) < 0.5) {
+    finalColor = vec4(0.55294, 1.0, 0.35294, 1.0);
+  } else {
+    finalColor = vec4(0.0);
+  }
+}`,
+        name: 'zombi-aari-filter'
+      });
+      aariFilter = new FilterC({
+        gpuProgram: null,
+        glProgram,
+        padding: 2,
+        resolution: 1,
+        resources: { uOccTexture: occRT.source }
+      });
+    }
+    if (!occContainer) occContainer = new ContainerC();
+    if (!avaRoot) {
+      avaRoot = new ContainerC();
+      avaContainer = new ContainerC();
+      avaContainer.filters = [aariFilter];
+      avaRoot.addChild(avaContainer);
+    }
+  };
+  const otaSprite = (pool, idx) => {
+    while (pool.length <= idx) {
+      const s = new SpriteC();
+      s.eventMode = 'none';
+      pool.push(s);
+    }
+    return pool[idx];
+  };
+  const piilota = () => {
+    if (outSprite) outSprite.visible = false;
+    if (aariContainer) aariContainer.visible = false;
+  };
+  const aja = () => {
+    if (suljettu || !ASETUS.aariviivat || !vuoroSallii()) { piilota(); return; }   // kp 1.11. 20:12: vain pelaajalle, spectatorit ei näe
+    const t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+    tilasto.kehykset++;
+    try {
+      const rc = haeRc(); if (!rc) { piilota(); return; }
+      const master = rc.master || rc._master, display = rc.display || rc._display, list = rc._sortableSprites;
+      if (!master || !display || !Array.isArray(list) || !list.length) { piilota(); return; }
+      const n = Math.min(list.length, rc._spriteCount != null && rc._spriteCount > 0 ? rc._spriteCount : list.length);
+      const omaI = omaIndeksi();
+      const eiEste = new Set(), kohteetMap = new Map();
+      let ekaSp0 = null;
+      const units = e.getRoomObjects(huone, 100) || [];
+      for (let i = 0; i < units.length; i++) {
+        const o = units[i]; if (!o || !o.visualization || !o.visualization.sprites) continue;
+        const sps = o.visualization.sprites;
+        for (let k = 0; k < sps.length; k++) if (sps[k]) eiEste.add(sps[k]);
+        const sp0 = sps[0]; if (!sp0 || sp0.visible === false || !sp0.texture || (sp0.alpha != null && sp0.alpha <= 0)) continue;
+        if (!ekaSp0) ekaSp0 = sp0;
+        const onOma = (omaI != null && o.id === omaI) || !!(o.visualization._ownUser) || sp0.spriteType === 4;
+        const onZombi = o.id < 0 && (!o.model || !o.model.getValue || o.model.getValue('figure_posture') !== 'lay');
+        if (onOma || onZombi) kohteetMap.set(sp0, onOma ? 2 : 1);
+      }
+      const cursors = (e.getRoomObjects && e.getRoomObjects(huone, 200)) || [];
+      for (let i = 0; i < cursors.length; i++) {
+        const sps = cursors[i] && cursors[i].visualization && cursors[i].visualization.sprites;
+        if (sps) for (let k = 0; k < sps.length; k++) if (sps[k]) eiEste.add(sps[k]);
+      }
+      if (!kohteetMap.size) { tilasto.zombit = 0; tilasto.peitossa = 0; tilasto.esteet = 0; tilasto.erit = 0; tilasto.ohitetutKehykset++; piilota(); return; }
+      const hahmot = [];
+      let minIdx = n, uMinX = 1e9, uMinY = 1e9, uMaxX = -1e9, uMaxY = -1e9;
+      for (let i = 0; i < n; i++) {
+        const ent = list[i], sp = ent && ent.sprite;
+        const tyyppi = sp && kohteetMap.get(sp);
+        if (!tyyppi) continue;
+        const tex = sp.texture, w = (tex && tex.width) || sp.width || 90, h = (tex && tex.height) || sp.height || 130;
+        if (w <= 0 || h <= 0) continue;
+        const rx = Math.round(ent.x), ry = Math.round(ent.y);
+        const x0 = sp.flipH ? rx - w : rx, y0 = sp.flipV ? ry - h : ry, x1 = x0 + w, y1 = y0 + h;
+        hahmot.push({ sp, rx, ry, x0, y0, x1, y1, w, h, idx: i, oma: tyyppi === 2, esteet: [] });
+        if (i < minIdx) minIdx = i;
+        if (x0 - 2 < uMinX) uMinX = x0 - 2;
+        if (y0 - 2 < uMinY) uMinY = y0 - 2;
+        if (x1 + 2 > uMaxX) uMaxX = x1 + 2;
+        if (y1 + 2 > uMaxY) uMaxY = y1 + 2;
+      }
+      tilasto.zombit = hahmot.length;
+      if (!hahmot.length) { tilasto.peitossa = 0; tilasto.esteet = 0; tilasto.erit = 0; tilasto.ohitetutKehykset++; piilota(); return; }
+      let esteLkm = 0;
+      for (let j = minIdx + 1; j < n; j++) {
+        const ent = list[j], sp = ent && ent.sprite;
+        if (!sp || sp.visible === false || !sp.texture || eiEste.has(sp)) continue;
+        if ((sp.alpha != null && sp.alpha < 128) || sp.blendMode === 'add') continue;
+        const ln = sp.libraryAssetName || sp.tag || '';
+        if (ln && /_sd_|shadow/i.test(ln)) continue;
+        const tex = sp.texture, w = (tex && tex.width) || sp.width || 0, h = (tex && tex.height) || sp.height || 0;
+        if (w <= 0 || h <= 0) continue;
+        const rx = Math.round(ent.x), ry = Math.round(ent.y);
+        const x0 = sp.flipH ? rx - w : rx, y0 = sp.flipV ? ry - h : ry, x1 = x0 + w, y1 = y0 + h;
+        if (x1 <= uMinX || x0 >= uMaxX || y1 <= uMinY || y0 >= uMaxY) continue;
+        let rec = null;
+        for (let k = 0; k < hahmot.length; k++) {
+          const A = hahmot[k]; if (A.idx >= j) break;
+          if (x1 > A.x0 - 1 && x0 < A.x1 + 1 && y1 > A.y0 - 1 && y0 < A.y1 + 1) {
+            if (!rec) { rec = { sp, rx, ry, x0, y0, x1, y1, w, h, idx: j }; esteLkm++; }
+            A.esteet.push(rec);
+          }
+        }
+      }
+      const peittyvat = [];
+      let bMinX = 1e9, bMinY = 1e9, bMaxX = -1e9, bMaxY = -1e9;
+      for (let i = 0; i < hahmot.length; i++) {
+        const A = hahmot[i]; if (!A.esteet.length) continue;
+        peittyvat.push(A);
+        if (A.x0 < bMinX) bMinX = A.x0;
+        if (A.y0 < bMinY) bMinY = A.y0;
+        if (A.x1 > bMaxX) bMaxX = A.x1;
+        if (A.y1 > bMaxY) bMaxY = A.y1;
+      }
+      tilasto.peitossa = peittyvat.length;
+      tilasto.esteet = esteLkm;
+      if (!peittyvat.length) { tilasto.erit = 0; tilasto.ohitetutKehykset++; piilota(); return; }
+      if (!varmistaPixi(rc, ekaSp0 || peittyvat[0].sp)) { piilota(); return; }
+      const bx = bMinX - 2, by = bMinY - 2, bw = Math.max(4, bMaxX - bMinX + 4), bh = Math.max(4, bMaxY - bMinY + 4);
+      varmistaRT(bw, bh);
+      // Ryhmittely syvyyseriin: uusi erä jos nykyisessä erässä on jo este O (O.idx < A.idx), joka leikkaa A:n laatikkoa.
+      const erienLista = [];
+      let era = null;
+      for (let i = 0; i < peittyvat.length; i++) {
+        const A = peittyvat[i];
+        let leikkaaVanhaa = false;
+        if (era) {
+          for (let m = 0; m < era.esteet.length; m++) {
+            const O = era.esteet[m];
+            if (O.idx < A.idx && O.x1 > A.x0 - 1 && O.x0 < A.x1 + 1 && O.y1 > A.y0 - 1 && O.y0 < A.y1 + 1) { leikkaaVanhaa = true; break; }
+          }
+        }
+        if (!era || leikkaaVanhaa) { era = { hahmot: [], esteet: [], esteSet: new Set() }; erienLista.push(era); }
+        era.hahmot.push(A);
+        for (let m = 0; m < A.esteet.length; m++) {
+          const O = A.esteet[m];
+          if (!era.esteSet.has(O.sp)) { era.esteSet.add(O.sp); era.esteet.push(O); }
+        }
+      }
+      tilasto.erit = erienLista.length;
+      let ekaPass = true;
+      for (let eIdx = 0; eIdx < erienLista.length; eIdx++) {
+        const E = erienLista[eIdx];
+        occContainer.removeChildren();
+        for (let m = 0; m < E.esteet.length; m++) {
+          const O = E.esteet[m], osp = O.sp, s = otaSprite(occPool, m);
+          const mag = (osp.scale && osp.scale > 0) ? osp.scale : 1;
+          s.texture = osp.texture;
+          s.x = O.rx - bx;
+          s.y = O.ry - by;
+          s.scale.x = osp.flipH ? -mag : mag;
+          s.scale.y = osp.flipV ? -mag : mag;
+          s.alpha = osp.alpha != null ? osp.alpha / 255 : 1;
+          s.tint = 0xffffff;
+          s.visible = true;
+          occContainer.addChild(s);
+        }
+        renderer.render({ container: occContainer, target: occRT, clear: true });
+        // Pakataan erän hahmot ei-leikkaaviin alikerroksiin (enintään 4), jotta vierekkäiset zombit saavat omat ääriviivansa.
+        const kerrokset = [];
+        for (let i = 0; i < E.hahmot.length; i++) {
+          const A = E.hahmot[i];
+          let sijoitettu = false;
+          for (let k = 0; k < kerrokset.length; k++) {
+            const L = kerrokset[k];
+            let tormaa = false;
+            for (let u = 0; u < L.length; u++) {
+              const B = L[u];
+              if (A.oma !== B.oma || (A.x1 > B.x0 - 2 && A.x0 < B.x1 + 2 && A.y1 > B.y0 - 2 && A.y0 < B.y1 + 2)) { tormaa = true; break; }
+            }
+            if (!tormaa) { L.push(A); sijoitettu = true; break; }
+          }
+          if (!sijoitettu) {
+            if (kerrokset.length < 4) kerrokset.push([A]);
+            else kerrokset[kerrokset.length - 1].push(A);
+          }
+        }
+        for (let k = 0; k < kerrokset.length; k++) {
+          const L = kerrokset[k];
+          avaContainer.removeChildren();
+          for (let u = 0; u < L.length; u++) {
+            const A = L[u], asp = A.sp, s = otaSprite(avaPool, u);
+            const mag = (asp.scale && asp.scale > 0) ? asp.scale : 1;
+            s.texture = asp.texture;
+            s.x = A.rx - bx;
+            s.y = A.ry - by;
+            s.scale.x = asp.flipH ? -mag : mag;
+            s.scale.y = asp.flipV ? -mag : mag;
+            s.alpha = 1;
+            s.tint = 0xffffff;
+            s.visible = true;
+            avaContainer.addChild(s);
+          }
+          renderer.render({ container: avaRoot, target: outRT, clear: ekaPass });
+          ekaPass = false;
+        }
+      }
+      if (!aariContainer) {
+        aariContainer = new ContainerC();
+        aariContainer.label = '__zombiAariviivat';
+        aariContainer.eventMode = 'none';
+        aariContainer.interactiveChildren = false;
+        outSprite = new SpriteC(outRT);
+        outSprite.eventMode = 'none';
+        aariContainer.addChild(outSprite);
+      }
+      if (aariContainer.parent !== master) {
+        if (master.children) {
+          for (let i = master.children.length - 1; i >= 0; i--) {
+            const ch = master.children[i];
+            if (ch && ch !== aariContainer && ch.label === '__zombiAariviivat') {
+              try { master.removeChild(ch); if (ch.destroy) ch.destroy({ children: true }); } catch (x) {}
+            }
+          }
+        }
+        master.addChild(aariContainer);
+      }
+      aariContainer.x = display.x;
+      aariContainer.y = display.y;
+      if (display.scale) { aariContainer.scale.x = display.scale.x; aariContainer.scale.y = display.scale.y; }
+      if (display.mask) aariContainer.mask = display.mask; else if (aariContainer.mask) aariContainer.mask = null;
+      outSprite.texture = outRT;
+      outSprite.x = bx;
+      outSprite.y = by;
+      outSprite.visible = true;
+      aariContainer.visible = true;
+      tilasto.piirretytKehykset++;
+    } catch (x) {
+      piilota();
+    }
+    const dt = ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - t0;
+    tilasto.aikaMs = Math.round(dt * 1000) / 1000;
+    tilasto.keskiMs = Math.round(((tilasto.keskiMs * (tilasto.kehykset - 1) + dt) / tilasto.kehykset) * 1000) / 1000;
+    if (dt > tilasto.maxMs) tilasto.maxMs = Math.round(dt * 1000) / 1000;
+  };
+  const koukuta = () => {
+    const rc = haeRc(); if (!rc) return false;
+    if (koukutettuRc === rc && rc.update === koukkuFn) return true;
+    try { if (typeof rc.__zombiAariSiivoa === 'function') rc.__zombiAariSiivoa(); } catch (x) {}
+    const orig = typeof rc.update === 'function' ? rc.update : function () {};
+    koukutettuRc = rc; alkupUpdate = orig;
+    koukkuFn = function () {
+      const r = orig.apply(this, arguments);
+      viimeKoukkuMs = Date.now();
+      try { aja(); } catch (x) {}
+      return r;
+    };
+    rc.update = koukkuFn;
+    rc.__zombiAariSiivoa = sulje;
+    return true;
+  };
+  const paivita = () => {
+    if (suljettu) return;
+    if (!ASETUS.aariviivat) { piilota(); return; }
+    const ok = koukuta();
+    if (!ok || Date.now() - viimeKoukkuMs > 80) aja();
+  };
+  const sulje = () => {
+    suljettu = true;
+    try {
+      if (koukutettuRc) {
+        if (koukutettuRc.update === koukkuFn && alkupUpdate) koukutettuRc.update = alkupUpdate;
+        if (koukutettuRc.__zombiAariSiivoa === sulje) delete koukutettuRc.__zombiAariSiivoa;
+      }
+    } catch (x) {}
+    koukutettuRc = alkupUpdate = koukkuFn = null;
+    try { if (aariContainer) { aariContainer.mask = null; if (aariContainer.parent) aariContainer.parent.removeChild(aariContainer); if (aariContainer.destroy) aariContainer.destroy({ children: true }); } } catch (x) {}
+    aariContainer = outSprite = null;
+    try { if (occContainer && occContainer.destroy) occContainer.removeChildren(); } catch (x) {}
+    try { if (avaContainer) { avaContainer.filters = null; avaContainer.removeChildren(); } } catch (x) {}
+    for (const s of occPool) { try { if (s && s.destroy) s.destroy(); } catch (x) {} } occPool.length = 0;
+    for (const s of avaPool) { try { if (s && s.destroy) s.destroy(); } catch (x) {} } avaPool.length = 0;
+    try { if (occContainer && occContainer.destroy) occContainer.destroy(); } catch (x) {}
+    try { if (avaContainer && avaContainer.destroy) avaContainer.destroy(); } catch (x) {}
+    try { if (avaRoot && avaRoot.destroy) avaRoot.destroy(); } catch (x) {}
+    occContainer = avaContainer = avaRoot = null;
+    try { if (aariFilter && aariFilter.destroy) aariFilter.destroy(); } catch (x) {} aariFilter = null;
+    try { if (occRT && occRT.destroy) occRT.destroy(true); } catch (x) {} occRT = null;
+    try { if (outRT && outRT.destroy) outRT.destroy(true); } catch (x) {} outRT = null;
+    rtW = rtH = 0;
+  };
+  return { paivita, sulje, tila: () => Object.assign({}, tilasto) };
+})();
+tila.aariviivat = AARIVIIVAT;
 const piirra = () => {
   // Zombikohtainen interpolointi: jokainen zombi interpoloidaan omasta viimeisestä askelajastaan (viimeAskelMs) omalla askelvälillään (piirtoAskelMs).
   // Kiinni jäänyt pelaaja EI näe omaa muuttunutta versiotaan (z.muuttunut && z.lahdeId === omaId()).
@@ -1951,6 +2336,7 @@ const piirra = () => {
   }
   piirraLammikot();
   if (AMMUNTA) AMMUNTA.piirto();
+  AARIVIIVAT.paivita();
 };
 tila.kuva = () => tila.zombit.concat(tila.muuttuneet || []).map(z => ({
   n: z.n, muuttunut: !!z.muuttunut, nimi: z.nimi || ('Zombi ' + z.n), lahdeId: z.lahdeId ?? null, lahdeNimi: z.lahdeNimi ?? null,
@@ -3033,15 +3419,18 @@ AMMUNTA = (() => {
     SYNK.osumatTick();   // saman tikin osumat (miekkapyörähdys) yhdessä viestissä
   };
   // kp 19:23: vastaanottaja pitää toisen pelaajan katseen myös tämän kävelyaskelten aikana (moottori palauttaa suunnan joka askeleella): muisti 2500 ms, tasaus 30 ms tikillä.
+  //   Miekkapyörähdyksen (pyoriiNyt, PYOR_MS = 360 ms) aikana katseKertaa/katseSaapui EI ylikirjoita pyörivän hahmon suuntaa, jotta koko 8 suunnan animaatio näkyy muillekin.
   const katseMuisti = new Map();
+  const pyoriiNyt = (i, nyt = Date.now()) => i != null && jaljet.some(j => j && j.lapi && !j.palautettu && j.i === i && nyt - j.t0 < PYOR_MS);
   const katseKertaa = () => {
     if (!katseMuisti.size) return; const nyt = Date.now();
     for (const [id, m] of katseMuisti) {
       if (nyt - m.t > 2500) { katseMuisti.delete(id); continue; }
-      try { const p = (pelaajat() || []).find(q => q && q.id === id); if (!p) continue; const o = e.getRoomObject(huone, p.i, 100), d = o && o.getDirection(); if (d && d.x !== m.k) { o.setDirection(new d.constructor(m.k, d.y, d.z)); o.model.setValue('head_direction', m.k); } } catch (x) {}
+      try { const p = (pelaajat() || []).find(q => q && q.id === id); if (!p || pyoriiNyt(p.i, nyt)) continue; const o = e.getRoomObject(huone, p.i, 100), d = o && o.getDirection(); if (d && d.x !== m.k) { o.setDirection(new d.constructor(m.k, d.y, d.z)); o.model.setValue('head_direction', m.k); } } catch (x) {}
     }
   };
-  const katseSaapui = (id, k) => { if (!isFinite(k) || id === omaId()) return; katseMuisti.set(id, { k, t: Date.now() }); const p = (pelaajat() || []).find(q => q && q.id === id); if (!p) return;
+  const katseSaapui = (id, k) => { if (!isFinite(k) || id === omaId()) return; const nyt = Date.now(); katseMuisti.set(id, { k, t: nyt }); const p = (pelaajat() || []).find(q => q && q.id === id); if (!p) return;
+    if (pyoriiNyt(p.i, nyt)) { for (const j of jaljet) if (j && j.lapi && !j.palautettu && j.i === p.i && nyt - j.t0 < PYOR_MS) { j.suunta0 = k; j.paa0 = k; } return; }
     try { const o = e.getRoomObject(huone, p.i, 100), d = o && o.getDirection(); if (d) { o.setDirection(new d.constructor(k, d.y, d.z)); o.model.setValue('head_direction', k); } } catch (x) {} };
   const laukauksetSaapui = (id, lista) => {
     if (id === omaId() || !Array.isArray(lista)) return;
@@ -3852,9 +4241,10 @@ AMMUNTA = (() => {
   function pyorahdysPiirto(j, nyt, p) {
     const ctx = jctx, ika = nyt - j.t0, vari = j.vari || '#e8eef7', k0 = Math.atan2(j.dy, j.dx); if (ika > PYOR_MS + 350) return;
     const o = j.i != null ? (() => { try { return e.getRoomObject(huone, j.i, 100); } catch (x) { return null; } })() : null;
-    if (o) { try { const d = o.getDirection(); if (j.suunta0 == null) j.suunta0 = d.x;
-      if (ika < PYOR_MS) { const uusi = (Math.round(j.suunta0 / 45) * 45 + 45 * Math.floor(ika / (PYOR_MS / 8))) % 360; if (d.x !== uusi) o.setDirection(new d.constructor(uusi, d.y, d.z)); }
-      else if (!j.palautettu) { j.palautettu = true; o.setDirection(new d.constructor(j.suunta0, d.y, d.z)); } } catch (x) {} }
+    if (o) { try { const d = o.getDirection(); if (j.suunta0 == null) { j.suunta0 = d.x; if (o.model && o.model.getValue) j.paa0 = o.model.getValue('head_direction'); }
+      if (ika < PYOR_MS) { const uusi = (Math.round(j.suunta0 / 45) * 45 + 45 * Math.floor(ika / (PYOR_MS / 8))) % 360;
+        if (d.x !== uusi) { o.setDirection(new d.constructor(uusi, d.y, d.z)); if (o.model && o.model.setValue) o.model.setValue('head_direction', uusi); if (j.i !== omaIndeksi() && o.visualization && typeof o.visualization._timeIncrease === 'number') o.visualization._timeIncrease = 0; } }
+      else if (!j.palautettu) { j.palautettu = true; const pal = j.suunta0, paa = j.paa0 != null && j.paa0 !== '' ? j.paa0 : pal; o.setDirection(new d.constructor(pal, d.y, d.z)); if (o.model && o.model.setValue) o.model.setValue('head_direction', paa); if (j.i !== omaIndeksi() && o.visualization && typeof o.visualization._timeIncrease === 'number') o.visualization._timeIncrease = 0; } } catch (x) {} }
     let L = null; if (o) { try { L = o.getLocation(); } catch (x) {} }   // kp 1.11. 19:57: rengas seuraa pelaajaa eikä jää lyöntipaikkaan
     const kx = L ? L.x : j.x, ky = L ? L.y : j.y, kz = L ? L.z : j.z;
     const RK = PYOR_KUVA, piste = k => p(kx + RK * Math.cos(k), ky + RK * Math.sin(k), kz + 0.8);
@@ -4048,7 +4438,7 @@ AMMUNTA = (() => {
   // kp 19:23: WASD-kävelyn aikana hahmo pitää katseensa hiiren suunnassa. Moottori asettaa suunnan joka askeleella -> oma näkymä: tasataan paikallisesti joka 30 ms tikillä (ei verkkoon),
   //   muille: lähetys kulman vaihtuessa ja virkistys 1000 ms välein (vastaanottaja pitää muistin 2500 ms, katseSaapui + katseKertaa).
   const katseKavellessa = (k) => {
-    const nyt = Date.now(), minä = omaPaikka(); if (!minä) return;
+    const nyt = Date.now(), minä = omaPaikka(); if (!minä || pyoriiNyt(minä.i, nyt)) return;
     let o = null, d = null; try { o = e.getRoomObject(huone, minä.i, 100); d = o && o.getDirection(); } catch (x) {} if (!o || !d) return;
     if (d.x !== k) { try { o.setDirection(new d.constructor(k, d.y, d.z)); o.model.setValue('head_direction', k); tilasto.katseKavellessa = (tilasto.katseKavellessa || 0) + 1; } catch (x) {} }
     if (k !== viimeKatse || nyt - viimeKatseAika >= 1000) { lahetaKatse(minä, k); viimeKatse = k; viimeKatseAika = nyt; }
@@ -4058,7 +4448,7 @@ AMMUNTA = (() => {
     const k = hiirenKulma(); if (k == null) return;
     if (pidetyt.size && !wasdEste) return katseKavellessa(k);   // kp 19:23 "hahmon pitää kävellä takaperin jos ampuu taaksepäin": ei shooterissa (:2194 ohittaa), uusi
     if (Date.now() - viimeKatseAika < 50) return;
-    const minä = omaPaikka(); if (!minä) return;
+    const minä = omaPaikka(); if (!minä || pyoriiNyt(minä.i, Date.now())) return;
     let o = null, d = null; try { o = e.getRoomObject(huone, minä.i, 100); d = o && o.getDirection(); } catch (x) {} if (!o || !d) return;
     if (k === viimeKatse && (d.x == null || d.x === k || Date.now() - viimeKatseAika < 400)) return;   // shooter :2198 (minä.suunta = hahmon oikea suunta)
     lahetaKatse(minä, k);   // kp 18:32 "saa käyttää 3301 pakettia": muutkin näkevät suunnan (shooter :2200)
@@ -4447,6 +4837,7 @@ lokiin({ alku: huone, safe: safe && saaSafe() });
 
 return () => {
   rafKaynnissa = false; clearInterval(ajastin); clearInterval(uusiKartta); clearInterval(vpAjastin); removeEventListener('keydown', kuule, true);
+  try { AARIVIIVAT.sulje(); } catch (x) {}
   try { if (AMMUNTA) AMMUNTA.sulje(); } catch (x) {}   // 811: näppäin/hiiri-kuuntelijat, WASD-ajastin, ruumiit, jälkikanvas, window.__zombi811
   try { SYNK.sulje(); } catch (x) {}   // synkka: kuplaScripts off()+unsubscribe, WebSocket, uudelleenyhdistys- ja snapshot-ajastimet
   if (vayla && typeof vayla.removeEventListener === 'function') vayla.removeEventListener('RSCE_CHAT_EVENT', kuuleChat);
