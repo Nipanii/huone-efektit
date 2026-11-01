@@ -3855,7 +3855,9 @@ AMMUNTA = (() => {
     if (o) { try { const d = o.getDirection(); if (j.suunta0 == null) j.suunta0 = d.x;
       if (ika < PYOR_MS) { const uusi = (Math.round(j.suunta0 / 45) * 45 + 45 * Math.floor(ika / (PYOR_MS / 8))) % 360; if (d.x !== uusi) o.setDirection(new d.constructor(uusi, d.y, d.z)); }
       else if (!j.palautettu) { j.palautettu = true; o.setDirection(new d.constructor(j.suunta0, d.y, d.z)); } } catch (x) {} }
-    const RK = PYOR_KUVA, piste = k => p(j.x + RK * Math.cos(k), j.y + RK * Math.sin(k), j.z + 0.8);
+    let L = null; if (o) { try { L = o.getLocation(); } catch (x) {} }   // kp 1.11. 19:57: rengas seuraa pelaajaa eikä jää lyöntipaikkaan
+    const kx = L ? L.x : j.x, ky = L ? L.y : j.y, kz = L ? L.z : j.z;
+    const RK = PYOR_KUVA, piste = k => p(kx + RK * Math.cos(k), ky + RK * Math.sin(k), kz + 0.8);
     const kaari = (a0, a1, n) => { ctx.beginPath(); for (let i = 0; i <= n; i++) { const q = piste(a0 + (a1 - a0) * i / n); if (q) i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); } ctx.stroke(); };
     ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = vari; ctx.shadowColor = vari;
     if (ika < PYOR_MS) {
