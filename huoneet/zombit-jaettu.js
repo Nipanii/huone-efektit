@@ -1819,6 +1819,16 @@ const veriPeittajat = () => { const nyt = Date.now(); if (veriPeitto && nyt - ve
       const fd = sd && sd.getFloorItemData && sd.getFloorItemData(m.getValue('furniture_type_id')); if (!fd || fd.canStandOn) continue;
       l.push({ id: o.id, x: L.x, y: L.y, syv: L.x + L.y }); } } catch (x) {}
   veriPeitto = { t: nyt, l }; return l; };
+// kp 1.11. 19:11 'miks veri edellee rendaa katutolpan taakse?': kaluste pyyhki lammikosta soikion rajaussuorakaiteen koosta, joten veri katosi myös tolpan vierestä. Nyt pyyhitään kalusteen oikea muoto;
+//   kuva luetaan kerran per tekstuuri (kalusteet eivät animoidu tässä), renderöijän puuttuessa vanha soikio.  RAJA: animoitu kaluste vaihtaa uid:tä ja lukee uuden kuvan.
+const veriMaskit = new Map();
+const veriMaski = s => { const t = s.texture, u = t && t.uid; if (u == null) return null; if (veriMaskit.has(u)) return veriMaskit.get(u); const ev = (t.source && t.source._events) || {}; let R = null;
+  for (const k of Object.keys(ev)) for (const x of [].concat(ev[k])) if (x && x.context && x.context._renderer) R = x.context._renderer;
+  if (!R || !R.extract) return null; if (veriMaskit.size > 300) veriMaskit.clear(); const c = R.extract.canvas({ target: t }); veriMaskit.set(u, c); return c; };
+const veriKalustePyyhi = (lctx, id, b, r, fx, fy) => { try { const o = e.getRoomObject(huone, id, 10), sp = ((o && o.visualization && o.visualization.sprites) || []).filter(s => s && s.visible && s.texture && s.width > 0); if (!sp.length) return false;
+    const ox0 = Math.min(...sp.map(s => s.offsetX)), oy0 = Math.min(...sp.map(s => s.offsetY)), sw = sp.filter(s => s.alpha >= 128 && (!s.blendMode || s.blendMode === 'normal')).map(s => [s, veriMaski(s)]); if (!sw.length || sw.some(q => !q[1])) return false;
+    lctx.save(); lctx.globalCompositeOperation = 'destination-out'; for (const [s, c] of sw) { const x = (b.x - r.left + s.offsetX - ox0) * fx, y = (b.y - r.top + s.offsetY - oy0) * fy, w = c.width * fx, h = c.height * fy;
+      if (s.flipH) { lctx.save(); lctx.translate(x + w, y); lctx.scale(-1, 1); lctx.drawImage(c, 0, 0, w, h); lctx.restore(); } else lctx.drawImage(c, x, y, w, h); } lctx.restore(); return true; } catch (x) { return false; } };
 const jarjLahella = (lammikot, k) => lammikot.some(lm => lm && Math.abs(lm.x - k.x) <= 8 && Math.abs(lm.y - k.y) <= 8);
 const piirraLammikot = () => {
   if (!lammikkoKanvas || !lctx || typeof document === 'undefined' || !document.body) return;
@@ -1867,7 +1877,7 @@ const piirraLammikot = () => {
     // kp 18:06 "veri piirtyy kaiken päälle?": kanvas on huoneen päällä, joten myös kalusteet edessä pyyhkivät lammikon (vain 811/817).
     //   Lattiat ja muut joiden päälle voi astua eivät peitä. RAJA: suorakaide, joten kalusteen vierestä voi kadota vähän verta.
     if (ASETUS.veriKalusteet && typeof e.getRoomObjectBoundingRectangle === 'function') for (const k of veriPeittajat()) { if (!jarjLahella(lammikot, k)) continue;
-      try { const b = e.getRoomObjectBoundingRectangle(huone, k.id, 10, 1); if (b && b.width > 0) hahmot.push({ b, syv: k.syv }); } catch (x) {} }
+      try { const b = e.getRoomObjectBoundingRectangle(huone, k.id, 10, 1); if (b && b.width > 0) hahmot.push({ b, syv: k.syv, kaluste: k.id }); } catch (x) {} }
     const fx = W / (r.width || 1), fy = H / (r.height || 1);
     const jarj = lammikot.filter(lm => lm && isFinite(lm.x) && isFinite(lm.y)).sort((a, b) => (a.x + a.y) - (b.x + b.y));
     for (const lm of jarj) {
@@ -1890,6 +1900,7 @@ const piirraLammikot = () => {
       const lsyv = Math.round(lm.x) + Math.round(lm.y);
       for (const h of hahmot) {
         if (h.syv + 0.01 < lsyv) continue;   // hahmo lammikon takana -> lammikko piirtyy sen päälle (oikein)
+        if (h.kaluste != null && veriKalustePyyhi(lctx, h.kaluste, h.b, r, fx, fy)) continue;
         const b = h.b, cx = (b.x - r.left + b.width / 2) * fx, cy = (b.y - r.top + b.height * 0.5) * fy;
         lctx.save(); lctx.globalCompositeOperation = 'destination-out'; lctx.beginPath();
         lctx.ellipse(cx, cy, Math.max(2, b.width * 0.24 * fx), Math.max(2, b.height * 0.47 * fy), 0, 0, Math.PI * 2); lctx.fill(); lctx.restore();
