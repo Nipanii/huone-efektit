@@ -1726,8 +1726,22 @@ const suunnaksi = (dx, dy) => ({ '0,-1': 0, '1,-1': 1, '1,0': 2, '1,1': 3, '0,1'
 let V = null, figuuri = ASETUS.figuuri, seuraavaId = -950001, asut = [];
 // kp 30.10. 18:58 & 19:09: tavalliset zombit EIVÄT käytä huoneen pelaajien asuja (kp 19:09: 'näen myös ite kp zombin').
 //   Pohjat: Zombie-botit + ASETUS.zombiAsut (~8 geneeristä asua) + vara-asu figuuri, ja jokainen zombifioidaan siemenellä.
+// kp 1.11. 20:42-20:45 'liian saman näkösiä' · 'eiks se vois automaattisesti tehä asu variaatioita': asut arvotaan siemenestä, joten kaikki clientit saavat saman asun.
+//   Osat = FigureDataISO: club 0, valittavissa, id < 3000. Hatuista vain katsotut (paperipussi peitti koko pään). Pooli rajaa eri hahmokuvien määrää.
+const Z_ASUOSAT = {'M':{'hr':[145,125,165,676,105,155,681,115,170,679,135,110,889,891,892,893,802,828,830,831,829,678,677],'ch':[876,210,267,245,878,220,255,875,262,240,250,877,215,230,235,265,225,807,804,803,809,808,805,806],'lg':[280,285,270,281,275],'sh':[300,305,295,290,905,906,908,1956],'cc':[260,886,887,2729,2935],'ha':[]},'F':{'hr':[550,676,596,500,555,681,510,505,540,530,515,679,575,520,545,890,891,892,893,840,837,834,836,811,833,838,835,678,832,839,677],'ch':[680,675,690,879,665,685,670,645,640,655,882,881,880,669,691,660,650,635,630,816,813,812,815,823,818,814,819,824,825,822,821,826,820,817,883,884,885],'lg':[715,696,710,720,700,705,695,827,716],'sh':[740,735,730,725,905,906,907,908,1956],'cc':[888,887,2729,2935],'ha':[1003,1009,1023,2817,2820]}}, Z_HIUSVARIT = [40,34,35,36,31,32,37,38,43,46,47,48,44,39,45,42], Z_VAATEVARIT = [1408,90,91,66,1320,68,73,72,71,74,75,76,82,81,80,83,84,85,88,64];
+const Z_ASUPOOLI = 64;
+const generoiAsu = i => {
+  const r = arpa(((i + 1) * 104729 + 811) >>> 0), v = L => L[Math.floor(r() * L.length)];
+  const g = i % 2 ? 'F' : 'M', O = Z_ASUOSAT[g];
+  const P = ['hd-' + v(g === 'M' ? [180, 185, 190, 195, 200, 205] : [600, 605, 610, 615, 620, 625]) + '-1', 'hr-' + v(O.hr) + '-' + v(Z_HIUSVARIT)];
+  for (const t of ['ch', 'lg', 'sh']) P.push(t + '-' + v(O[t]) + '-' + v(Z_VAATEVARIT));
+  if (r() < 0.3) P.push('cc-' + v(O.cc) + '-' + v(Z_VAATEVARIT));
+  if (r() < 0.2 && O.ha.length) P.push('ha-' + v(O.ha) + '-' + v(Z_VAATEVARIT));
+  return P.join('.');
+};
+const generoidutAsut = Array.from({ length: Z_ASUPOOLI }, (_, i) => generoiAsu(i));
 const valitseAsu = z => {
-  const geneeriset = Array.isArray(ASETUS.zombiAsut) ? ASETUS.zombiAsut : [];
+  const geneeriset = [...(Array.isArray(ASETUS.zombiAsut) ? ASETUS.zombiAsut : []), ...generoidutAsut];
   const lista = [...asut, ...geneeriset, figuuri].filter((f, i, a) => f && a.indexOf(f) === i), n = Math.abs(Number(z.n) || 0) + Math.abs(Number(z.synty ?? SAILO.E) || 0);
   return zombifioiAsu(lista[n % lista.length], (n * 7919 + 104729) >>> 0) || lista[n % lista.length];
 };
