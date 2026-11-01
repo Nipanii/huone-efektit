@@ -216,8 +216,8 @@ const HUONEET = {
 HUONEET[817] = (() => { const DX = 12, DY = 12, h = JSON.parse(JSON.stringify(HUONEET[811]));
   h.siemen = 817; h.synkka = { aihe: 'z817.synk', url: null };
   h.safeHouse.ruudut = h.safeHouse.ruudut.map(([x, y, ax, ay]) => [x + DX, y + DY, ax, ay]);
-  h.aallot.puolet = ['ovi', h.aallot.puolet[1].map(([x, y]) => [x + DX, y + DY]), [[1, 25], [1, 26], [1, 27], [1, 28], [1, 29], [1, 30]]];
-  { const [, oik, vas] = h.aallot.puolet; h.aallot.puoletEka = [oik, oik, oik, vas]; }   // kp 19:54 ekassa aallossa enemmän oikealta
+  h.aallot.puolet = [[[53, 25], [53, 26], [53, 27], [53, 28], [53, 29], [53, 30]], [[1, 25], [1, 26], [1, 27], [1, 28], [1, 29], [1, 30]]];   // kp 1.11. 16:29 'spawnaa seinän takaa', 16:33 'molemmissa päissä': ovi pois, synty koko tien leveydeltä kummassakin päässä
+  { const [oik, vas] = h.aallot.puolet; h.aallot.puoletEka = [oik, oik, oik, vas]; }   // kp 19:54 ekassa aallossa enemmän oikealta
   const v = h.vuoro, siirra = (q, furni) => { q.x += DX; q.y += DY; q.furni = furni; };
   siirra(v.jono, 513063); siirra(v.alku, 512772); siirra(v.loppu, 513207);
   h.tulosUrl = 'https://49-12-45-218.sslip.io/hiscore/817'; v.jonoRivi = { x1: v.jonoRivi.x1 + DX, x2: v.jonoRivi.x2 + DX, y: v.jonoRivi.y + DY }; v.rataMuuttuja = 'room:513321';   // var 5 -portti: rivi x 19..27, y 15 (queue_tile1 513056..513064). rataMuuttuja = 817:n oma wf_var_reference 513321 (osoittaa 656:n ratoja_tehty room:439263, tallennettu 31.10. 23:02)
@@ -3262,10 +3262,11 @@ AMMUNTA = (() => {
     const puolet = ASETUS.aallot && Array.isArray(ASETUS.aallot.puolet) ? ((AM.aalto.n === 1 && ASETUS.aallot.puoletEka) || ASETUS.aallot.puolet) : null;
     if (puolet && puolet.length) {
       const a = AM.aalto, i0 = a.idx || 0;
+      const kierto = l => { const o = Math.floor((a.sp || 0) / puolet.length) % l.length; return [...l.slice(o), ...l.slice(0, o)]; };   // kp 1.11. 16:28 'vois tulle vierekkäisistä ruuduista': alkukohta vaihtuu, ennen aina listan ensimmäinen vapaa
       for (let j = 0; j < puolet.length; j++) {
         const pu = puolet[(i0 + j) % puolet.length]; let r = null;
-        if (pu === 'ovi') { if (ovi) { if (kelpaa(ovi.x, ovi.y)) r = { x: ovi.x, y: ovi.y }; else for (const [dx, dy] of NAAP) if (kelpaa(ovi.x + dx, ovi.y + dy)) { r = { x: ovi.x + dx, y: ovi.y + dy }; break; } } }
-        else if (Array.isArray(pu)) { const q = pu.find(p => Array.isArray(p) && kelpaa(p[0], p[1])); if (q) r = { x: q[0], y: q[1] }; }
+        if (pu === 'ovi') { if (ovi) { const q = kierto([[ovi.x, ovi.y], ...NAAP.map(([dx, dy]) => [ovi.x + dx, ovi.y + dy])]).find(p => kelpaa(p[0], p[1])); if (q) r = { x: q[0], y: q[1] }; } }
+        else if (Array.isArray(pu)) { const q = kierto(pu).find(p => Array.isArray(p) && kelpaa(p[0], p[1])); if (q) r = { x: q[0], y: q[1] }; }
         if (r) { a.idx = (i0 + j + 1) % puolet.length; r.puoli = (i0 + j) % puolet.length; return r; }
       }
     }
