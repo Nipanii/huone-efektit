@@ -160,7 +160,7 @@ const HUONEET = {
     osittainLapi: { tyypit: ['army_c15_wiredividr'], osuus: 1 / 3 },   // kp 31.10. 22:48 turva-aita: noin joka kolmas luoti menee läpi, satunnaisesti
     eiPeitaStatet: { nyc_c23_dividercorner: [0] },   // kp 1.11. 00:32 poikkeus: kulma-aidan tämä state pysäyttää luodit, muut statet menevät läpi
     eiPeita: ['urban_lamp', 'army_c15_medictent', 'nyc_c23_divider', 'nyc_c23_dividercorner'],   // kp 31.10. 22:46 lääkintäteltta ei saa estää ampumista, 22:47 kaupunkiaidat läpiammuttaviksi
-    safeHouse: { hp: 150, vahinko: 1, iskuMs: 1000, etaisyys: 0, rakennus: 'nyc_c23_buildingblue', valahdysMs: 300,
+    safeHouse: { hp: 250, vahinko: 1, iskuMs: 1000, etaisyys: 0, rakennus: 'nyc_c23_buildingblue', valahdysMs: 300,
       ruudut: [[15, 11, 0, -1], [14, 11, 0, -1], [16, 11, 0, -1], [13, 11, 0, -1], [17, 11, 0, -1], [12, 11, 0, -1], [18, 11, 0, -1], [11, 11, 0, -1], [19, 11, 0, -1],
         [10, 11, 0, -1], [20, 11, 0, -1], [9, 11, 0, -1], [8, 11, 0, -1], [7, 11, 0, -1], [6, 11, 0, -1], [5, 11, 0, -1], [4, 11, 0, -1], [3, 11, 0, -1], [2, 11, 0, -1],
         [22, 9, -1, 0], [22, 8, -1, 0], [22, 7, -1, 0], [22, 6, -1, 0], [22, 5, -1, 0], [22, 4, -1, 0], [22, 3, -1, 0], [22, 2, -1, 0], [22, 1, -1, 0]] },
@@ -257,7 +257,7 @@ ASETUS.kitit = null;   // 684: ei ensiapukitteja (811/817: HUONEET[huone].kitit 
 //   kasi = käsiesine (vaihe 1c, kp 17:00 "ase handitemit puuttuu"): L4K:n oma tapa oli `:handitem <id>` chat-komento (shooter :24-25, :35, :505-509, :587); tässä EI enää chat-komentoa (kp 31.10. 21:35), käsi piirretään clientin omalla engine-kutsulla,
 //   EI asukanavaa. Pyssy 1126, Jousi 1128, Miekka 1094 (L4K:n kasi-arvot). Ei VIP-/oikeusriippuvuutta: ase näkyy kaikilla (client-render, ei pakettia).
 ASETUS.aseet = {
-  luoti: { ikoni: '🔫', nimi: 'Pistooli', kasi: 1126, m: 'p', tyyli: 'luoti', vari: '#ffd23f', nopeus: 21.6, auto: true, cd: 350, lento: 30, lineaari: [30, 15],   /* kp 1.11. 16:52 'pushataan': etäisyys merkitsee, 3 laukausta enintään 5 ruudusta, 15 ruudusta 0 dmg */   /* kp 1.11. 15:13 "adjustaa dmg nii et kuolee kolmee": 60 HP = 3 laukausta 1-10 ruudusta (oli 20: 4-5) */
+  luoti: { ikoni: '🔫', nimi: 'Pistooli', kasi: 1126, m: 'p', tyyli: 'luoti', vari: '#ffd23f', nopeus: 21.6, auto: true, cd: 310, lento: 30, lineaari: [30, 15],   /* kp 1.11. 16:52 'pushataan': etäisyys merkitsee, 3 laukausta enintään 5 ruudusta, 15 ruudusta 0 dmg */   /* kp 1.11. 15:13 "adjustaa dmg nii et kuolee kolmee": 60 HP = 3 laukausta 1-10 ruudusta (oli 20: 4-5) */
     aani: null, aggroSade: 14, nollaaKontakti: false, kontaktiKerroin: 1 },
   jousi: { ikoni: '🏹', nimi: 'Jousi', kasi: 1128, m: 'p', vari: '#c9c9c9', veto: true, nopeus: 15.12, lento: 14, cd: 1000, vahinko: 20, lataus: [10, 50, 1000], latausLento: [14, 24],
     aani: null, aggroSade: 6, nollaaKontakti: false, kontaktiKerroin: 1 },
