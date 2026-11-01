@@ -87,7 +87,7 @@ const ASETUS = {
     url: 'wss://49-12-45-218.sslip.io/r/z684',   // VARAKANAVA: käytössä vain jos window.kuplaScripts puuttuu
     heiMs: 2000,         // EI-johtajan hei-väli (johtaja ei lähetä heitä: sen snapshot on sydämenlyönti)
     kelloMs: 50,         // synkka-ajastimen tikki (lähetysvälit tarkistetaan kuluneesta ajasta)
-    snapMs: 400,         // johtajan snapshot-väli (kp 21:02 "0,33s välein"); palvelimen raja 3 lähetystä / 1000 ms / käyttäjä
+    snapMs: 350,         // johtajan snapshot-väli (kp 1.11. 19:36 'pitää korjata toi 400ms väli' · 'korjaa nyt tän järkeväks': 50 ms kellolla 350 = lähin väli rajan alla; laukaus, katse ja hp lähtevät johtajalta snapshotin mukana); palvelimen raja 3 lähetystä / 1000 ms / käyttäjä
     hidasMs: 500,        // kanavan 1004-virheen jälkeen snapshot-väli tämä...
     hidasKestoMs: 5000,  // ...näin kauaksi
     valmisMs: 3000,      // tulokas ei vaadi johtajuutta ennen kuin on kuunnellut näin kauan (ei flappia)
@@ -2597,16 +2597,17 @@ const SYNK = (() => {
     if (lahetysAjat.length < (kanava === 'kuplaScripts' ? Math.max(1, num(S().maxLahetysS, 3)) : 15)) laheta({ t: 'osuma', id: omaId() });
   };
   // 811 vuoro: :aloitapeli / :lopetapeli seuraajalta johtajalle (sama jono ja uusinta kuin osumalla; johtaja tarkistaa kasky-listan ja tilan)
-  const lahetaKatse = (k) => { katseOdottaa = k; const nyt = Date.now(); while (lahetysAjat.length && nyt - lahetysAjat[0] >= 1000) lahetysAjat.shift();
+  const lahetaKatse = (k) => { katseOdottaa = k; const nyt = Date.now(); if (johtajaId(nyt) === omaId() && valmis(nyt)) return true; while (lahetysAjat.length && nyt - lahetysAjat[0] >= 1000) lahetysAjat.shift();
     if (kanava === 'kuplaScripts' && lahetysAjat.length >= Math.max(1, num(S().maxLahetysS, 3)) - 1) return false;
     return laheta({ t: 'katse', id: omaId() }); };
   // kp 21:07: vuoron pelaajan HP muille. a = [hp, vuoronro]. Oma viesti vain jos 3/s rajassa on tilaa (yksi paikka jää osumille), muuten a lähtee seuraavan viestin (snapshot / katse / hei) mukana.
-  const lahetaHp = (a) => { hpOdottaa = a; const nyt = Date.now(); while (lahetysAjat.length && nyt - lahetysAjat[0] >= 1000) lahetysAjat.shift();
+  const lahetaHp = (a) => { hpOdottaa = a; const nyt = Date.now(); if (johtajaId(nyt) === omaId() && valmis(nyt)) return true; while (lahetysAjat.length && nyt - lahetysAjat[0] >= 1000) lahetysAjat.shift();
     if (kanava === 'kuplaScripts' && lahetysAjat.length >= Math.max(1, num(S().maxLahetysS, 3)) - 1) return false;
     return laheta({ t: 'hp', id: omaId() }); };
   const lahetaLaukaus = (l) => {
     if (l) laukauksetOdottaa.push(l);
-    const nyt = Date.now(); while (lahetysAjat.length && nyt - lahetysAjat[0] >= 1000) lahetysAjat.shift();
+    const nyt = Date.now(); if (johtajaId(nyt) === omaId() && valmis(nyt)) return true;   // johtajan snapshot vie laukauksen 350 ms sisällä, oma viesti veisi paikan snapshotilta
+     while (lahetysAjat.length && nyt - lahetysAjat[0] >= 1000) lahetysAjat.shift();
     if (kanava === 'kuplaScripts' && lahetysAjat.length >= Math.max(1, num(S().maxLahetysS, 3)) - 1) return false;
     return laheta({ t: 'laukaus', id: omaId() });
   };
