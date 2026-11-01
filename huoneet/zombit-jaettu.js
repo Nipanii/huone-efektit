@@ -3292,13 +3292,15 @@ AMMUNTA = (() => {
     a.tauko = 0;
     const katto = Math.max(1, Number(A.katto) || Number(ASETUS.maaraMax) || 8);
     if (a.sp >= a.k || tMs < a.seur || Z.length >= katto) return;
-    const r = syntyRuutu(Z, k); if (!r) return;
-    const kaytossa = new Set(Z.map(z => z.n)); let n = 0; while (kaytossa.has(n)) n++;
-    const z = rakennaPerusZombi(n, k, r, tMs, tikki, perusSiemen());
-    z.vTauko = 0; z.vTaukoMs = 0; z.vTaukoAsti = 0;
-    Z.push(z); a.sp++;
-    a.seur = tMs + Math.max(300, (Number(z.perusAskelMs) || 1000) * Math.max(0.3, 1 - 0.03 * (a.n - 1)));   // kp 1.11. 16:02 'lasketaan hitaasti tota spawni väliä per wave': -3 % per aalto
-    lokiin({ aaltoSynty: n, aalto: a.n, ruutu: r.x + ',' + r.y, puoli: r.puoli ?? null, sp: a.sp + '/' + a.k });
+    for (let era = 1 + Math.floor(a.n / 10); era > 0 && a.sp < a.k && Z.length < katto; era--) {   // kp 1.11. 16:53 'monta kerrallaan': aallosta 10 kaksi, 20 kolme
+      const r = syntyRuutu(Z, k); if (!r) break;
+      const kaytossa = new Set(Z.map(z => z.n)); let n = 0; while (kaytossa.has(n)) n++;
+      const z = rakennaPerusZombi(n, k, r, tMs, tikki, perusSiemen());
+      z.vTauko = 0; z.vTaukoMs = 0; z.vTaukoAsti = 0;
+      Z.push(z); a.sp++;
+      a.seur = tMs + Math.max(300, (Number(z.perusAskelMs) || 1000) * Math.max(0.3, 1 - 0.03 * (a.n - 1)));   // kp 1.11. 16:02 'lasketaan hitaasti tota spawni väliä per wave': -3 % per aalto
+      lokiin({ aaltoSynty: n, aalto: a.n, ruutu: r.x + ',' + r.y, puoli: r.puoli ?? null, sp: a.sp + '/' + a.k });
+    }
   };
 
   // ---- VUORO (811, ASETUS.vuoro): yksi pelaaja kerrallaan. sona 16:25 "Pelaaja joka on siinä rollerilssa on seuraava pelaaja. Sitten kun edellisen
