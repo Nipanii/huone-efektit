@@ -207,6 +207,7 @@ const HUONEET = {
     // kp 20:24 "nää komennot ei saa toimii kaikille": :aloitapeli / :aloita peli / :pelialoitus / :lopetapeli / :resetpeli vain näille (282 kurkkupomo, 281 arkkiherttuatar sona, 245 Herra-Robotti).
     //   Sama lista rajaa lähettäjän (oma client ei lähetä) ja vastaanottajan (johtaja hylkää t:'vuoro'-pyynnön muulta id:ltä). Korvaa vuoro.kasky:n (jossa oli myös id 1). Puuttuva = vuoro.kasky.
     komennotSaa: [282, 281, 245],
+    tormays: true,   // kp 1.11. 16:35 kokeilu, 'pitää olla valmis rollback'
     poistaAseet: ['jousi'],   // kp 20:17 "poistetaan bow yksinkertaistamisen vuoksi": 811/817:n asevalikoima = pistooli + miekka (684: ei ammuntaa, ASETUS.aseet ennallaan)
   },
 };
@@ -244,6 +245,7 @@ ASETUS.aloitusSana = ''; ASETUS.lopetusSana = ''; ASETUS.vuoro = null; ASETUS.sa
 ASETUS.synkka.aihe = 'z684.synk';
 ASETUS.voittoSana = '';   // 684: ei voittosanaa (811/817: HUONEET[huone].voittoSana)
 ASETUS.tulosUrl = '';   // 684: ei tulostaulupalvelinta (811/817: HUONEET[huone].tulosUrl)
+ASETUS.tormays = false;   // 811/817: HUONEET[huone].tormays
 ASETUS.kitit = null;   // 684: ei ensiapukitteja (811/817: HUONEET[huone].kitit { valiMs, max, ikaMs, hp })
 // Aseet 811:ssä = Left 4 Kuplan aseet SELLAISENAAN (kp 16:02 "otetaan vanha bow ja gun ampumis nopeus siten miten ne oli jo tehty" ·
 //   "sword voi kans pitää sellasenaan"): arvot shooter-1.15.2.user.js:505-509 (asetus.vahinko = 1). Zombin HP 60 = shooter :177 zHp.
@@ -4009,6 +4011,7 @@ AMMUNTA = (() => {
     const p = omaPalvelin(); if (!p) return;   // kp 31.10. 23:57 liike kuten shooterissa :2086: omaPalvelin, ei pyöristetty piirretty paikka
     koukutaTila(); wasdSuunta = [dx, dy];
     const tx = p.x + dx, ty = p.y + dy;
+    if (ASETUS.tormays && (tila.zombit || []).some(z => z && z.kuoli < 0 && z.x === tx && z.y === ty)) { wasdEste = !p.liikkuu; wasdMaali = null; return; }   // kp 1.11. 16:35 'zombeihin törmää': WASD ei astu zombin ruutuun. Pois: tormays false
     if (!kuljettava(tx, ty)) { wasdEste = !p.liikkuu; wasdMaali = null; return; }   // kp 31.10. 23:57 liike kuten shooterissa :2089 (wasdEste = !p.liikkuu)
     const avain = tx + ',' + ty; if (avain === wasdMaali) return;
     if (kavele(tx, ty)) wasdMaali = avain;
