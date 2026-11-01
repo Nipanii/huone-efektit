@@ -2306,13 +2306,20 @@ const SYNK = (() => {
   const piilotettu = () => { try { return !!ASETUS.ammuttava && typeof document !== 'undefined' && document.hidden === true; } catch (x) { return false; } };
   // kp 1.11. 14:15 "multa lähti kymmenii pisteitä randomisti": pienemmän id:n kone otti johtajuuden kesken vuoron omalla, mahdollisesti vanhalla tilalla (piilotetun välilehden ajastimet),
   //   ja muut omaksuivat sen pisteet ja zombit. Kesken vuoron elävää johtajaa ei syrjäytetä; palaava välilehti kuuntelee valmisMs ennen kuin voi johtaa.
-  const pidattyy = (nyt) => !!ASETUS.vuoro && !!(SAILO.ammunta && SAILO.ammunta.vuoro && SAILO.ammunta.vuoro.vu) && SY.snapJohtaja > 0 && SY.snapJohtaja !== omaId() && nyt - SY.snapAika < Math.max(1000, num(S().hiljaisuusMs, 10000));
+  // kp 1.11. 14:22 "pitäskö se host olla se pelaaja itse": vuoron pelaaja johtaa, oma tappo on heti lopullinen eikä ennustetta tarvita. Muut siirtyvät vasta kun kuulevat pelaajan snapshotin (edellinen johtaja kertoo vuoron alkaneen),
+  //   ja pelaaja johtaa hostAsti-ajan vuoron jälkeen, jotta muut saavat tiedon vuoron päättymisestä. Hiljainen tai piilotettu pelaaja -> tavallinen vaali.
+  const vuoroPelaaja = () => { const vu = S().pelaajaHost !== false && ASETUS.vuoro && SAILO.ammunta && SAILO.ammunta.vuoro && SAILO.ammunta.vuoro.vu; return vu && kelpaa(vu.id) ? vu.id : 0; };
+  const pidattyy = (nyt) => vuoroPelaaja() !== omaId() && !!ASETUS.vuoro && !!(SAILO.ammunta && SAILO.ammunta.vuoro && SAILO.ammunta.vuoro.vu) && SY.snapJohtaja > 0 && SY.snapJohtaja !== omaId() && nyt - SY.snapAika < Math.max(1000, num(S().hiljaisuusMs, 10000));
   if (!SY.nakyvaKuuntelu && typeof document !== 'undefined' && document.addEventListener) { SY.nakyvaKuuntelu = true;
     document.addEventListener('visibilitychange', () => { if (!document.hidden && SY.liittynyt > 0) SY.liittynyt = Date.now(); }); }
   const johtajaId = (nyt) => {
     nyt = nyt || Date.now();
     if (!S().kaytossa) return 0;
     const raja = Math.max(1000, num(S().hiljaisuusMs, 10000));
+    const vp = vuoroPelaaja(), oma0 = omaId();
+    if (vp && vp === oma0) { if (auki() && kelvollinenSim() && !piilotettu()) { SY.hostAsti = nyt + 1500; return oma0; } }
+    else if (vp) { const hp = SY.sykkeet.get(vp); if (hp && hp.ts && nyt - hp.ts < raja) return vp; }
+    else if (SY.hostAsti > nyt && oma0 && auki() && kelvollinenSim() && !piilotettu()) return oma0;
     let paras = 0;
     for (const [id, h] of SY.sykkeet) if (kelpaa(id) && h.tv && nyt - h.tv < raja && (!paras || id < paras)) paras = id;
     const oma = omaId();
@@ -2548,7 +2555,7 @@ const SYNK = (() => {
     const nyt = Date.now();
     while (osumaOdottaa.length && nyt - osumaOdottaa[0].t > 8000) { osumaOdottaa.shift(); tilasto.osumaVanheni = (tilasto.osumaVanheni || 0) + 1; }
     if (!osumaOdottaa.length) return;
-    if (AMMUNTA && valmis(nyt) && johtajaId(nyt) === omaId()) { AMMUNTA.osumatSaapui(omaId(), osumaOdottaa.splice(0).map(q => q.h), nyt); return; }
+    if (AMMUNTA && (valmis(nyt) || SY.hostAsti > nyt) && johtajaId(nyt) === omaId()) { AMMUNTA.osumatSaapui(omaId(), osumaOdottaa.splice(0).map(q => q.h), nyt); return; }
     if (!auki()) return;
     while (lahetysAjat.length && nyt - lahetysAjat[0] >= 1000) lahetysAjat.shift();
     if (lahetysAjat.length < (kanava === 'kuplaScripts' ? Math.max(1, num(S().maxLahetysS, 3)) : 15)) laheta({ t: 'osuma', id: omaId() });
@@ -2637,6 +2644,7 @@ const SYNK = (() => {
     if ((m.t === 'snap' || m.v) && SY.liittynyt > 0 && ![...SY.sykkeet].some(([pid, ph]) => pid !== id && nyt - ph.t < raja)) { SY.liittynyt = nyt; tilasto.kuunteluUudelleen++; }
     const h = SY.sykkeet.get(id) || { t: 0, tv: 0 };
     h.t = nyt; if (m.t === 'snap' || (m.t === 'hei' && m.v)) h.tv = nyt;
+    if (m.t === 'snap') h.ts = nyt;
     SY.sykkeet.set(id, h);
     if (m.t === 'hei') { if (m.q && johtajaId(nyt) !== omaId()) heiLaheta(false); }   // uusi tulokas kysyy "kuka on paikalla" -> vastaa muut kuin johtaja (johtaja ei lähetä muuta kuin snapshotin)
     else if (m.t === 'snap' && Array.isArray(m.z) && id === johtajaId(nyt)) {
@@ -2747,7 +2755,7 @@ const SYNK = (() => {
         else tilasto.osumaHylatty = (tilasto.osumaHylatty || 0) + 1;
       }
       const v = valmis(nyt) ? 1 : 0;
-      if (v && johtajaId(nyt) === omaId()) {
+      if ((v || SY.hostAsti > nyt) && johtajaId(nyt) === omaId()) {
         // johtaja: VAIN snapshot (toimii sydämenlyöntinä); 1004:n jälkeen hitaampi väli
         const vali = nyt < hidasAsti ? Math.max(num(S().snapMs, 350), num(S().hidasMs, 500)) : num(S().snapMs, 350);
         if (!kuoliJono.length && !osumaJono.length && nyt - viimeSnapMs >= vali - 20 && snapLaheta()) viimeSnapMs = nyt;   // jonossa oleva kuolemaviesti ohittaa snapshotin
