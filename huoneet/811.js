@@ -98,10 +98,12 @@ const ohjausKuva = () => {
 //   (2) tämän selaimen localStorage. Yksi rivi / pelaaja: suurin tapot. Avain (id, run, tapot) ohittaa jo käsitellyn tuloksen; max-yhdistys on idempotentti, joten run-numeroiden
 //   törmäys (johtajan vaihtuessa run alkaa alusta) ei tuplaa eikä hävitä: pienempi tulos ei koskaan korvaa suurempaa. Jaettua tilaa EI kirjoiteta mihinkään (ei 2730, ei Datajakoa).
 const MUISTI = 'h811.t3.' + huone;   // kp 20:52 "nollaa hiscoret": uusi avain, vanhat selainrivit eivät palaa
+// kp 1.11. 15:15 "saatko robo mun tuloksen poist hs": poistettu rivi ei palaa selainten localStoragesta eikä snapshotista
+const POISTETUT = new Set(['282:989']);
 const paras = new Map();   // id -> { id, nimi, tapot, lapi, run, fig }
 const nahty = new Set();   // 'id:run:tapot'
 const luePaikallinen = () => { try { const a = JSON.parse(localStorage.getItem(MUISTI) || '[]');
-  for (const r of Array.isArray(a) ? a : []) { if (!r || !(Number(r.id) > 0)) continue; const id = Number(r.id), tapot = Math.max(0, Number(r.tapot) | 0), cur = paras.get(id);
+  for (const r of Array.isArray(a) ? a : []) { if (!r || !(Number(r.id) > 0) || POISTETUT.has(Number(r.id) + ':' + (Number(r.tapot) | 0))) continue; const id = Number(r.id), tapot = Math.max(0, Number(r.tapot) | 0), cur = paras.get(id);
     if (!cur || tapot > cur.tapot) paras.set(id, { id, nimi: String(r.nimi || ''), tapot, lapi: !!r.lapi, run: Number(r.run) | 0, fig: String(r.fig || ''), aalto: Number(r.aalto) | 0 }); } } catch (x) {} };
 const tallennaPaikallinen = () => { try { localStorage.setItem(MUISTI, JSON.stringify([...paras.values()])); } catch (x) {} };
 const huoneenFiguurit = () => { const m = new Map(); try {   // webID -> figure (kuten zombit-jaettu.js pelaajat()); vain nyt huoneessa olevat
