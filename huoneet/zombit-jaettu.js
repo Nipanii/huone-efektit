@@ -1147,7 +1147,8 @@ const vaella = (k, tMs, tikki, z, dz, varattu, s0, a, kentat) => {
   const tutkiEtaisyys = Number(ASETUS.tutkiEtaisyys ?? 2);
   const onTutkinta = !!(aani && aani.paino >= tutkiRaja);
   const onHammennys = !z.muuttunut && !SYNK.seuraa() && (z.hammennysAsti || 0) > tMs;
-  if (onHammennys) z.safe = null;
+  // kp 2.11. 01:20 'toi randomisti liikkumine on iha tyhmä et ne ravaa ees taas': hämmentynyt seisoo paikallaan oman arpansa ajan.
+  if (onHammennys) { z.safe = null; z.vDx = 0; z.vDy = 0; z.vAsk = 0; asetaAskelAika(z, s0, k, tMs, tikki); return; }
   if (!onTutkinta && !onHammennys) {
     if (kohtiAitaa(k, tMs, tikki, z, varattu, s0, a, kentat)) return;
     if (kohtiSafeHousea(k, tMs, tikki, z, varattu, s0, a, kentat)) return;
@@ -1691,7 +1692,8 @@ const askel = (k, Z, P) => {
       } else {
         z.kohdeId = null; z.kohde = null; z.reaktio = 0; z.reaktioMs = 0; z.reaktioAsti = 0;
         if (oliKohde) {
-          if (ASETUS.hammennysMs && !SYNK.seuraa()) {
+          // kp 2.11. 01:21 'se piti koskee vaa teleportteja': kävelemällä karkaavasta ei hämmennytä.
+          if (ASETUS.hammennysMs && !SYNK.seuraa() && vanhaKohdeId != null && liike(vanhaKohdeId).hyppy > 3) {
             const kesto = arvoHammennysMs(s0, k, z.n);
             z.hammennysKesto = kesto;
             z.hammennysAsti = tMs + kesto;
