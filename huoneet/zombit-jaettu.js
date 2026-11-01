@@ -255,12 +255,12 @@ ASETUS.kitit = null;   // 684: ei ensiapukitteja (811/817: HUONEET[huone].kitit 
 //   kasi = käsiesine (vaihe 1c, kp 17:00 "ase handitemit puuttuu"): L4K:n oma tapa oli `:handitem <id>` chat-komento (shooter :24-25, :35, :505-509, :587); tässä EI enää chat-komentoa (kp 31.10. 21:35), käsi piirretään clientin omalla engine-kutsulla,
 //   EI asukanavaa. Pyssy 1126, Jousi 1128, Miekka 1094 (L4K:n kasi-arvot). Ei VIP-/oikeusriippuvuutta: ase näkyy kaikilla (client-render, ei pakettia).
 ASETUS.aseet = {
-  luoti: { ikoni: '🔫', nimi: 'Pistooli', kasi: 1126, m: 'p', tyyli: 'luoti', vari: '#ffd23f', nopeus: 21.6, auto: true, cd: 350, lento: 30, lineaari: [20, 30],
+  luoti: { ikoni: '🔫', nimi: 'Pistooli', kasi: 1126, m: 'p', tyyli: 'luoti', vari: '#ffd23f', nopeus: 21.6, auto: true, cd: 350, lento: 30, lineaari: [30, 30],   /* kp 1.11. 15:13 "adjustaa dmg nii et kuolee kolmee": 60 HP = 3 laukausta 1-10 ruudusta (oli 20: 4-5) */
     aani: null, aggroSade: 14, nollaaKontakti: false, kontaktiKerroin: 1 },
   jousi: { ikoni: '🏹', nimi: 'Jousi', kasi: 1128, m: 'p', vari: '#c9c9c9', veto: true, nopeus: 15.12, lento: 14, cd: 1000, vahinko: 20, lataus: [10, 50, 1000], latausLento: [14, 24],
     aani: null, aggroSade: 6, nollaaKontakti: false, kontaktiKerroin: 1 },
   miekka: { ikoni: '🗡️', nimi: 'Miekka', kasi: 1094, m: 'h', vari: '#e8eef7', kantama: 2.5, vahinko: 42, veto: true, hidasKavely: true, cd: 700, lapi: [3, 1000], lapiVahinko: 60, lapiLapi: 50,
-    aani: null, aggroSade: 6, nollaaKontakti: true, kontaktiKerroin: 1 },   // nollaaKontakti true = kp:n suosima suunta B (16:01), kp päättää
+    aani: null, aggroSade: 6, nollaaKontakti: false, kontaktiKerroin: 1 },   // kp 1.11. 15:04 "puremat kerkee tehä dmg jos ei ole etäisyyttä" (oli true, kp 16:01): vain tappo tai etäisyys lopettaa kontaktin
 };
 ASETUS.ase = { valittu: 'luoti', jalkiMs: 450, ruumisMs: 1400 };
 ASETUS.esteKorkeus = 2;   // shooter 1.13.0 asetus.esteKorkeus (ESTE_KORKEUS :963): esine estää vain jos sen näkyvä korkeus > tämä   // jälki 450 ms = shooter :1727
@@ -2888,7 +2888,7 @@ AMMUNTA = (() => {
   // askel(): oma kiinnijäänti. true = selvisi (laskuri nollataan, ei kuolemaa), false = kuolema etenee (kuole()). Vain uhrin oma kone (kuten 684).
   const purema = (pid) => {
     if (!hpTila() || pid !== omaId()) return false;
-    AM.hp = Math.max(0, AM.hp - Math.max(0, Number(ASETUS.hp.purema) || 15)); AM.hpMuutos = Date.now();
+    AM.hp = Math.max(0, AM.hp - Math.max(0, Number(ASETUS.hp.purema) || 15)); AM.hpMuutos = Date.now(); if (veto) veto.t0 = AM.hpMuutos;
     lokiin({ purema: pid, hp: AM.hp });
     if (AM.hp > 0) { try { ilmoita('Zombi puri! HP ' + Math.round(AM.hp) + '/' + hpMax()); } catch (x) {} return true; }
     return false;
@@ -2905,9 +2905,10 @@ AMMUNTA = (() => {
   // Kiinnijäännin rajan kerroin oman aseen mukaan (vaihtoehto B, esim. miekka iso). Vain oma pelaaja (uhrin kone päättää).
   const kontaktiKerroin = (pid) => { if (pid !== omaId()) return 1; const k = Number(aseNyt().kontaktiKerroin); return k > 0 ? k : 1; };
   // kp 16:01 "miekan käyttö nollais aina kiinni jäämis laskurin": pelaajan kontaktilaskuri pois kaikilta zombeilta (myös muuttuneilta).
-  const nollaaKontakti = (pid) => {
+  // kp 1.11. 15:03 "vain osuessa ... vaan sen vihun osalta johon osuu": zn = vain osuman saanut zombi (spämmi ei enää nollaa koko laumaa)
+  const nollaaKontakti = (pid, zn) => {
     let n = 0;
-    for (const z of (SAILO.zombit || []).concat(SAILO.muuttuneet || [])) if (z && z.kontaktit && z.kontaktit[pid]) {
+    for (const z of (SAILO.zombit || []).concat(SAILO.muuttuneet || [])) if (z && z.kontaktit && z.kontaktit[pid] && (zn == null || z.n === zn)) {
       delete z.kontaktit[pid]; n++; if (z.kontaktiId === pid) { z.kontaktiId = null; z.kontakti = 0; z.kontaktiMs = 0; } }
     tilasto.nollattu += n; if (n) lokiin({ nollaaKontakti: pid, zombeja: n });
     return n;
@@ -2974,10 +2975,12 @@ AMMUNTA = (() => {
     for (const [n, v] of [...AM.odottavat]) if (nyt > v.asti) AM.odottavat.delete(n);
     for (const [a, asti] of [...AM.ennuste]) if (nyt > asti) { AM.ennuste.delete(a); tilasto.ennusteVanheni++; }
     for (const [a, v] of [...AM.hpEnn]) if (nyt > v.asti) AM.hpEnn.delete(a);
+    // kp 1.11. 15:04 "charged attack pitää pystyy tehä vaan ilman kontaktia ilman dmg": kontakti ja purema aloittavat latauksen alusta
+    if (veto && (SAILO.zombit || []).concat(SAILO.muuttuneet || []).some(z => z && z.kontaktit && z.kontaktit[omaId()])) veto.t0 = nyt;
     if (!AM.jono.length) return;
     const jono = AM.jono.splice(0), auk = auktoriteetti();
     for (const o of jono) {
-      if (o.nollaa) { nollaaKontakti(o.id); continue; }   // aseen käyttö (A.nollaaKontakti), käsitellään tiki():ssä
+      if (o.nollaa) { nollaaKontakti(o.id, o.zn); continue; }   // aseen käyttö (A.nollaaKontakti), käsitellään tiki():ssä
       if (nyt - o.saapui > 3000) { tilasto.hylatty++; continue; }
       if (auk) { hyvaksy(o, K, P); continue; }
       if (!o.oma) continue;   // seuraaja ei päätä muiden osumia (johtaja päättää)
@@ -3678,6 +3681,7 @@ AMMUNTA = (() => {
       AM.nahdyt.add(avain); ruumis(z.n, z.synty, Math.round(k.x), Math.round(k.y));
       if (!auktoriteetti()) ilmoitaTappo(omaTapot() + 1);   // ennuste; auktoriteetti ilmoittaa hyväksyessään
     }
+    if (A && A.nollaaKontakti) AM.jono.push({ nollaa: true, id: omaId(), saapui: nyt, zn: z.n });
     AM.jono.push({ id: omaId(), oma: true, zn: z.n, sn: z.synty, d: dmg, x: Math.round(k.x), y: Math.round(k.y), saapui: nyt, w, tappava });
   };
 
@@ -3696,7 +3700,6 @@ AMMUNTA = (() => {
     // kp 19:20 "ei voi ampuu taakseppäin, sallitaan se": shooterin 0.9.1 rajoitus pois
     viimeLaukaus = nyt; tilasto.ammuttu++;
     const c = (A.lataus || A.lapi) ? (cIn != null ? Math.max(0, Math.min(1, +cIn)) : 0) : undefined;
-    if (A.nollaaKontakti) AM.jono.push({ nollaa: true, id: omaId(), saapui: nyt });
     aaniLaukaus(A, minä);
     const x = Math.round(minä.x), y = Math.round(minä.y);
     if (A.m === 'p') {   // projektiili (jousi, pistooli): lentää, osuma lasketaan radalta luotiTickissä (shooter :1745)
@@ -4073,13 +4076,16 @@ AMMUNTA = (() => {
   //   Alt+K vaihtaa (localStorage 'zombit.<huone>.kamera'). ASETUS.vuoro.kamera === false = pois. Chat-kerroksen siirto (kameralukko 1.7.0) jätetty pois kuten L4K:ssa.
   const KAMERA_MUISTI = 'zombit.' + huone + '.kamera';
   let kameraPaalla = true; try { kameraPaalla = localStorage.getItem(KAMERA_MUISTI) !== 'off'; } catch (x) {}
+  // kp 1.11. 15:18 "saisko spectatoreille kameralukon pelaajaa · sama hotkey · on/off": katsojan oma kytkin, oletus pois
+  const KATSOJA_MUISTI = 'zombit.' + huone + '.katsojaKamera';
+  let katsojaKamera = false; try { katsojaKamera = localStorage.getItem(KATSOJA_MUISTI) === 'on'; } catch (x) {}
   const kameraOpittu = {};
   let kameraSuljettu = false;
-  const kameraAktiivinen = () => { if (kameraSuljettu || !kameraPaalla) return false; const V = VA(); if (!V || V.kamera === false) return false; const vu = VT.vu; return !!vu && vu.id === omaId(); };
+  const kameraAktiivinen = () => { if (kameraSuljettu) return false; const V = VA(); if (!V || V.kamera === false) return false; const vu = VT.vu; if (!vu) return false; return vu.id === omaId() ? kameraPaalla : (katsojaKamera && vu.i >= 0); };
   const kameraLukitse = () => {
     if (!kameraAktiivinen()) return;
     try {
-      const oma = omaIndeksi(); if (oma == null || oma < 0) return;
+      const oma = VT.vu && VT.vu.id !== omaId() ? VT.vu.i : omaIndeksi(); if (oma == null || oma < 0) return;
       const kangas = e.getRoomInstanceRenderingCanvas(huone, 1); if (!kangas) return;
       const S = e.getRoomObjectScreenLocation(huone, oma, 100, 1); if (!S) return;
       const sk = kangas.scale || 1, cx = kangas.width / sk / 2, cy = kangas.height / sk / 2, avain = huone + ':' + sk;
@@ -4104,7 +4110,8 @@ AMMUNTA = (() => {
   let kameraKaaritty = false;
   const kameraRuutu = () => { if (kameraSuljettu) return; requestAnimationFrame(kameraRuutu); if (!kameraKaaritty) kameraKaaritty = kameraKaari(); if (!kameraKaaritty) kameraLukitse(); };
   if (typeof requestAnimationFrame === 'function') requestAnimationFrame(kameraRuutu);
-  const kameraVaihda = () => { kameraPaalla = !kameraPaalla; try { localStorage.setItem(KAMERA_MUISTI, kameraPaalla ? 'on' : 'off'); } catch (x) {} try { ilmoita('Kameralukko ' + (kameraPaalla ? 'päällä' : 'pois') + ' (Alt+K)'); } catch (x) {} lokiin({ kamera: kameraPaalla }); return kameraPaalla; };
+  const kameraVaihda = () => { if (VT.vu && VT.vu.id !== omaId()) { katsojaKamera = !katsojaKamera; try { localStorage.setItem(KATSOJA_MUISTI, katsojaKamera ? 'on' : 'off'); } catch (x) {} try { ilmoita('Pelaajan seuranta ' + (katsojaKamera ? 'päällä' : 'pois') + ' (Alt+K)'); } catch (x) {} return; }
+    kameraPaalla = !kameraPaalla; try { localStorage.setItem(KAMERA_MUISTI, kameraPaalla ? 'on' : 'off'); } catch (x) {} try { ilmoita('Kameralukko ' + (kameraPaalla ? 'päällä' : 'pois') + ' (Alt+K)'); } catch (x) {} lokiin({ kamera: kameraPaalla }); return kameraPaalla; };
 
   // ---- HUD (vaihe 1c, kp 17:01 "missä se ase selector on"): L4K 1.11.0 #kupla-shooter-hud (shooter :2360-2375 tyylit, :2526-2543 rakenne,
   //   :3168-3179 päivitys) valikoiden: alhaalla keskellä aseslotit 62x62 numeroineen (näppäin = numero), valittu korostettu sinisellä, klikkaus
