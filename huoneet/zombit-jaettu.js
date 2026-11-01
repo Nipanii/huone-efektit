@@ -280,7 +280,7 @@ const huone = Number((kupla && kupla.roomId && kupla.roomId()) || (e && e.active
   }
   for (const w of (Array.isArray(ASETUS.poistaAseet) ? ASETUS.poistaAseet : [])) if (ASETUS.aseet) delete ASETUS.aseet[w];   // huonekohtainen asevalikoima (811/817: ei jousta)
   if (ASETUS.ase && ASETUS.aseet && !ASETUS.aseet[ASETUS.ase.valittu]) ASETUS.ase.valittu = ['luoti', 'miekka', 'jousi'].find(w => ASETUS.aseet[w]) || ASETUS.ase.valittu;
-  if (ASETUS.aallot) Object.defineProperty(ASETUS.aallot, 'aloitusPbMiinus', { value: 2, writable: true, configurable: true, enumerable: false }); }
+  if (ASETUS.aallot) Object.defineProperty(ASETUS.aallot, 'aloitusPbMiinus', { value: 3, writable: true, configurable: true, enumerable: false }); }
 const dv = (o, k) => { const d = o && Object.getOwnPropertyDescriptor(o, k); return d && !d.get ? d.value : undefined; };
 const omaId = () => { const s = e && dv(e, '_sessionDataManager'); return Number((s && (dv(s, '_userId') || s.userId)) || 0); };
 const omaNimi = () => { const s = e && dv(e, '_sessionDataManager'); const n = s && (dv(s, '_name') || s._name || s.userName); return n ? String(n) : null; };
@@ -3291,7 +3291,7 @@ AMMUNTA = (() => {
     const z = rakennaPerusZombi(n, k, r, tMs, tikki, perusSiemen());
     z.vTauko = 0; z.vTaukoMs = 0; z.vTaukoAsti = 0;
     Z.push(z); a.sp++;
-    a.seur = tMs + Math.max(300, Number(z.perusAskelMs) || 1000);
+    a.seur = tMs + Math.max(300, (Number(z.perusAskelMs) || 1000) * Math.max(0.3, 1 - 0.03 * (a.n - 1)));   // kp 1.11. 16:02 'lasketaan hitaasti tota spawni väliä per wave': -3 % per aalto
     lokiin({ aaltoSynty: n, aalto: a.n, ruutu: r.x + ',' + r.y, puoli: r.puoli ?? null, sp: a.sp + '/' + a.k });
   };
 
