@@ -840,14 +840,10 @@ const valitseKohde = (z, dz, P, k, tMs, s0) => {
     // Teleportannut (yli 3 ruutua tikissä = kuoli ja siirtyi ovelle, tai tuli huoneeseen) ei ole kohde ikkunan aikana (684).
     // 811/817 hammennysMs: samasta telestä palannut (<= 3 ruutua lähtöpisteestä) kelpaa kohteeksi heti; muualle hypännyt ei kelpaa ikkunan aikana.
     const l = liike(p.id);
-    const lahto = l.lahto;
-    const palasi = !!(lahto && (lahto.palasi || Math.max(Math.abs(p.x - lahto.x), Math.abs(p.y - lahto.y)) <= 3));
-    if (l.hyppy > 3) {
-      // kp 2.11. 01:15 'jos teleporttaa zombin vieree nii se ei aggroo ollenkaa takas 10s? ei sekää oo hyvä': muualle hypännyt on piilossa vain zombin oman arvan ajan, ei koko ikkunaa.
-      if (!ASETUS.hammennysMs) continue;
-      if (!palasi && !(z && z.osunutId === p.id) && (!lahto || (k - lahto.k) * Math.max(50, Number(ASETUS.tikki) || 250) < arvoHammennysMs(s0, lahto.k, z ? z.n : 0))) continue;
-    }
-    if (z && (z.hammennysAsti || 0) > tMs && z.hammennysKohdeId === p.id && !palasi) continue;
+    // kp 2.11. 01:25 'jos teleportin jälkeen ei oo in-range ... teleportti voi viedä zombien viereen': in range on tavallinen kohde. Vain 684 piilottaa hypänneen.
+    if (l.hyppy > 3 && !ASETUS.hammennysMs) continue;
+    // Jahtaavan raja meneta on 811:ssä 24-38 ruutua eli melkein koko kenttä: hypännyt pitää huomata uudestaan huomaa-rajalla (10-16), muuten zombi tietäisi heti missä hän on.
+    if (l.hyppy > 3 && l.lahto && !l.lahto.palasi && Math.max(Math.abs(p.x - l.lahto.x), Math.abs(p.y - l.lahto.y)) > 3 && (ASETUS.ammuttava ? Math.min(et, Math.hypot(p.x - z.x, p.y - z.y)) : et) > huomaa) continue;
     const m = l.s;
     const obj = { ...p, m, et };
     ehdokkaat.push(obj);
@@ -1660,6 +1656,14 @@ const askel = (k, Z, P) => {
         else if (!oliKohde || z._vaihdettuKohteeseen) {
           const rMs = arvoReaktioMs(s0, k, z.n);
           z.reaktioAsti = tMs + rMs;
+        }
+        if (ASETUS.hammennysMs) {   // hyppy in rangella: tavallinen reaktio, ei valmiiksi tiedetty kohde. Vieressä, samaan paikkaan palaava ja osuman saanut heti.
+          const hl = liike(kohde.id), lh = hl.lahto;
+          if (hl.hyppy > 3 && lh && z.kuitattuHyppy !== lh.k) {
+            z.kuitattuHyppy = lh.k;
+            const palasi = lh.palasi || Math.max(Math.abs(kohde.x - lh.x), Math.abs(kohde.y - lh.y)) <= 3;
+            if (!palasi && !z._valitonVaihto && z.osunutId !== kohde.id) z.reaktioAsti = tMs + arvoReaktioMs(s0, k, z.n);
+          }
         }
         z.reaktioMs = Math.max(0, (z.reaktioAsti || 0) - tMs);
         z.reaktio = Math.ceil(z.reaktioMs / 1000);
