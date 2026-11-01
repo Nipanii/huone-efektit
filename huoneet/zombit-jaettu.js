@@ -260,7 +260,7 @@ ASETUS.aseet = {
   jousi: { ikoni: '🏹', nimi: 'Jousi', kasi: 1128, m: 'p', vari: '#c9c9c9', veto: true, nopeus: 15.12, lento: 14, cd: 1000, vahinko: 20, lataus: [10, 50, 1000], latausLento: [14, 24],
     aani: null, aggroSade: 6, nollaaKontakti: false, kontaktiKerroin: 1 },
   miekka: { ikoni: '🗡️', nimi: 'Miekka', kasi: 1094, m: 'h', vari: '#e8eef7', kantama: 2.5, vahinko: 42, veto: true, hidasKavely: true, cd: 700, lapi: [3, 1000], lapiVahinko: 60, lapiLapi: 50,
-    aani: null, aggroSade: 6, nollaaKontakti: false, kontaktiKerroin: 1 },   // kp 1.11. 15:04 "puremat kerkee tehä dmg jos ei ole etäisyyttä" (oli true, kp 16:01): vain tappo tai etäisyys lopettaa kontaktin
+    aani: null, aggroSade: 6, nollaaKontakti: true, kontaktiKerroin: 1 },   // kp 1.11. 15:24 "nollaa vaa jos tekee dmg just siihe zombii": osuma nollaa vain osutun zombin laskurin (osuma(), zn)
 };
 ASETUS.ase = { valittu: 'luoti', jalkiMs: 450, ruumisMs: 1400 };
 ASETUS.esteKorkeus = 2;   // shooter 1.13.0 asetus.esteKorkeus (ESTE_KORKEUS :963): esine estää vain jos sen näkyvä korkeus > tämä   // jälki 450 ms = shooter :1727
