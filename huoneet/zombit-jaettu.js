@@ -2908,7 +2908,7 @@ AMMUNTA = (() => {
   // askel(): oma kiinnijäänti. true = selvisi (laskuri nollataan, ei kuolemaa), false = kuolema etenee (kuole()). Vain uhrin oma kone (kuten 684).
   const purema = (pid) => {
     if (!hpTila() || pid !== omaId()) return false;
-    AM.hp = Math.max(0, AM.hp - Math.max(0, Number(ASETUS.hp.purema) || 15)); AM.hpMuutos = Date.now(); if (veto) veto.t0 = AM.hpMuutos;
+    AM.hp = Math.max(0, AM.hp - Math.max(0, Number(ASETUS.hp.purema) || 15)); AM.hpMuutos = Date.now(); if (veto) veto.t0 = AM.hpMuutos;   // kp 1.11. 15:04-15:28: vain purema aloittaa latauksen alusta, kontakti ei ("sitä ei saa chargettuu ollenkaa kontaktis")
     lokiin({ purema: pid, hp: AM.hp });
     if (AM.hp > 0) { try { ilmoita('Zombi puri! HP ' + Math.round(AM.hp) + '/' + hpMax()); } catch (x) {} return true; }
     return false;
@@ -2998,8 +2998,6 @@ AMMUNTA = (() => {
     for (const [a, v] of [...AM.hpEnn]) if (nyt > v.asti) AM.hpEnn.delete(a);
     // kp 1.11. 15:21 "tonne jäi zombi kentälle · peli ei oo käynnis": johtajan vaihtuessa vuoron lopussa zombi voi jäädä; ilman vuoroa kentällä ei kuulu olla zombeja
     if (ASETUS.vuoro && auk0() && !(AM.vuoro && AM.vuoro.vu) && (SAILO.zombit || []).some(z => z && !z.muuttunut)) { nollaaPeli(); lokiin({ jaanyt: 1 }); }
-    // kp 1.11. 15:04 "charged attack pitää pystyy tehä vaan ilman kontaktia ilman dmg": kontakti ja purema aloittavat latauksen alusta
-    if (veto && (SAILO.zombit || []).concat(SAILO.muuttuneet || []).some(z => z && z.kontaktit && z.kontaktit[omaId()])) veto.t0 = nyt;
     if (!AM.jono.length) return;
     const jono = AM.jono.splice(0), auk = auktoriteetti();
     for (const o of jono) {
