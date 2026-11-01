@@ -222,7 +222,7 @@ HUONEET[817] = (() => { const DX = 12, DY = 12, h = JSON.parse(JSON.stringify(HU
   { const [oik, vas] = h.aallot.puolet; h.aallot.puoletEka = [oik, oik, oik, vas]; }   // kp 19:54 ekassa aallossa enemmän oikealta
   const v = h.vuoro, siirra = (q, furni) => { q.x += DX; q.y += DY; q.furni = furni; };
   siirra(v.jono, 513063); siirra(v.alku, 512772); siirra(v.loppu, 513207);
-  h.tulosUrl = 'https://49-12-45-218.sslip.io/hiscore/817'; v.jonoRivi = { x1: v.jonoRivi.x1 + DX, x2: v.jonoRivi.x2 + DX, y: v.jonoRivi.y + DY }; v.rataMuuttuja = 'room:513321';   // var 5 -portti: rivi x 19..27, y 15 (queue_tile1 513056..513064). rataMuuttuja = 817:n oma wf_var_reference 513321 (osoittaa 656:n ratoja_tehty room:439263, tallennettu 31.10. 23:02)
+  h.tulosUrl = 'https://49-12-45-218.sslip.io/hiscore/817'; v.jonoRivi = { x1: v.jonoRivi.x1 + DX, x2: v.jonoRivi.x2 + DX, y: v.jonoRivi.y + DY };
   // Kohde 5 (kp 18:04, 18:12): aitamekaniikka 817. Palakohtainen HP (50), isku kuten safe house.
   //   Kun pala tuhoutuu: piilotetaan paikallisesti, ruudukko aukeaa, kaikki zombit kulkevat aukosta.
   h.aidat = {
