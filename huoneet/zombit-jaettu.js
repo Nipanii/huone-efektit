@@ -2062,7 +2062,8 @@ void main(void) {
     if (aariContainer) aariContainer.visible = false;
   };
   // vuoroSallii on AMMUNTA:n sisällä eikä näy tänne: sen kutsu heitti ReferenceErrorin ja koukun try nieli sen, joten ääriviivat eivät piirtyneet kenellekään (63cba6c-8378154).
-  const aariSallii = () => { if (!ASETUS.vuoro) return true; const V = SAILO.ammunta && SAILO.ammunta.vuoro, vu = V && V.vu; return !!vu && vu.id === omaId() && (vu.vaihe === 1 || V.siirtynyt === vu.nro); };
+  let omaPois = false; try { omaPois = localStorage.getItem('zombit.aariviivat.pois') === '1'; } catch (x) {}   // kp 1.11. 23:22 :ääriviivat (811.js), oma asetus
+  const aariSallii = () => { if (omaPois) return false; if (!ASETUS.vuoro) return true; const V = SAILO.ammunta && SAILO.ammunta.vuoro, vu = V && V.vu; return !!vu && vu.id === omaId() && (vu.vaihe === 1 || V.siirtynyt === vu.nro); };
   const aja = () => {
     if (suljettu || !ASETUS.aariviivat || !aariSallii()) { piilota(); return; }   // kp 1.11. 20:12: vain pelaajalle, spectatorit ei näe
     const t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
@@ -2309,7 +2310,7 @@ void main(void) {
     try { if (outRT && outRT.destroy) outRT.destroy(true); } catch (x) {} outRT = null;
     rtW = rtH = 0;
   };
-  return { paivita, sulje, tila: () => Object.assign({}, tilasto) };
+  return { paivita, sulje, tila: () => Object.assign({}, tilasto), vaihda: () => { omaPois = !omaPois; try { localStorage.setItem('zombit.aariviivat.pois', omaPois ? '1' : '0'); } catch (x) {} return !omaPois; } };
 })();
 tila.aariviivat = AARIVIIVAT;
 const piirra = () => {

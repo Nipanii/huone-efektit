@@ -265,6 +265,13 @@ const kuulePiilota = ev => { if (ev.key !== 'Enter' && ev.key !== 'NumpadEnter')
   ev.preventDefault(); ev.stopImmediatePropagation(); piilota(!piilossa);
   Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, ''); el.dispatchEvent(new Event('input', { bubbles: true })); };
 window.addEventListener('keydown', kuulePiilota, true);
+// kp 1.11. 23:22: :ääriviivat kytkee esteen takaiset ääriviivat omalta ruudulta pois tai päälle
+const AARI_KOMENTO = /^:\s*[aä][aä]riviivat$/i;
+const kuuleAari = ev => { if (ev.key !== 'Enter' && ev.key !== 'NumpadEnter') return; const el = ev.target;
+  if (!(el instanceof HTMLInputElement) || !el.matches('input.nitro-chat-input-control') || !AARI_KOMENTO.test((el.value || '').trim())) return;
+  ev.preventDefault(); ev.stopImmediatePropagation(); const A = window.zombit && window.zombit.aariviivat; if (A && A.vaihda) A.vaihda();
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, ''); el.dispatchEvent(new Event('input', { bubbles: true })); };
+window.addEventListener('keydown', kuuleAari, true);
 const pienenna = (on) => { pienennetty = on;
   if (rivi) rivi.style.display = on ? 'none' : 'flex'; if (sisalto) sisalto.style.display = on ? 'none' : '';
   if (pieni) { pieni.textContent = on ? '+' : '–'; pieni.title = on ? 'Suurenna' : 'Pienennä'; } };
@@ -367,6 +374,7 @@ window.__h811 = { huone, pienenna, piilota, versio: 'tulokset-2', tulosRivit, pa
 
 return () => {
   window.removeEventListener('keydown', kuulePiilota, true);
+  window.removeEventListener('keydown', kuuleAari, true);
   clearInterval(veriAjastin); clearInterval(tulosAjastin); clearInterval(ulkoAjastin); ulkoPysaytetty = true;
   try { if (vayla && vayla.removeEventListener) vayla.removeEventListener('RSCE_CHAT_EVENT', kuuleLapi); } catch (x) {} for (const d of laput) d.remove(); laput.clear(); juhlaCanvas = null;
   { const bg = tyhjio(), c = taustaCanvas(); if (bg) bg.alpha = 1; if (c && c.dataset.h811veri) { c.style.background = ''; delete c.dataset.h811veri; } }
