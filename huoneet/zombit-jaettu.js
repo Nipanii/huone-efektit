@@ -551,7 +551,7 @@ const onValaistu = (zx, zy, P) => {
 // Tila säilyy skriptin uudelleenlatauksen yli (push käynnistää skriptin uudelleen ~15 s välein).
 const SAILO = (window.__zombitJaettu && window.__zombitJaettu.huone === huone)
   ? window.__zombitJaettu
-  : (window.__zombitJaettu = { huone, E: -1, K: -1, zombit: [], muuttuneet: [], lammikot: [], aanet: [], makaavat: new Map(), piirretytIdt: new Set(), seuraavaMuuttunutN: 1000, historia: new Map() });
+  : (window.__zombitJaettu = { huone, E: -1, K: -1, zombit: [], muuttuneet: [], lammikot: [], aanet: [], makaavat: new Map(), piirretytIdt: new Set(), seuraavaMuuttunutN: 1000, historia: new Map(), hyppyLahto: new Map() });
 if (!Array.isArray(SAILO.muuttuneet)) SAILO.muuttuneet = [];
 if (!Array.isArray(SAILO.lammikot)) SAILO.lammikot = [];
 if (!Array.isArray(SAILO.aanet)) SAILO.aanet = [];
@@ -559,6 +559,7 @@ if (!(SAILO.maalissa instanceof Map)) SAILO.maalissa = new Map();   // pelaaja-i
 if (!(SAILO.makaavat instanceof Map)) SAILO.makaavat = new Map();
 if (!(SAILO.piirretytIdt instanceof Set)) SAILO.piirretytIdt = new Set();
 if (!(SAILO.seuraavaMuuttunutN >= 1000)) SAILO.seuraavaMuuttunutN = 1000;
+if (!(SAILO.hyppyLahto instanceof Map)) SAILO.hyppyLahto = new Map();
 tila.muuttuneet = SAILO.muuttuneet;
 tila.lammikot = SAILO.lammikot;
 tila.makaavat = SAILO.makaavat;
@@ -578,9 +579,22 @@ const kirjaa = (k, P) => {
   const n = Math.max(1, Math.round(ASETUS.ikkuna / ASETUS.tikki));
   for (const p of P) {
     let h = historia.get(p.id); if (!h) historia.set(p.id, h = []);
+    if (h.length) {
+      const ed = h[h.length - 1];
+      const d = Math.max(Math.abs(p.x - ed.x), Math.abs(p.y - ed.y));
+      if (d > 3) {
+        // Paluu tarkistetaan ENNEN kuin lähtöpiste korvataan: tele A -> B -> A kulkee ruudukossa, joten paluuhyppy korvaisi A:n B:llä.
+        const lahto = SAILO.hyppyLahto.get(p.id);
+        if (lahto && Math.max(Math.abs(p.x - lahto.x), Math.abs(p.y - lahto.y)) <= 3) lahto.palasi = true;
+        else if (ed.x >= 0 && ed.y >= 0) SAILO.hyppyLahto.set(p.id, { x: ed.x, y: ed.y, palasi: false });
+      }
+    }
     h.push({ k, x: p.x, y: p.y }); while (h.length && h[0].k <= k - n) h.shift();
   }
-  for (const id of [...historia.keys()]) if (!P.some(p => p.id === id)) historia.delete(id);
+  for (const id of [...historia.keys()]) if (!P.some(p => p.id === id)) {
+    historia.delete(id);
+    if (SAILO.hyppyLahto) SAILO.hyppyLahto.delete(id);
+  }
 };
 const liike = (id) => {
   const h = historia.get(id) || []; let s = 0, hyppy = 0;
@@ -588,7 +602,9 @@ const liike = (id) => {
     const a = Math.max(Math.abs(h[i].x - h[i - 1].x), Math.abs(h[i].y - h[i - 1].y));
     s += a; if (a > hyppy) hyppy = a;
   }
-  return { s, hyppy };
+  if (hyppy <= 3 && SAILO.hyppyLahto) SAILO.hyppyLahto.delete(id);
+  const lahto = (SAILO.hyppyLahto && SAILO.hyppyLahto.get(id)) || null;
+  return { s, hyppy, lahto };
 };
 const etaisyysPelaajaan = (dz, p) => {
   const { W, H, ok } = ruudukko;
@@ -822,7 +838,14 @@ const valitseKohde = (z, dz, P, k, tMs, s0) => {
     // kp 19:24 "heti kun on este välissä ei enää targettaa": ammuttavassa näköpiiri mitataan suoraan, ei kävelyreittiä. Kävely kiertää esteen.
     if ((ASETUS.ammuttava ? Math.min(et, Math.hypot(p.x - z.x, p.y - z.y)) : et) > raja) continue;   // näköpiirin ulkopuolella
     // Teleportannut (yli 3 ruutua tikissä = kuoli ja siirtyi ovelle, tai tuli huoneeseen) ei ole kohde ikkunan aikana (684).
-    const l = liike(p.id); if (l.hyppy > 3 && !ASETUS.hammennysMs) continue;
+    // 811/817 hammennysMs: samasta telestä palannut (<= 3 ruutua lähtöpisteestä) kelpaa kohteeksi heti; muualle hypännyt ei kelpaa ikkunan aikana.
+    const l = liike(p.id);
+    const lahto = l.lahto;
+    const palasi = !!(lahto && (lahto.palasi || Math.max(Math.abs(p.x - lahto.x), Math.abs(p.y - lahto.y)) <= 3));
+    if (l.hyppy > 3) {
+      if (!ASETUS.hammennysMs || !palasi) continue;
+    }
+    if (z && (z.hammennysAsti || 0) > tMs && z.hammennysKohdeId === p.id && !palasi) continue;
     const m = l.s;
     const obj = { ...p, m, et };
     ehdokkaat.push(obj);
@@ -1356,7 +1379,7 @@ const rakennaMuuttunut = (kp, lahdeId, suunta, k, tMs, tikki, s0, lm, zn) => {
     x: kp.x, y: kp.y, px: kp.x, py: kp.y, kuoli: -1, synty: k, syntyMs: tMs, suunta: (suunta ?? kp.suunta) ?? 4,
     huomaa, luovutus, meneta: huomaa + luovutus, kuulo,
     reaktio: 0, reaktioMs: 0, reaktioAsti: 0,
-    hammennysAsti: 0, hammennysKesto: 0,
+    hammennysAsti: 0, hammennysKesto: 0, hammennysKohdeId: null,
     kohdeId: null, kohde: null,
     vAsk: 0, vTauko: Math.ceil(alkuTaukoMs / 1000), vTaukoMs: alkuTaukoMs, vTaukoAsti: tMs + alkuTaukoMs, vDx: 0, vDy: 0,
     kontaktit: {}, kontaktiId: null, kontakti: 0, kontaktiRaja: 0, kontaktiMs: 0, kontaktiRajaMs: 0, syoId: null, syoAstiMs: 0,
@@ -1391,7 +1414,7 @@ const rakennaPerusZombi = (n, eSynty, r, tMs, tikki, s0) => {
     odottaaSynkkaa: null, poistumassa: false,
     huomaa, luovutus, meneta: huomaa + luovutus, kuulo,
     reaktio: 0, reaktioMs: 0, reaktioAsti: 0,
-    hammennysAsti: 0, hammennysKesto: 0,
+    hammennysAsti: 0, hammennysKesto: 0, hammennysKohdeId: null,
     kohdeId: null, kohde: null,
     vAsk: 0, vTauko: n % 3, vTaukoMs: taukoMs, vTaukoAsti: tMs + taukoMs, vDx: 0, vDy: 0,
     kontaktit: {}, kontaktiId: null, kontakti: 0, kontaktiRaja: 0, kontaktiMs: 0, kontaktiRajaMs: 0, syoId: null,
@@ -1410,7 +1433,7 @@ const synkkaaZombi = (z, eSynk, P, k, tMs, tikki, s0, varattu) => {
   z.synty = eSynk; z.syntyMs = tMs; z.suunta = 4; z.odottaaSynkkaa = null;
   z.huomaa = huomaa; z.luovutus = luovutus; z.meneta = huomaa + hystereesiVali(z); z.kuulo = kuulo;
   z.reaktio = 0; z.reaktioMs = 0; z.reaktioAsti = 0;
-  z.hammennysAsti = 0; z.hammennysKesto = 0;
+  z.hammennysAsti = 0; z.hammennysKesto = 0; z.hammennysKohdeId = null;
   z.kohdeId = null; z.kohde = null;
   z.vAsk = 0; z.vTauko = z.n % 3; z.vTaukoMs = taukoMs; z.vTaukoAsti = tMs + taukoMs; z.vDx = 0; z.vDy = 0;
   z.kontaktit = {}; z.kontaktiId = null; z.kontakti = 0; z.kontaktiRaja = 0; z.kontaktiMs = 0; z.kontaktiRajaMs = 0;
@@ -1604,7 +1627,7 @@ const askel = (k, Z, P) => {
       z.x = z.px = r.x; z.y = z.py = r.y; z.kuoli = -1; z.syo = false; z.syoId = null; z.syoAstiMs = 0; z.synty = k; z.syntyMs = tMs; z.odottaaSynkkaa = null;
       z.huomaa = arvoHuomaa(s0, k, z.n); z.luovutus = arvoLuovutus(s0, k, z.n); z.meneta = z.huomaa + hystereesiVali(z); z.kuulo = arvoKuulo(s0, k, z.n);
       z.reaktio = 0; z.reaktioMs = 0; z.reaktioAsti = 0;
-      z.hammennysAsti = 0; z.hammennysKesto = 0;
+      z.hammennysAsti = 0; z.hammennysKesto = 0; z.hammennysKohdeId = null;
       z.kohdeId = null; z.kohde = null; z.vAsk = 0; z.vTauko = 0; z.vTaukoMs = 0; z.vTaukoAsti = 0; z.vDx = 0; z.vDy = 0;
       z.kontaktit = {}; z.kontaktiId = null; z.kontakti = 0; z.kontaktiRaja = 0; z.kontaktiMs = 0; z.kontaktiRajaMs = 0;
       alustaNopeus(z, s0, k, tMs, tikki);
@@ -1624,11 +1647,12 @@ const askel = (k, Z, P) => {
       varattu.delete(z.y * W + z.x);
       const dz = kentta(z.x, z.y);
       const oliKohde = z.kohdeId != null;
+      const vanhaKohdeId = z.kohdeId;
       z._vaihdettuKohteeseen = false; z._valitonVaihto = false;
       const kohde = valitseKohde(z, dz, P, k, tMs, s0);
       if (kohde) {
         const oliHammennys = (z.hammennysAsti || 0) > tMs;
-        z.hammennysAsti = 0; z.hammennysKesto = 0;
+        z.hammennysAsti = 0; z.hammennysKesto = 0; z.hammennysKohdeId = null;
         if (z._valitonVaihto || oliHammennys) z.reaktioAsti = tMs;   // jahtaava zombi kääntyy vieressä olevaan heti; hämmennyksestä heti jahtiin
         else if (!oliKohde || z._vaihdettuKohteeseen) {
           const rMs = arvoReaktioMs(s0, k, z.n);
@@ -1669,6 +1693,7 @@ const askel = (k, Z, P) => {
             const kesto = arvoHammennysMs(s0, k, z.n);
             z.hammennysKesto = kesto;
             z.hammennysAsti = tMs + kesto;
+            z.hammennysKohdeId = vanhaKohdeId;
             z.vTaukoAsti = 0; z.vTaukoMs = 0; z.vTauko = 0;
             z.safe = null;
           } else {
@@ -1691,7 +1716,7 @@ const askel = (k, Z, P) => {
         if (idx >= 0) { SAILO.muuttuneet.splice(idx, 1); paivitaLammikot(P); }
       } else {
         z.kuoli = k; z.kontaktit = {}; z.kontaktiId = null; z.kontakti = 0; z.kontaktiRaja = 0; z.kontaktiMs = 0; z.kontaktiRajaMs = 0;
-        z.hammennysAsti = 0; z.hammennysKesto = 0;
+        z.hammennysAsti = 0; z.hammennysKesto = 0; z.hammennysKohdeId = null;
       }
       continue;
     }
