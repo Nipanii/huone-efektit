@@ -2385,7 +2385,7 @@ const SYNK = (() => {
       if (hpOdottaa != null) ext.hp = hpOdottaa;
       { const ot = AMMUNTA && AMMUNTA.otViesti(); if (ot) ext.ot = ot; }   // kp 1.11. 14:15: vuoron pelaajan oma lukema johtajalle, vanha johtaja ei voi pudottaa pisteitä
       if (kasiOdottaa != null) ext.ha = kasiOdottaa;   // kp 21:35: vuoron pelaajan käsiase muille (ei chat-komentoa)
-      if (laukauksetOdottaa.length) { ext.la = laukauksetOdottaa.slice(); laukauksetOdottaa.length = 0; }
+      const laMukana = laukauksetOdottaa.length; if (laMukana) ext.la = laukauksetOdottaa.slice();   // kp 1.11. 19:34 ammus count: jono tyhjeni ennen tahtirajaa, joten hylätty lähetys kadotti laukaukset. Nyt tyhjennys vasta onnistuneen lähetyksen jälkeen.
       let osMukana = 0;
       if (osumaOdottaa.length) {   // ei yli maxTavuja: loput jäävät jonoon seuraavaan viestiin
         const tila = num(S().maxTavuja, 7500) - JSON.stringify(o).length - 300; let t = 0; const os = [];
@@ -2397,7 +2397,7 @@ const SYNK = (() => {
       while (lahetysAjat.length && nyt - lahetysAjat[0] >= 1000) lahetysAjat.shift();
       if (lahetysAjat.length >= (ks ? Math.max(1, num(S().maxLahetysS, 3)) : 15)) { tilasto.hylattyRaja++; return false; }
       if (ks) ksYht.ks.send(AIHE, s); else ws.send(s);
-      lahetysAjat.push(nyt); tilasto.viimeKoko = s.length; katseOdottaa = null; hpOdottaa = null; kasiOdottaa = null;
+      lahetysAjat.push(nyt); tilasto.viimeKoko = s.length; if (laMukana) laukauksetOdottaa.splice(0, laMukana); katseOdottaa = null; hpOdottaa = null; kasiOdottaa = null;
       if (osMukana) { osumaViime = { osat: osumaOdottaa.splice(0, osMukana), t: nyt }; tilasto.lahetettyOsuma = (tilasto.lahetettyOsuma || 0) + osMukana; }
       return true;
     } catch (x) { tilasto.virhe = String(x); return false; }
