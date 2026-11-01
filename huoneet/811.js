@@ -256,6 +256,15 @@ const piirra = () => {
   }
 };
 
+// kp 1.11. 18:30 'tee robo komento mikä piilottaa noi' (Biglibra: tulostaulu keskellä ruutua): ':piilota' piilottaa/palauttaa taulun tässä selaimessa, muisti säilyy latauksen yli. Ei mene chattiin.
+const PIILO_AVAIN = 'h811.piilossa', PIILO_KOMENTO = /^:\s*piilota$/i;
+let piilossa = false; try { piilossa = localStorage.getItem(PIILO_AVAIN) === '1'; } catch (x) {}
+const piilota = (on) => { piilossa = !!on; if (ikkuna) ikkuna.style.display = piilossa ? 'none' : ''; try { localStorage.setItem(PIILO_AVAIN, piilossa ? '1' : '0'); } catch (x) {} };
+const kuulePiilota = ev => { if (ev.key !== 'Enter' && ev.key !== 'NumpadEnter') return; const el = ev.target;
+  if (!(el instanceof HTMLInputElement) || !el.matches('input.nitro-chat-input-control') || !PIILO_KOMENTO.test((el.value || '').trim())) return;
+  ev.preventDefault(); ev.stopImmediatePropagation(); piilota(!piilossa);
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, ''); el.dispatchEvent(new Event('input', { bubbles: true })); };
+window.addEventListener('keydown', kuulePiilota, true);
 const pienenna = (on) => { pienennetty = on;
   if (rivi) rivi.style.display = on ? 'none' : 'flex'; if (sisalto) sisalto.style.display = on ? 'none' : '';
   if (pieni) { pieni.textContent = on ? '+' : '–'; pieni.title = on ? 'Suurenna' : 'Pienennä'; } };
@@ -317,6 +326,7 @@ const rakenna = () => {
   ikkuna.addEventListener('pointerdown', ev => ev.stopPropagation());
   document.body.appendChild(ikkuna);
   pienenna(false);
+  piilota(piilossa);
   piirra();
 };
 
@@ -353,9 +363,10 @@ const paivita = () => { if (!sisalto) return; const R = tulosRivit(), sig = JSON
   const rt = sisalto.firstElementChild, y = rt ? rt.scrollTop : 0; piirra(); const uusi = sisalto.firstElementChild; if (uusi) uusi.scrollTop = y; };
 const tulosAjastin = setInterval(paivita, 1000);
 haeUlko(); const ulkoAjastin = setInterval(haeUlko, 30000);
-window.__h811 = { huone, pienenna, versio: 'tulokset-2', tulosRivit, paivita, kuuleLapi, ennatysIlmoitus };
+window.__h811 = { huone, pienenna, piilota, versio: 'tulokset-2', tulosRivit, paivita, kuuleLapi, ennatysIlmoitus };
 
 return () => {
+  window.removeEventListener('keydown', kuulePiilota, true);
   clearInterval(veriAjastin); clearInterval(tulosAjastin); clearInterval(ulkoAjastin); ulkoPysaytetty = true;
   try { if (vayla && vayla.removeEventListener) vayla.removeEventListener('RSCE_CHAT_EVENT', kuuleLapi); } catch (x) {} for (const d of laput) d.remove(); laput.clear(); juhlaCanvas = null;
   { const bg = tyhjio(), c = taustaCanvas(); if (bg) bg.alpha = 1; if (c && c.dataset.h811veri) { c.style.background = ''; delete c.dataset.h811veri; } }

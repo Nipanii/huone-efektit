@@ -3252,6 +3252,10 @@ AMMUNTA = (() => {
   const aaltoK = (n) => { const A = ASETUS.aallot || {}, M = A.maarat;   // kp 20:14 "waven lopussa 100 pistettä": 22+33+45, sitten kasvu viimeisestä
     if (Array.isArray(M) && M.length) return n <= M.length ? M[Math.max(1, n) - 1] : Math.min(999, M[M.length - 1] + (Number(A.kasvu) || 0) * (n - M.length));
     return Math.max(1, Math.min(999, Math.round((Number(A.aloitus) || 6) + (Number(A.kasvu) || 0) * (n - 1)))); };
+  // kp 1.11. 18:27 'jos päässy pelin läpi nii peli alkaa 100 pts kohdalta, eli rollback ei voi viedä sen pidemmälle. wave 15 jälkeen menee vaan -1'
+  const alkuAaltoPelaajalle = (best, lapaissyt, miinus) => { let eka = best > 0 ? Math.max(1, Math.round(best - (best > 15 ? 1 : Number(miinus)))) : 1;
+    if (lapaissyt) { let w = 1, pts = 0; while (pts < raja() && w < 500) pts += aaltoK(w++); eka = Math.max(eka, w); }
+    return eka; };
   const aaltoIlmoitus = (a) => { lokiin({ aalto: a.n, zombeja: a.k }); try { ilmoita('🧟 Aalto ' + a.n + ': ' + a.k + (a.k === 1 ? ' zombi' : ' zombia')); } catch (x) {} };
   const aloitaAalto = (n, tMs) => { AM.aalto = { n, k: aaltoK(n), sp: 0, ku: 0, tauko: 0, alku: 0, seur: tMs + 800, idx: AM.aalto.idx || 0 }; aaltoIlmoitus(AM.aalto); };
   const syntyRuutu = (Z, k) => {
@@ -3333,10 +3337,7 @@ AMMUNTA = (() => {
     const miinus = ASETUS.aallot && ASETUS.aallot.aloitusPbMiinus;
     const pInfo = vpPelaaja(p.id);
     if (miinus != null && Number(miinus) >= 0) {
-      const best = pInfo && Number(pInfo.aalto) > 0 ? Number(pInfo.aalto) : null;
-      if (best != null && best > 0) {
-        ekaAalto = Math.max(1, Math.round(best - Number(miinus)));
-      }
+      ekaAalto = alkuAaltoPelaajalle(pInfo ? Number(pInfo.aalto) : 0, !!(pInfo && (pInfo.lapi === true || pInfo.lapi === 1)) || voittoPaik(p.id), miinus);
     }
     let alkupisteet = 0;
     for (let w = 1; w < ekaAalto; w++) {
@@ -3468,9 +3469,8 @@ AMMUNTA = (() => {
       const miinus = ASETUS.aallot && ASETUS.aallot.aloitusPbMiinus;
       if (miinus != null && Number(miinus) >= 0) {
         const pInfo = vpPelaaja(id);
-        const best = pInfo && Number(pInfo.aalto) > 0 ? Number(pInfo.aalto) : null;
-        if (best != null && best > 0) {
-          const eka = Math.max(1, Math.round(best - Number(miinus)));
+        {
+          const eka = alkuAaltoPelaajalle(pInfo ? Number(pInfo.aalto) : 0, !!(pInfo && (pInfo.lapi === true || pInfo.lapi === 1)) || voittoPaik(id), miinus);
           if (eka > 1) {
             let pts = 0;
             for (let w = 1; w < eka; w++) pts += aaltoK(w);
