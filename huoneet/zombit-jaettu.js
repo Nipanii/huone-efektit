@@ -1727,8 +1727,8 @@ let V = null, figuuri = ASETUS.figuuri, seuraavaId = -950001, asut = [];
 // kp 30.10. 18:58 & 19:09: tavalliset zombit EIVÄT käytä huoneen pelaajien asuja (kp 19:09: 'näen myös ite kp zombin').
 //   Pohjat: Zombie-botit + ASETUS.zombiAsut (~8 geneeristä asua) + vara-asu figuuri, ja jokainen zombifioidaan siemenellä.
 // kp 1.11. 20:42-20:45 'liian saman näkösiä' · 'eiks se vois automaattisesti tehä asu variaatioita': asut arvotaan siemenestä, joten kaikki clientit saavat saman asun.
-//   Osat = FigureDataISO: club 0, valittavissa, id < 3000. Hatuista vain katsotut (paperipussi peitti koko pään). Pooli rajaa eri hahmokuvien määrää.
-const Z_ASUOSAT = {'M':{'hr':[145,125,165,676,105,155,681,115,170,679,135,110,889,891,892,893,802,828,830,831,829,678,677],'ch':[876,210,267,245,878,220,255,875,262,240,250,877,215,230,235,265,225,807,804,803,809,808,805,806],'lg':[280,285,270,281,275],'sh':[300,305,295,290,905,906,908,1956],'cc':[260,886,887,2729,2935],'ha':[]},'F':{'hr':[550,676,596,500,555,681,510,505,540,530,515,679,575,520,545,890,891,892,893,840,837,834,836,811,833,838,835,678,832,839,677],'ch':[680,675,690,879,665,685,670,645,640,655,882,881,880,669,691,660,650,635,630,816,813,812,815,823,818,814,819,824,825,822,821,826,820,817,883,884,885],'lg':[715,696,710,720,700,705,695,827,716],'sh':[740,735,730,725,905,906,907,908,1956],'cc':[888,887,2729,2935],'ha':[1003,1009,1023,2817,2820]}}, Z_HIUSVARIT = [40,34,35,36,31,32,37,38,43,46,47,48,44,39,45,42], Z_VAATEVARIT = [1408,90,91,66,1320,68,73,72,71,74,75,76,82,81,80,83,84,85,88,64];
+//   Osat = FigureDataISO: club 0, valittavissa, id < 3000. Hatuista vain katsotut (paperipussi peitti koko pään). cc-2935 (jätti huivi) pois, kp 20:57. Pooli rajaa eri hahmokuvien määrää.
+const Z_ASUOSAT = {'M':{'hr':[145,125,165,676,105,155,681,115,170,679,135,110,889,891,892,893,802,828,830,831,829,678,677],'ch':[876,210,267,245,878,220,255,875,262,240,250,877,215,230,235,265,225,807,804,803,809,808,805,806],'lg':[280,285,270,281,275],'sh':[300,305,295,290,905,906,908,1956],'cc':[260,886,887,2729],'ha':[]},'F':{'hr':[550,676,596,500,555,681,510,505,540,530,515,679,575,520,545,890,891,892,893,840,837,834,836,811,833,838,835,678,832,839,677],'ch':[680,675,690,879,665,685,670,645,640,655,882,881,880,669,691,660,650,635,630,816,813,812,815,823,818,814,819,824,825,822,821,826,820,817,883,884,885],'lg':[715,696,710,720,700,705,695,827,716],'sh':[740,735,730,725,905,906,907,908,1956],'cc':[888,887,2729],'ha':[1003,1009,1023,2817,2820]}}, Z_HIUSVARIT = [40,34,35,36,31,32,37,38,43,46,47,48,44,39,45,42], Z_VAATEVARIT = [1408,90,91,66,1320,68,73,72,71,74,75,76,82,81,80,83,84,85,88,64];
 const Z_ASUPOOLI = 64;
 const generoiAsu = i => {
   const r = arpa(((i + 1) * 104729 + 811) >>> 0), v = L => L[Math.floor(r() * L.length)];
@@ -2748,6 +2748,8 @@ const SYNK = (() => {
   const pidattyy = (nyt) => vuoroPelaaja() !== omaId() && !!ASETUS.vuoro && !!(SAILO.ammunta && SAILO.ammunta.vuoro && SAILO.ammunta.vuoro.vu) && SY.snapJohtaja > 0 && SY.snapJohtaja !== omaId() && nyt - SY.snapAika < Math.max(1000, num(S().hiljaisuusMs, 10000));
   if (!SY.nakyvaKuuntelu && typeof document !== 'undefined' && document.addEventListener) { SY.nakyvaKuuntelu = true;
     document.addEventListener('visibilitychange', () => { if (!document.hidden && SY.liittynyt > 0) SY.liittynyt = Date.now(); }); }
+  // B167: lähettäjä pelaa itse vuoroaan eikä omaa vuoron pelaajaa ole tai se on hiljaa -> otetaan snapshot vastaan, vaikka oma johtajalaskelma sanoisi muuta.
+  const vuoronOmistajaSnap = (id, m, nyt) => { if (!Array.isArray(m.vu) || (m.vu[0] | 0) !== id || !kelpaa(id)) return false; const vp = vuoroPelaaja(); if (vp === id) return true; if (!vp) return true; if (vp === omaId()) return false; const hp = SY.sykkeet.get(vp); return !(hp && hp.ts && nyt - hp.ts < Math.max(1000, num(S().hiljaisuusMs, 10000))); };
   const johtajaId = (nyt) => {
     nyt = nyt || Date.now();
     if (!S().kaytossa) return 0;
@@ -2959,7 +2961,7 @@ const SYNK = (() => {
     if (!ruudukko || !Array.isArray(SAILO.zombit) || (!SAILO.zombit.length && !ASETUS.aallot)) return;   // odottaa kunnes oma ruudukko on valmis
     SY.odottava = null;
     const nyt = Date.now();
-    if (m.id === omaId() || m.id !== johtajaId(nyt)) return;
+    if (m.id === omaId() || (m.id !== johtajaId(nyt) && !m.vuoroOtto)) return;
     try {
       omaksuSnap(m, P, K * Math.max(50, Number(ASETUS.tikki) || 250));
       tilasto.omaksuttuSnap++; tilasto.viimeKEro = K - num(m.K, K);
@@ -3084,7 +3086,8 @@ const SYNK = (() => {
     if (m.t === 'snap') h.ts = nyt;
     SY.sykkeet.set(id, h);
     if (m.t === 'hei') { if (m.q && johtajaId(nyt) !== omaId()) heiLaheta(false); }   // uusi tulokas kysyy "kuka on paikalla" -> vastaa muut kuin johtaja (johtaja ei lähetä muuta kuin snapshotin)
-    else if (m.t === 'snap' && Array.isArray(m.z) && id === johtajaId(nyt)) {
+    else if (m.t === 'snap' && Array.isArray(m.z) && (id === johtajaId(nyt) || vuoronOmistajaSnap(id, m, nyt))) {
+      m.vuoroOtto = id !== johtajaId(nyt);   // kp 1.11. 20:47 B167: oma tila voi olla eri pelissä, muuten johtajan snapshotit hylättäisiin eikä tila palaisi koskaan
       m.z = m.z.map(pura); m.m = (Array.isArray(m.m) ? m.m : []).map(pura);
       m.l = (Array.isArray(m.l) ? m.l : []).map(a => Array.isArray(a) ? { l: a[0], x: a[1], y: a[2], n: a[3], k: a[4] } : {});
       SY.odottava = m; SY.snapAika = nyt; SY.snapJohtaja = id; tilasto.vastaanotettuSnap++;
