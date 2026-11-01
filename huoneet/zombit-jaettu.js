@@ -2906,6 +2906,7 @@ AMMUNTA = (() => {
   const kontaktiKerroin = (pid) => { if (pid !== omaId()) return 1; const k = Number(aseNyt().kontaktiKerroin); return k > 0 ? k : 1; };
   // kp 16:01 "miekan käyttö nollais aina kiinni jäämis laskurin": pelaajan kontaktilaskuri pois kaikilta zombeilta (myös muuttuneilta).
   // kp 1.11. 15:03 "vain osuessa ... vaan sen vihun osalta johon osuu": zn = vain osuman saanut zombi (spämmi ei enää nollaa koko laumaa)
+  const auk0 = () => auktoriteetti();
   const nollaaKontakti = (pid, zn) => {
     let n = 0;
     for (const z of (SAILO.zombit || []).concat(SAILO.muuttuneet || [])) if (z && z.kontaktit && z.kontaktit[pid] && (zn == null || z.n === zn)) {
@@ -2975,6 +2976,8 @@ AMMUNTA = (() => {
     for (const [n, v] of [...AM.odottavat]) if (nyt > v.asti) AM.odottavat.delete(n);
     for (const [a, asti] of [...AM.ennuste]) if (nyt > asti) { AM.ennuste.delete(a); tilasto.ennusteVanheni++; }
     for (const [a, v] of [...AM.hpEnn]) if (nyt > v.asti) AM.hpEnn.delete(a);
+    // kp 1.11. 15:21 "tonne jäi zombi kentälle · peli ei oo käynnis": johtajan vaihtuessa vuoron lopussa zombi voi jäädä; ilman vuoroa kentällä ei kuulu olla zombeja
+    if (ASETUS.vuoro && auk0() && !(AM.vuoro && AM.vuoro.vu) && (SAILO.zombit || []).some(z => z && !z.muuttunut)) { nollaaPeli(); lokiin({ jaanyt: 1 }); }
     // kp 1.11. 15:04 "charged attack pitää pystyy tehä vaan ilman kontaktia ilman dmg": kontakti ja purema aloittavat latauksen alusta
     if (veto && (SAILO.zombit || []).concat(SAILO.muuttuneet || []).some(z => z && z.kontaktit && z.kontaktit[omaId()])) veto.t0 = nyt;
     if (!AM.jono.length) return;
