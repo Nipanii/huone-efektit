@@ -279,7 +279,8 @@ const huone = Number((kupla && kupla.roomId && kupla.roomId()) || (e && e.active
     else ASETUS[k] = (v && typeof v === 'object') ? JSON.parse(JSON.stringify(v)) : v;
   }
   for (const w of (Array.isArray(ASETUS.poistaAseet) ? ASETUS.poistaAseet : [])) if (ASETUS.aseet) delete ASETUS.aseet[w];   // huonekohtainen asevalikoima (811/817: ei jousta)
-  if (ASETUS.ase && ASETUS.aseet && !ASETUS.aseet[ASETUS.ase.valittu]) ASETUS.ase.valittu = ['luoti', 'miekka', 'jousi'].find(w => ASETUS.aseet[w]) || ASETUS.ase.valittu; }
+  if (ASETUS.ase && ASETUS.aseet && !ASETUS.aseet[ASETUS.ase.valittu]) ASETUS.ase.valittu = ['luoti', 'miekka', 'jousi'].find(w => ASETUS.aseet[w]) || ASETUS.ase.valittu;
+  if (ASETUS.aallot) Object.defineProperty(ASETUS.aallot, 'aloitusPbMiinus', { value: 2, writable: true, configurable: true, enumerable: false }); }
 const dv = (o, k) => { const d = o && Object.getOwnPropertyDescriptor(o, k); return d && !d.get ? d.value : undefined; };
 const omaId = () => { const s = e && dv(e, '_sessionDataManager'); return Number((s && (dv(s, '_userId') || s.userId)) || 0); };
 const omaNimi = () => { const s = e && dv(e, '_sessionDataManager'); const n = s && (dv(s, '_name') || s._name || s.userName); return n ? String(n) : null; };
@@ -2124,23 +2125,42 @@ const voittoPaik = id => {
   try { const a = JSON.parse(lsLue('h811.t3.' + huone) || '[]'); if (Array.isArray(a) && a.some(r => r && Number(r.id) === id && r.lapi)) return true; } catch (x) {}
   return false; };
 const voittoKirjaa = id => { try { const a = JSON.parse(lsLue(VOITTO_AVAIN) || '[]'); const l = Array.isArray(a) ? a : []; if (!l.includes(id)) { l.push(id); localStorage.setItem(VOITTO_AVAIN, JSON.stringify(l)); } } catch (x) {} };
-const VP = { avain: null, tila: 'ei', jo: false };   // tila: ei | haetaan | valmis | virhe
+const VP = { avain: null, tila: 'ei', jo: false, rivit: null };   // tila: ei | haetaan | valmis | virhe
+const vpPelaaja = id => {
+  if (Array.isArray(VP.rivit)) {
+    const r = VP.rivit.find(x => x && Number(x.id) === Number(id));
+    if (r) return r;
+  }
+  return null;
+};
 const voittoHae = (id, avain) => {
-  VP.avain = avain; VP.tila = 'haetaan'; VP.jo = false;
-  const lopeta = (t, jo) => { if (VP.avain !== avain || VP.tila !== 'haetaan') return; VP.tila = t; VP.jo = !!jo; };
+  VP.avain = avain; VP.tila = 'haetaan';
+  const lopeta = (t, a) => {
+    if (VP.avain !== avain && avain != null) return;
+    VP.tila = t;
+    if (Array.isArray(a)) {
+      VP.rivit = a;
+      if (id != null) VP.jo = a.some(r => r && Number(r.id) === Number(id) && (r.lapi === true || r.lapi === 1));
+    } else {
+      VP.jo = false;
+    }
+  };
   if (!ASETUS.tulosUrl || typeof fetch !== 'function') return lopeta('virhe');
   const aj = setTimeout(() => lopeta('virhe'), 8000);
   try { fetch(ASETUS.tulosUrl + '?t=' + Date.now(), { cache: 'no-store' }).then(r => (r && r.ok ? r.json() : null))
-    .then(a => { clearTimeout(aj); if (!Array.isArray(a)) return lopeta('virhe'); lopeta('valmis', a.some(r => r && Number(r.id) === id && (r.lapi === true || r.lapi === 1))); })
+    .then(a => { clearTimeout(aj); if (!Array.isArray(a)) return lopeta('virhe'); lopeta('valmis', a); })
     .catch(() => { clearTimeout(aj); lopeta('virhe'); }); } catch (x) { clearTimeout(aj); lopeta('virhe'); } };
 // true = pelaaja on jo läpäissyt aiemmin (ei sanota), false = ei (sano), null = VPS-luku kesken (odota)
 const voittoJo = (id, avain) => {
   if (voittoPaik(id)) return true;
+  const p = vpPelaaja(id);
+  if (p && (p.lapi === true || p.lapi === 1)) return true;
   if (VP.avain !== avain) voittoHae(id, avain);
   if (VP.tila === 'haetaan') return null;
   if (VP.tila === 'virhe') lokiin({ voitto: 'tulostaulun luku epäonnistui, luotetaan paikalliseen', avain });
   return VP.tila === 'valmis' && VP.jo; };
-tila._voittoJo = voittoJo; tila._voittoKirjaa = voittoKirjaa;
+tila._voittoJo = voittoJo; tila._voittoKirjaa = voittoKirjaa; tila._VP = VP;
+if (ASETUS.tulosUrl && typeof fetch === 'function') voittoHae(null, 'init');
 
 // ---- oma kiinnijäänti (kp 19:25: paikallinen 'lay' ASETUS.kuolemaMakuu ms ajan ennen zk684-salasanan lähetystä; kp 20:04: iso keskitetty KUOLIT-viesti)
 const ilmoita = teksti => {
@@ -2959,7 +2979,7 @@ AMMUNTA = (() => {
     AM.tulokset.push({ id, nimi: p.nimi, tapot: p.tapot, lapi: p.lapi, run: p.run, syy, t: Date.now(), aalto: (AM.aalto && AM.aalto.n) | 0 });
     while (AM.tulokset.length > 20) AM.tulokset.shift();
     lokiin({ runLoppu: id, tapot: p.tapot, lapi: p.lapi, syy });
-    p.tapot = 0; p.lapi = 0; p.run++;
+    p.tapot = 0; p.lapi = 0; p.run++; AM.alkuAalto = 1;
     // L4K: kaikki kaatuneet = peli ohi. 811:ssä kuolema päättää runin -> aallot alusta zTaukoMs:n jälkeen (kaikki zombit pois)
     // 811 vuoro: vuoron pelaajan run päättyi -> vuoro päättyy (aallot nollaan, seuraava vuoro aloittaa; ei automaattista uutta aaltoa)
     if (ASETUS.vuoro) { if (auktoriteetti() && AM.vuoro && AM.vuoro.vu && AM.vuoro.vu.id === id) vuoroLopeta(syy, false); return; }
@@ -3263,7 +3283,7 @@ AMMUNTA = (() => {
     if (SYNK.seuraa() || !ruudukko) return;   // seuraaja: johtajan snapshot
     const A = ASETUS.aallot || {}, tikki = tikkiMs(), tMs = (k ?? 0) * tikki, a = AM.aalto;
     const kohteet = (P || []).filter(p => onKohde(p) && tavoitettava(p) && !onMakaava(p.id, tMs));
-    if (!a.n) { if (!kohteet.length) return; if (!a.alku) a.alku = tMs + Math.max(0, Number(A.alkuMs) || 1500); else if (tMs >= a.alku) aloitaAalto(1, tMs); return; }
+    if (!a.n) { if (!kohteet.length) return; if (!a.alku) a.alku = tMs + Math.max(0, Number(A.alkuMs) || 1500); else if (tMs >= a.alku) aloitaAalto(AM.alkuAalto || 1, tMs); return; }
     if (a.sp >= a.k && !Z.length) { if (!a.tauko) a.tauko = tMs + Math.max(0, Number(A.taukoMs) || 6000); else if (tMs >= a.tauko) aloitaAalto(a.n + 1, tMs); return; }
     a.tauko = 0;
     const katto = Math.max(1, Number(A.katto) || Number(ASETUS.maaraMax) || 8);
@@ -3303,11 +3323,27 @@ AMMUNTA = (() => {
     const pp = piste(p.id, p.nimi);
     if (pp.tapot > 0) runLoppu(p.id, p.nimi, 'keskeytyi'); else { pp.tapot = 0; pp.lapi = 0; }
     nollaaPeli();
+    let ekaAalto = 1;
+    const miinus = ASETUS.aallot && ASETUS.aallot.aloitusPbMiinus;
+    const pInfo = vpPelaaja(p.id);
+    if (miinus != null && Number(miinus) >= 0) {
+      const best = pInfo && Number(pInfo.aalto) > 0 ? Number(pInfo.aalto) : null;
+      if (best != null && best > 0) {
+        ekaAalto = Math.max(1, Math.round(best - Number(miinus)));
+      }
+    }
+    let alkupisteet = 0;
+    for (let w = 1; w < ekaAalto; w++) {
+      alkupisteet += aaltoK(w);
+    }
+    pp.tapot = alkupisteet;
+    pp.lapi = (pInfo && (pInfo.lapi === true || pInfo.lapi === 1)) || voittoPaik(p.id) ? 1 : 0;
+    AM.alkuAalto = ekaAalto;
     const alku = tMs + Math.max(0, Number(V.siirtoMs ?? 0)) + laskenta;   // siirto ensin, sitten laskenta (sona 16:59)
     AM.aalto.alku = alku;   // aalto 1 heti kun peli alkaa (aaltoTick: kohde olemassa ja tMs >= alku)
     VT.vu = { id: p.id, nimi: p.nimi || null, vaihe: laskenta > 0 ? 0 : 1, alku, nro: ++VT.nro, tapa, i: p.i };   // i = pelaajan huoneindeksi: poistuminen + paluu antaa uuden indeksin -> vuoro ei jatku (kp 20:24 huijaus)
     VT.poissa = 0;
-    lokiin({ vuoro: 'alkaa', id: p.id, nimi: p.nimi, tapa, nro: VT.vu.nro });
+    lokiin({ vuoro: 'alkaa', id: p.id, nimi: p.nimi, tapa, nro: VT.vu.nro, ekaAalto, alkupisteet });
   };
   // kirjaa: true = tulos talteen runLoppu:lla (poistui / lopetettu). Kuolema on jo kirjattu runLoppussa (joka kutsuu tätä kirjaa=false).
   const vuoroLopeta = (syy, kirjaa, tMs) => {
@@ -3421,8 +3457,27 @@ AMMUNTA = (() => {
     const o = (P || []).find(q => q && q.id === id); if (!o) return;
     const nyt = Date.now(), alku = V.alku || {};
     if (o.x === alku.x && o.y === alku.y) VT.siirtynyt = vu.nro;
+    if (VT.pbAsetettu !== vu.nro) {
+      VT.pbAsetettu = vu.nro;
+      const miinus = ASETUS.aallot && ASETUS.aallot.aloitusPbMiinus;
+      if (miinus != null && Number(miinus) >= 0) {
+        const pInfo = vpPelaaja(id);
+        const best = pInfo && Number(pInfo.aalto) > 0 ? Number(pInfo.aalto) : null;
+        if (best != null && best > 0) {
+          const eka = Math.max(1, Math.round(best - Number(miinus)));
+          if (eka > 1) {
+            let pts = 0;
+            for (let w = 1; w < eka; w++) pts += aaltoK(w);
+            const pOma = piste(id, omaNimi());
+            if (pOma.tapot < pts) pOma.tapot = pts;
+            if (!pOma.lapi && ((pInfo && (pInfo.lapi === true || pInfo.lapi === 1)) || voittoPaik(id))) pOma.lapi = 1;
+            AM.alkuAalto = Math.max(AM.alkuAalto || 1, eka);
+          }
+        }
+      }
+    }
     if (ASETUS.voittoSana && vu.vaihe === 1) {   // kp 20:26: voittosana kerran per run, vain vuoron pelaajan oma client; peli jatkuu (hyvaksy vain asettaa p.lapi)
-      const pp = AM.pisteet[id], avain = vu.nro + ':' + (pp ? pp.run : 0), lapi = !!pp && (!!pp.lapi || pp.tapot >= raja());
+      const pp = AM.pisteet[id], avain = vu.nro + ':' + (pp ? pp.run : 0), lapi = !!pp && !!pp.lapi;
       if (pp && !lapi) VT.voittoNahty = avain;   // nähty rajan alla tässä clientissä -> ylitys on todellinen tapahtuma (ei toistoa uudelleenliittyjälle)
       else if (lapi && VT.voittoSanottu !== avain) {
         if (VT.voittoNahty !== avain) { VT.voittoSanottu = avain; lokiin({ voitto: 'jo läpi kun client liittyi, ei sanota', avain }); }
@@ -4210,7 +4265,7 @@ AMMUNTA = (() => {
     const id = omaId(), p = AM.pisteet[id] || { tapot: 0, lapi: 0, run: 1 };
     const pel = {}; for (const [k, q] of Object.entries(AM.pisteet)) pel[k] = { nimi: q.nimi, tapot: q.tapot, lapi: !!q.lapi, run: q.run };
     window[GLOBAALI] = {
-      versio: 1, huone, raja: raja(), pelaaja: id, tapot: omaTapot(), vahvistetut: p.tapot, lapi: !!p.lapi || omaTapot() >= raja(), run: p.run,
+      versio: 1, huone, raja: raja(), pelaaja: id, tapot: omaTapot(), vahvistetut: p.tapot, lapi: !!p.lapi, run: p.run,
       pelaajat: pel, tulokset: AM.tulokset.map(t => Object.assign({}, t)), ase: aseAktiivinen(), aseNimi: ASETUS.ase.valittu,
       aalto: ASETUS.aallot ? { n: AM.aalto.n, zombeja: AM.aalto.k, jaljella: Math.max(0, AM.aalto.k - AM.aalto.ku), tauko: !!AM.aalto.tauko } : null,
       kiinnijaanti: ASETUS.kiinnijaanti, hp: Math.round(AM.hp), hpMax: hpMax(), rooli: auktoriteetti() ? 'auktoriteetti' : 'seuraaja',
