@@ -257,7 +257,7 @@ ASETUS.kitit = null;   // 684: ei ensiapukitteja (811/817: HUONEET[huone].kitit 
 //   kasi = käsiesine (vaihe 1c, kp 17:00 "ase handitemit puuttuu"): L4K:n oma tapa oli `:handitem <id>` chat-komento (shooter :24-25, :35, :505-509, :587); tässä EI enää chat-komentoa (kp 31.10. 21:35), käsi piirretään clientin omalla engine-kutsulla,
 //   EI asukanavaa. Pyssy 1126, Jousi 1128, Miekka 1094 (L4K:n kasi-arvot). Ei VIP-/oikeusriippuvuutta: ase näkyy kaikilla (client-render, ei pakettia).
 ASETUS.aseet = {
-  luoti: { ikoni: '🔫', nimi: 'Pistooli', kasi: 1126, m: 'p', tyyli: 'luoti', vari: '#ffd23f', nopeus: 21.6, auto: true, cd: 310, lento: 30, lineaari: [30, 15],   /* kp 1.11. 16:52 'pushataan': etäisyys merkitsee, 3 laukausta enintään 5 ruudusta, 15 ruudusta 0 dmg */   /* kp 1.11. 15:13 "adjustaa dmg nii et kuolee kolmee": 60 HP = 3 laukausta 1-10 ruudusta (oli 20: 4-5) */
+  luoti: { ikoni: '🔫', nimi: 'Pistooli', kasi: 1126, m: 'p', tyyli: 'luoti', vari: '#ffd23f', nopeus: 21.6, auto: true, cd: 350, lento: 30, lineaari: [30, 15],   /* kp 1.11. 16:52 'pushataan': etäisyys merkitsee, 3 laukausta enintään 5 ruudusta, 15 ruudusta 0 dmg */   /* kp 1.11. 15:13 "adjustaa dmg nii et kuolee kolmee": 60 HP = 3 laukausta 1-10 ruudusta (oli 20: 4-5) */
     aani: null, aggroSade: 14, nollaaKontakti: false, kontaktiKerroin: 1 },
   jousi: { ikoni: '🏹', nimi: 'Jousi', kasi: 1128, m: 'p', vari: '#c9c9c9', veto: true, nopeus: 15.12, lento: 14, cd: 1000, vahinko: 20, lataus: [10, 50, 1000], latausLento: [14, 24],
     aani: null, aggroSade: 6, nollaaKontakti: false, kontaktiKerroin: 1 },
@@ -282,7 +282,7 @@ const huone = Number((kupla && kupla.roomId && kupla.roomId()) || (e && e.active
   }
   for (const w of (Array.isArray(ASETUS.poistaAseet) ? ASETUS.poistaAseet : [])) if (ASETUS.aseet) delete ASETUS.aseet[w];   // huonekohtainen asevalikoima (811/817: ei jousta)
   if (ASETUS.ase && ASETUS.aseet && !ASETUS.aseet[ASETUS.ase.valittu]) ASETUS.ase.valittu = ['luoti', 'miekka', 'jousi'].find(w => ASETUS.aseet[w]) || ASETUS.ase.valittu;
-  if (ASETUS.aallot) Object.defineProperty(ASETUS.aallot, 'aloitusPbMiinus', { value: 3, writable: true, configurable: true, enumerable: false }); }
+  if (ASETUS.aallot) Object.defineProperty(ASETUS.aallot, 'aloitusPbMiinus', { value: 2, writable: true, configurable: true, enumerable: false }); }
 const dv = (o, k) => { const d = o && Object.getOwnPropertyDescriptor(o, k); return d && !d.get ? d.value : undefined; };
 const omaId = () => { const s = e && dv(e, '_sessionDataManager'); return Number((s && (dv(s, '_userId') || s.userId)) || 0); };
 const omaNimi = () => { const s = e && dv(e, '_sessionDataManager'); const n = s && (dv(s, '_name') || s._name || s.userName); return n ? String(n) : null; };
