@@ -586,7 +586,7 @@ const kirjaa = (k, P) => {
         // Paluu tarkistetaan ENNEN kuin lähtöpiste korvataan: tele A -> B -> A kulkee ruudukossa, joten paluuhyppy korvaisi A:n B:llä.
         const lahto = SAILO.hyppyLahto.get(p.id);
         if (lahto && Math.max(Math.abs(p.x - lahto.x), Math.abs(p.y - lahto.y)) <= 3) lahto.palasi = true;
-        else if (ed.x >= 0 && ed.y >= 0) SAILO.hyppyLahto.set(p.id, { x: ed.x, y: ed.y, palasi: false });
+        else if (ed.x >= 0 && ed.y >= 0) SAILO.hyppyLahto.set(p.id, { x: ed.x, y: ed.y, palasi: false, k });
       }
     }
     h.push({ k, x: p.x, y: p.y }); while (h.length && h[0].k <= k - n) h.shift();
@@ -843,7 +843,9 @@ const valitseKohde = (z, dz, P, k, tMs, s0) => {
     const lahto = l.lahto;
     const palasi = !!(lahto && (lahto.palasi || Math.max(Math.abs(p.x - lahto.x), Math.abs(p.y - lahto.y)) <= 3));
     if (l.hyppy > 3) {
-      if (!ASETUS.hammennysMs || !palasi) continue;
+      // kp 2.11. 01:15 'jos teleporttaa zombin vieree nii se ei aggroo ollenkaa takas 10s? ei sekää oo hyvä': muualle hypännyt on piilossa vain zombin oman arvan ajan, ei koko ikkunaa.
+      if (!ASETUS.hammennysMs) continue;
+      if (!palasi && !(z && z.osunutId === p.id) && (!lahto || (k - lahto.k) * Math.max(50, Number(ASETUS.tikki) || 250) < arvoHammennysMs(s0, lahto.k, z ? z.n : 0))) continue;
     }
     if (z && (z.hammennysAsti || 0) > tMs && z.hammennysKohdeId === p.id && !palasi) continue;
     const m = l.s;
@@ -4226,6 +4228,8 @@ AMMUNTA = (() => {
   // Oma osuma zombiin: ennuste (välähdys / piilotus jos tappava), jonoon tiki():lle. Auktoriteetti päättää HP:n.
   const osuma = (k, A, w, c, d, kerroin) => {
     const z = k.z, avain = z.n + ':' + z.synty, dmg = Math.round(vahinkoOf(A, c, d) * (kerroin == null ? 1 : kerroin) * 10) / 10; if (!(dmg > 0)) return;
+    // kp 2.11. 01:15 'jos niitä hyökkää niin kyl ne sit saa reagoida normaalisti'
+    z.osunutId = omaId(); z.hammennysAsti = 0; z.hammennysKesto = 0; z.hammennysKohdeId = null;
     tilasto.osui++;
     const nyt = Date.now(), e0 = AM.hpEnn.get(avain), pohja = e0 && nyt < e0.asti ? e0.hp : (AM.zhp.has(avain) ? AM.zhp.get(avain) : zHpMax());
     const hpE = Math.max(0, pohja - dmg), tappava = hpE <= 0;
