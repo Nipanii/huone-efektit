@@ -2304,6 +2304,11 @@ const SYNK = (() => {
   const kelpaa = (id) => id > 0 && !(Array.isArray(S().eiJohtajaksi) && S().eiJohtajaksi.includes(id));
   // Mitattu 31.10.: piilotetun välilehden ajastimet pyörivät jopa 4 s välein -> zombit hyppivät ja osumaennuste ehtii umpeutua (katoaa + ilmestyy uudelleen). Piilotettu ei johda, jos joku muu voi.
   const piilotettu = () => { try { return !!ASETUS.ammuttava && typeof document !== 'undefined' && document.hidden === true; } catch (x) { return false; } };
+  // kp 1.11. 14:15 "multa lähti kymmenii pisteitä randomisti": pienemmän id:n kone otti johtajuuden kesken vuoron omalla, mahdollisesti vanhalla tilalla (piilotetun välilehden ajastimet),
+  //   ja muut omaksuivat sen pisteet ja zombit. Kesken vuoron elävää johtajaa ei syrjäytetä; palaava välilehti kuuntelee valmisMs ennen kuin voi johtaa.
+  const pidattyy = (nyt) => !!ASETUS.vuoro && !!(SAILO.ammunta && SAILO.ammunta.vuoro && SAILO.ammunta.vuoro.vu) && SY.snapJohtaja > 0 && SY.snapJohtaja !== omaId() && nyt - SY.snapAika < Math.max(1000, num(S().hiljaisuusMs, 10000));
+  if (!SY.nakyvaKuuntelu && typeof document !== 'undefined' && document.addEventListener) { SY.nakyvaKuuntelu = true;
+    document.addEventListener('visibilitychange', () => { if (!document.hidden && SY.liittynyt > 0) SY.liittynyt = Date.now(); }); }
   const johtajaId = (nyt) => {
     nyt = nyt || Date.now();
     if (!S().kaytossa) return 0;
@@ -2311,7 +2316,7 @@ const SYNK = (() => {
     let paras = 0;
     for (const [id, h] of SY.sykkeet) if (kelpaa(id) && h.tv && nyt - h.tv < raja && (!paras || id < paras)) paras = id;
     const oma = omaId();
-    if (oma && kelpaa(oma) && valmis(nyt) && (!paras || (oma < paras && !piilotettu()))) paras = oma;
+    if (oma && kelpaa(oma) && valmis(nyt) && (!paras || (oma < paras && !piilotettu() && !pidattyy(nyt)))) paras = oma;
     return paras;
   };
   // Seuraaja = joku muu on johtaja JA sen snapshot on kuultu < hiljaisuusMs sitten. Muuten (ei yhteyttä / ei johtajaa / hiljaista) paikallinen simulaatio.
@@ -2335,6 +2340,7 @@ const SYNK = (() => {
       const ext = {};
       if (katseOdottaa != null) ext.ka = katseOdottaa;
       if (hpOdottaa != null) ext.hp = hpOdottaa;
+      { const ot = AMMUNTA && AMMUNTA.otViesti(); if (ot) ext.ot = ot; }   // kp 1.11. 14:15: vuoron pelaajan oma lukema johtajalle, vanha johtaja ei voi pudottaa pisteitä
       if (kasiOdottaa != null) ext.ha = kasiOdottaa;   // kp 21:35: vuoron pelaajan käsiase muille (ei chat-komentoa)
       if (laukauksetOdottaa.length) { ext.la = laukauksetOdottaa.slice(); laukauksetOdottaa.length = 0; }
       let osMukana = 0;
@@ -2355,7 +2361,7 @@ const SYNK = (() => {
   };
   const heiLaheta = (kysy) => {
     const id = omaId(); if (!(id > 0)) return false;
-    const nyt = Date.now(), v = valmis(nyt) && !piilotettu() ? 1 : 0;
+    const nyt = Date.now(), v = valmis(nyt) && !piilotettu() && !pidattyy(nyt) ? 1 : 0;
     const ok = laheta({ t: 'hei', id, v, q: kysy ? 1 : 0, K: SAILO.K });
     if (ok) { viimeHei = nyt; viimeV = v; tilasto.lahetettyHei++; }
     return ok;
@@ -2620,6 +2626,7 @@ const SYNK = (() => {
     const id = Number(m.id); if (!(id > 0) || id === omaId()) return;
     if (lahettaja > 0 && id !== lahettaja) { tilasto.vaaraLahettaja = (tilasto.vaaraLahettaja || 0) + 1; return; }   // payloadin id on lähettäjän oma väite; kanavan senderId ratkaisee (kp 20:24: komento ei saa kulkea toisen id:llä)
     if (m.ka != null && AMMUNTA) AMMUNTA.katseSaapui(id, Number(m.ka));
+    if (m.ot != null && AMMUNTA) AMMUNTA.otSaapui(id, m.ot);
     if (m.hp != null && AMMUNTA) AMMUNTA.hpSaapui(id, m.hp);   // kp 21:07: vuoron pelaajan HP-palkki muille
     if (m.ha != null && AMMUNTA) AMMUNTA.kasiSaapui(id, m.ha);   // kp 21:35: vuoron pelaajan käsiase muille
     if (m.la && Array.isArray(m.la) && AMMUNTA) AMMUNTA.laukauksetSaapui(id, m.la);
@@ -3065,6 +3072,9 @@ AMMUNTA = (() => {
       for (const [k, a] of Object.entries(snap.ta)) { const id = Number(k); if (!(id > 0) || !Array.isArray(a)) continue;
         uusi[id] = { nimi: (typeof a[3] === 'string' && a[3]) || nimiId(id, P), tapot: Math.max(0, a[0] | 0), lapi: a[1] ? 1 : 0, run: Math.max(1, a[2] | 0) }; }
       const vanhaOma = AM.pisteet[omaId()];
+      // kp 1.11. 14:15: saman runin tapot eivät koskaan laske snapshotista, vanhempi run ei korvaa uudempaa (run++ on ainoa nollaus).
+      for (const id of Object.keys(uusi)) { const v = AM.pisteet[id], u = uusi[id]; if (!v) continue;
+        if (v.run > u.run) uusi[id] = v; else if (v.run === u.run && v.tapot > u.tapot) { u.tapot = v.tapot; u.lapi = u.lapi || v.lapi; } }
       AM.pisteet = uusi;
       if (vanhaOma && !uusi[omaId()]) AM.pisteet[omaId()] = vanhaOma;   // oma rivi ei katoa vaikka johtaja ei sitä vielä tunne
     }
@@ -3802,6 +3812,10 @@ AMMUNTA = (() => {
   //   palkki näkyy vain jos viestin nro = VT.vu.nro ja id = VT.vu.id (viesti voi saapua ennen vuoron snapshotia tai sen jälkeen). Vuoron päättyessä muisti tyhjenee. 684: ei vuoroa/hp-tilaa -> ei lähetystä eikä palkkia.
   if (!(AM.muHp instanceof Map)) AM.muHp = new Map();
   let hpLahetetty = '';
+  const otViesti = () => { const id = omaId(), vu = AM.vuoro && AM.vuoro.vu; if (!ASETUS.vuoro || !vu || vu.id !== id) return null; const p = AM.pisteet[id]; return p ? [p.tapot | 0, p.run | 0] : null; };
+  const otSaapui = (id, a) => { if (!Array.isArray(a) || !auktoriteetti() || !(AM.vuoro && AM.vuoro.vu && AM.vuoro.vu.id === id)) return;
+    const t = Math.max(0, a[0] | 0), r = a[1] | 0, p = piste(id); if (r < p.run || (r === p.run && t <= p.tapot)) return;
+    p.run = r; p.tapot = t; if (t >= raja()) p.lapi = 1; lokiin({ otKorjaus: id, tapot: t, run: r }); };
   const hpSaapui = (id, a) => {
     if (id === omaId() || !Array.isArray(a)) return;
     const hp = Number(a[0]), nro = Number(a[1]); if (!isFinite(hp) || !isFinite(nro)) return;
@@ -4215,7 +4229,7 @@ AMMUNTA = (() => {
     ammu, ammuSuuntaan, asetaAse, ase: () => aseOn, valitseAse, aseNyt, runLoppu, tilasto, AM, auktoriteetti, luodit: () => luodit.length, jaljet: () => jaljet.length,
     purema, paranna, kontaktiKerroin, nollaaKontakti, hp: () => AM.hp, wasd: { pidetyt, tick: wasdTick, nappain, nosto }, hiiri,
     vuoroTick, vuoroPyyda, vuoroVastaanota, vuoro: () => VT.vu, VT, vuoroSallii, aseKaytossa: aseAktiivinen, vuoroTeksti,
-    omaHpPalkki, muHpPalkki, hpSaapui, hpLahetaTick, kasiSaapui, kasiTick, safeHouseHpPalkki, gateHpPalkit,
+    omaHpPalkki, muHpPalkki, hpSaapui, otViesti, otSaapui, hpLahetaTick, kasiSaapui, kasiTick, safeHouseHpPalkki, gateHpPalkit,
     aseJarj: () => ASEJARJ_N(), rulla, kitit: () => AM.kitit, kitTick, kittiVastaanota, kitPeli, kitPiirrettavat,   // ensiapukitit (testausta varten)
     katse: { tick: katseTick, kulma: hiirenKulma },
     este: { esteMatka, esteKartta, peitossa, peittoLaatikot, lentoZ, kamera },   // kohde 1 (testausta varten, kuten shooter :1018 __kshEste)
