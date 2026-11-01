@@ -2161,6 +2161,9 @@ const voittoJo = (id, avain) => {
   return VP.tila === 'valmis' && VP.jo; };
 tila._voittoJo = voittoJo; tila._voittoKirjaa = voittoKirjaa; tila._VP = VP;
 if (ASETUS.tulosUrl && typeof fetch === 'function') voittoHae(null, 'init');
+// kp 1.11. 16:11 'hiscoret näyttää erii ku mist toi wave laskettii': lista haettiin vain kerran, joten aloitusaalto laskettiin sivun latauksen aikaisesta ennätyksestä.
+const vpPaivita = () => { if (!ASETUS.tulosUrl || typeof fetch !== 'function') return; try { fetch(ASETUS.tulosUrl + '?t=' + Date.now(), { cache: 'no-store' }).then(r => (r && r.ok ? r.json() : null)).then(a => { if (Array.isArray(a)) VP.rivit = a; }).catch(() => {}); } catch (x) {} };
+const vpAjastin = setInterval(vpPaivita, 20000);
 
 // ---- oma kiinnijäänti (kp 19:25: paikallinen 'lay' ASETUS.kuolemaMakuu ms ajan ennen zk684-salasanan lähetystä; kp 20:04: iso keskitetty KUOLIT-viesti)
 const ilmoita = teksti => {
@@ -4423,7 +4426,7 @@ addEventListener('keydown', kuule, true); tila._kuule = kuule;
 lokiin({ alku: huone, safe: safe && saaSafe() });
 
 return () => {
-  rafKaynnissa = false; clearInterval(ajastin); clearInterval(uusiKartta); removeEventListener('keydown', kuule, true);
+  rafKaynnissa = false; clearInterval(ajastin); clearInterval(uusiKartta); clearInterval(vpAjastin); removeEventListener('keydown', kuule, true);
   try { if (AMMUNTA) AMMUNTA.sulje(); } catch (x) {}   // 811: näppäin/hiiri-kuuntelijat, WASD-ajastin, ruumiit, jälkikanvas, window.__zombi811
   try { SYNK.sulje(); } catch (x) {}   // synkka: kuplaScripts off()+unsubscribe, WebSocket, uudelleenyhdistys- ja snapshot-ajastimet
   if (vayla && typeof vayla.removeEventListener === 'function') vayla.removeEventListener('RSCE_CHAT_EVENT', kuuleChat);
