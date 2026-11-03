@@ -4,7 +4,7 @@
 // @match        https://kupla.cc/*
 // @grant        none
 // @run-at       document-idle
-// @version      0.5.1
+// @version      0.6.0
 // @kupla-oletus on
 // @description  Komento :aa vaihtaa pehmennyksen (LINEAR, kuten Boon) päälle/pois. Vaihto näkyy heti, ei uudelleenlatausta. Valinta muistetaan.
 // @author       re-lab
@@ -118,17 +118,18 @@
     asenna(); const n = pyyhi(); teravoita();
     const nimi = tila === 'auto' ? 'AUTO (DPR ' + (VW.devicePixelRatio || 1) + ' -> ' + (paalla ? 'pehmeä' : 'terävä') + ')'
       : (paalla ? 'PÄÄLLÄ (pehmeä, linear)' : 'POIS (terävä, nearest)');
-    return 'AA ' + nimi + (paalla && teravyys >= 0 ? ' · oma variaatio ' + teravyys + ' (gamma + terävöinti)' : (paalla ? ' · kuten Boon' : '')) + (asennettu ? ' · ' + n + ' tekstuuria' : ' — odottaa huonetta');
+    return 'AA ' + nimi + (paalla && teravyys >= 0 ? ' · :aa' + (teravyys + 2) + ' (gamma' + (teravyys ? ' + terävöinti ' + teravyys : '') + ')' : (paalla ? ' · kuten Boon' : '')) + (asennettu ? ' · ' + n + ' tekstuuria' : ' — odottaa huonetta');
   }
   VW.addEventListener('resize', () => { const p = laske(); if (p !== paalla) { paalla = p; pyyhi(); teravoita(); } });
   // 0.5.1 (kp 06:58 "kirjottamal saman komennon uusiks"): sama :aaN uudestaan sammuttaa.
   const vaihdaN = t => (paalla && teravyys === t) ? aseta('off', -1) : aseta('on', t);
-  for (let t = 0; t <= 5; t++) (VW.kuplaKomennotJono = VW.kuplaKomennotJono || []).push([['aa' + t], () => vaihdaN(t),
+  // 0.6.0 (kp 06:59 "miks aa0 alkaen, aa2 on seuraava"): :aa = :aa1 = Boon, omat alkavat :aa2:sta (sisäinen taso = N - 2).
+  for (let t = 0; t <= 5; t++) (VW.kuplaKomennotJono = VW.kuplaKomennotJono || []).push([['aa' + (t + 2)], () => vaihdaN(t),
     'oma variaatio ' + t + ': pehmennys + gamma' + (t ? ' + terävöinti ' + t : ''), 'AA-kytkin']);
-  (VW.kuplaKomennotJono = VW.kuplaKomennotJono || []).push([['aa'],
+  (VW.kuplaKomennotJono = VW.kuplaKomennotJono || []).push([['aa', 'aa1'],
     // 0.5.0 (kp 06:58 "ei autoo, ei aa on aa off · on vaa :aa toggle on/off")
     () => aseta(paalla ? 'off' : 'on', -1),
-    'pehmennys kuten Boon: :aa päälle/pois · omat variaatiot :aa0 ... :aa5', 'AA-kytkin']);
+    'pehmennys kuten Boon: :aa päälle/pois · omat variaatiot :aa2 ... :aa7', 'AA-kytkin']);
   // Ilman kuplaKomennot-lisäosaa (Res): oma Enter-käsittelijä kuten wired-piilo.user.js.
   const komennotHoitaa = n => { try { return !!(VW.kuplaKomennot && VW.kuplaKomennot.lista().some(k => k.nimet.includes(n))); } catch (e) { return false; } };
   function ilmoita(teksti) {
@@ -139,12 +140,12 @@
   document.addEventListener('keydown', ev => {
     if (ev.key !== 'Enter' || ev.isComposing || VW.__kuplaAAsuku !== SUKU) return;
     const t = ev.target; if (!t || (t.tagName !== 'INPUT' && t.tagName !== 'TEXTAREA')) return;
-    const m = /^\s*:aa([0-5])?(?:\s+(\S+))?\s*$/i.exec(t.value || ''); if (!m || komennotHoitaa('aa' + (m[1] || ''))) return;
+    const m = /^\s*:aa([1-7])?(?:\s+(\S+))?\s*$/i.exec(t.value || ''); if (!m || komennotHoitaa('aa' + (m[1] || ''))) return;
     ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation();
     try { const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(t), 'value').set;
       setter.call(t, ''); t.dispatchEvent(new Event('input', { bubbles: true })); } catch (err) { t.value = ''; }
-    if (m[1] !== undefined) return ilmoita(vaihdaN(+m[1]));
+    if (m[1] !== undefined) return ilmoita(+m[1] === 1 ? aseta(paalla ? 'off' : 'on', -1) : vaihdaN(+m[1] - 2));
     ilmoita(aseta(paalla ? 'off' : 'on', -1));
   }, true);
-  VW.kuplaAA = { versio: '0.5.1', pois: () => { VW.__kuplaAAsuku++; }, aseta, tila: () => ({ tila, paalla, asennettu, dpr: VW.devicePixelRatio }) };
+  VW.kuplaAA = { versio: '0.6.0', pois: () => { VW.__kuplaAAsuku++; }, aseta, tila: () => ({ tila, paalla, asennettu, dpr: VW.devicePixelRatio }) };
 })();
