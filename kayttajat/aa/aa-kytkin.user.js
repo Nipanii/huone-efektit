@@ -4,7 +4,7 @@
 // @match        https://kupla.cc/*
 // @grant        none
 // @run-at       document-idle
-// @version      0.5.0
+// @version      0.5.1
 // @kupla-oletus on
 // @description  Komento :aa vaihtaa pehmennyksen (LINEAR, kuten Boon) päälle/pois. Vaihto näkyy heti, ei uudelleenlatausta. Valinta muistetaan.
 // @author       re-lab
@@ -121,7 +121,9 @@
     return 'AA ' + nimi + (paalla && teravyys >= 0 ? ' · oma variaatio ' + teravyys + ' (gamma + terävöinti)' : (paalla ? ' · kuten Boon' : '')) + (asennettu ? ' · ' + n + ' tekstuuria' : ' — odottaa huonetta');
   }
   VW.addEventListener('resize', () => { const p = laske(); if (p !== paalla) { paalla = p; pyyhi(); teravoita(); } });
-  for (let t = 0; t <= 5; t++) (VW.kuplaKomennotJono = VW.kuplaKomennotJono || []).push([['aa' + t], () => aseta('on', t),
+  // 0.5.1 (kp 06:58 "kirjottamal saman komennon uusiks"): sama :aaN uudestaan sammuttaa.
+  const vaihdaN = t => (paalla && teravyys === t) ? aseta('off', -1) : aseta('on', t);
+  for (let t = 0; t <= 5; t++) (VW.kuplaKomennotJono = VW.kuplaKomennotJono || []).push([['aa' + t], () => vaihdaN(t),
     'oma variaatio ' + t + ': pehmennys + gamma' + (t ? ' + terävöinti ' + t : ''), 'AA-kytkin']);
   (VW.kuplaKomennotJono = VW.kuplaKomennotJono || []).push([['aa'],
     // 0.5.0 (kp 06:58 "ei autoo, ei aa on aa off · on vaa :aa toggle on/off")
@@ -141,8 +143,8 @@
     ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation();
     try { const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(t), 'value').set;
       setter.call(t, ''); t.dispatchEvent(new Event('input', { bubbles: true })); } catch (err) { t.value = ''; }
-    if (m[1] !== undefined) return ilmoita(aseta('on', +m[1]));
+    if (m[1] !== undefined) return ilmoita(vaihdaN(+m[1]));
     ilmoita(aseta(paalla ? 'off' : 'on', -1));
   }, true);
-  VW.kuplaAA = { versio: '0.5.0', pois: () => { VW.__kuplaAAsuku++; }, aseta, tila: () => ({ tila, paalla, asennettu, dpr: VW.devicePixelRatio }) };
+  VW.kuplaAA = { versio: '0.5.1', pois: () => { VW.__kuplaAAsuku++; }, aseta, tila: () => ({ tila, paalla, asennettu, dpr: VW.devicePixelRatio }) };
 })();
