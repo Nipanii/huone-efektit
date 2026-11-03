@@ -1,4 +1,4 @@
-// Kupla :furnibeta / :chooserbeta (versio 0.2.0): DarkUI:n uuden :furni / :chooser -ikkunan (PR, ChooserWidgetView.tsx, CHOOSER_STYLE 'dark' = variantti B)
+// Kupla :furnibeta / :chooserbeta (versio 0.2.1): DarkUI:n uuden :furni / :chooser -ikkunan (PR, ChooserWidgetView.tsx, CHOOSER_STYLE 'dark' = variantti B)
 //   kopio pelkällä DOM:illa, koska skriptissä ei ole Reactia. Kokeiltavissa ennen PR:ää: kirjoita chattiin :furnibeta tai :chooserbeta
 //   (samaan tapaan kuin :furni / :chooser). Uusi kirjoitus kun ikkuna on auki sulkee sen; X sulkee myös. Mitään ei muisteta uudelleenlatauksen yli.
 // kp 2026-11-03 17:52 "komento näky kaikille ja ei tehny mitää kiitos vaa. moottorin kautta piti jakaa" · 18:16 "ei pitäny olla mitää
@@ -191,7 +191,10 @@ return (() => {
     card.querySelector('.nitro-card-header-close').addEventListener('click', sulje);
     // raahaus (DraggableWindow: transform translate, otsikko pysyy näkyvissä)
     const kahva = card.querySelector('.drag-handler'); let ox = 0, oy = 0, sx = 0, sy = 0, raahaa = false;
-    const rajaa = (x, y) => { const r = wrap.getBoundingClientRect(), dx = x - ox, dy = y - oy, l = r.left + dx, t = r.top + dy; return { x: x + (l + r.width < 48 ? 48 - (l + r.width) : l > innerWidth - 48 ? innerWidth - 48 - l : 0), y: y + (t < 0 ? -t : t > innerHeight - 28 ? innerHeight - 28 - t : 0) }; };
+    // 0.2.1 (kp 3.11. 18:27 "rupee hyppimään"): raja lasketaan NYKYISESTÄ siirrosta, kuten DarkUI:n WindowBounds.ts constrainWindowOffset.
+    //   Ennen dx laskettiin raahauksen alun siirrosta, vaikka rect oli jo siirtynyt, joten reunalla ikkuna heilui (mitattu 872<->880, nopeasti 811<->941).
+    const akseli = (v, nyt, kohta, koko, tila, ote) => { const nakyy = koko <= tila ? koko : Math.min(ote, tila); return Math.max(nyt + nakyy - kohta - koko, Math.min(nyt + tila - nakyy - kohta, Number.isFinite(v) ? v : 0)); };
+    const rajaa = (x, y) => { const h = kahva.getBoundingClientRect(), nyt = wrap._off || { x: ox, y: oy }; return { x: akseli(x, nyt.x, h.left, h.width, innerWidth, 96), y: akseli(y, nyt.y, h.top, h.height, innerHeight, 32) }; };
     const liiku = (cx, cy) => { if (!raahaa) return; const b = rajaa(ox + cx - sx, oy + cy - sy); wrap.style.transform = 'translate(' + b.x + 'px, ' + b.y + 'px)'; wrap._off = b; };
     const mm = (e) => liiku(e.clientX, e.clientY), tm = (e) => liiku(e.touches[0].clientX, e.touches[0].clientY);
     const loppu = () => { if (!raahaa) return; raahaa = false; if (wrap._off) { ox = wrap._off.x; oy = wrap._off.y; } document.removeEventListener('mousemove', mm); document.removeEventListener('mouseup', loppu); document.removeEventListener('touchmove', tm); document.removeEventListener('touchend', loppu); };
@@ -355,6 +358,6 @@ return (() => {
   };
   addEventListener('keydown', kuule, true);
   const pois = () => { removeEventListener('keydown', kuule, true); for (const t of Object.keys(auki)) { try { auki[t].pois(); } catch (e) {} delete auki[t]; } try { delete W[TUNNISTE]; } catch (e) {} };
-  W[TUNNISTE] = { versio: '0.2.0', pois, auki: () => Object.keys(auki), tila: (t) => auki[t] && auki[t].tila() };
+  W[TUNNISTE] = { versio: '0.2.1', pois, auki: () => Object.keys(auki), tila: (t) => auki[t] && auki[t].tila() };
   return pois;
 })();
