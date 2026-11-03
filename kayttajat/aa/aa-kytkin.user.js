@@ -4,7 +4,7 @@
 // @match        https://kupla.cc/*
 // @grant        none
 // @run-at       document-idle
-// @version      0.6.2
+// @version      0.6.3
 // @kupla-oletus on
 // @description  Komento :aa vaihtaa pehmennyksen (LINEAR, kuten Boon) päälle/pois. Vaihto näkyy heti, ei uudelleenlatausta. Valinta muistetaan.
 // @author       re-lab
@@ -54,6 +54,7 @@
     return P || Object.getPrototypeOf(a[0]);
   }
   function pyyhi() {
+    VW.__kuplaAApaalla = paalla;
     const m = paalla ? 'linear' : 'nearest'; let n = 0;
     for (const s of lahteet()) if (s.style && s.style.scaleMode !== m) { s.style.scaleMode = m; s.style.update && s.style.update(); n++; }
     return n;
@@ -62,10 +63,11 @@
   function asenna() {
     if (asennettu) return true;
     const P = etsiProto(); if (!P) return false;
-    if (Object.getOwnPropertyDescriptor(P, 'nitroFixedScaleMode')) { asennettu = true; return true; }
+    // 0.6.3 (kp 07:04 "ei mee aa pois päältä"): getter jäi ENSIMMÄISEN version sulkeumaan (sen paalla), joten kuumapäivityksen jälkeen
+    //   pois ei vaikuttanut sidontaan. Nyt getter määritellään joka versiossa uudelleen ja lukee jaetun lipun.
     Object.defineProperty(P, 'nitroFixedScaleMode', { configurable: true,
       get() {
-        if (!paalla || !this.style) return false;
+        if (!VW.__kuplaAApaalla || !this.style) return false;
         if (this.style.scaleMode !== 'linear') { this.style.scaleMode = 'linear'; this.style.update && this.style.update(); }
         return true;
       },
@@ -149,5 +151,5 @@
     if (m[1] !== undefined) return ilmoita(+m[1] === 1 ? aseta(paalla ? 'off' : 'on', -1) : vaihdaN(+m[1] - 2));
     ilmoita(/^(off|pois)$/i.test(m[2] || '') ? aseta('off', -1) : aseta(paalla ? 'off' : 'on', -1));
   }, true);
-  VW.kuplaAA = { versio: '0.6.2', pois: () => { VW.__kuplaAAsuku++; }, aseta, tila: () => ({ tila, paalla, asennettu, dpr: VW.devicePixelRatio }) };
+  VW.kuplaAA = { versio: '0.6.3', pois: () => { VW.__kuplaAAsuku++; }, aseta, tila: () => ({ tila, paalla, asennettu, dpr: VW.devicePixelRatio }) };
 })();
