@@ -4,7 +4,7 @@
 // @match        https://kupla.cc/*
 // @grant        none
 // @run-at       document-idle
-// @version      0.4.3
+// @version      0.4.4
 // @kupla-oletus on
 // @description  Komento :aa vaihtaa pehmennyksen (LINEAR, kuten Boon) päälle/pois. Vaihto näkyy heti, ei uudelleenlatausta. Valinta muistetaan.
 // @author       re-lab
@@ -95,6 +95,8 @@
       d.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg"><filter id="kupla-teravoita" color-interpolation-filters="sRGB"><feComponentTransfer><feFuncR ${ g }/><feFuncG ${ g }/><feFuncB ${ g }/></feComponentTransfer><feConvolveMatrix order="3" preserveAlpha="true"/></filter></svg>`;
       document.body.appendChild(d);
     }
+    // 0.4.4: SVG jää sivulle versiosta toiseen -> gamma asetetaan joka kierroksella, ei vain luodessa
+    if (d) d.querySelectorAll('feFuncR,feFuncG,feFuncB').forEach(e => e.setAttribute('exponent', String(GAMMA)));
     if (d) d.querySelector('feConvolveMatrix').setAttribute('kernelMatrix', `0 ${ -k } 0 ${ -k } ${ 1 + 4 * k } ${ -k } 0 ${ -k } 0`);
     // 0.4.1 (kp 06:46 "vilkkuu edellee"): suodatin WebGL-canvasille itselleen vilkkui -> vanhemman divin kerrokselle.
     const c0 = huoneCanvas(); if (!c0) return;
@@ -141,5 +143,5 @@
     const s = (m[2] || '').toLowerCase();
     ilmoita(aseta(/^auto$/.test(s) ? 'auto' : /^(on|päälle|paalle|1)$/.test(s) ? 'on' : /^(pois|off|0)$/.test(s) ? 'off' : (paalla ? 'off' : 'on')));
   }, true);
-  VW.kuplaAA = { versio: '0.4.3', pois: () => { VW.__kuplaAAsuku++; }, aseta, tila: () => ({ tila, paalla, asennettu, dpr: VW.devicePixelRatio }) };
+  VW.kuplaAA = { versio: '0.4.4', pois: () => { VW.__kuplaAAsuku++; }, aseta, tila: () => ({ tila, paalla, asennettu, dpr: VW.devicePixelRatio }) };
 })();
