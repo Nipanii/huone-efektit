@@ -1,7 +1,7 @@
-// Käyttäjäkohtaiset skriptit (versio 0.2.2). Moottori (0.6.2+) ajaa tämän kaikissa huoneissa huoneet.json:n "kaikki"-listalta.
+// Käyttäjäkohtaiset skriptit (versio 0.2.3). Moottori (0.6.2+) ajaa tämän kaikissa huoneissa huoneet.json:n "kaikki"-listalta.
 // Tämä skripti sisältää KAIKEN käyttäjälogiikan; moottori ei tiedä kenestäkään mitään (kp 28.10. 15:07-15:12 "lisää res whitelistille",
 //   "ja se auto updatee", "whitelist ei saa välttämättä antaa kaikkia scriptejä yhdelle henkilölle").
-// Hakee 15 s välein kayttajat.json:n samasta Pagesista: { ryhmat: [ { nimi, kayttajat: [id], skriptit: [{ polku, globaali }] } ] }.
+// Hakee 30 s välein (0.2.3, ennen 15 s) kayttajat.json:n samasta Pagesista: { ryhmat: [ { nimi, kayttajat: [id], skriptit: [{ polku, globaali }] } ] }.
 //   Oman id:n skriptit = niiden ryhmien skriptien yhdiste, joissa oma id on. Ei muuta.
 // Per skripti: globaali puuttuu -> ajetaan. Globaalilla on versio ja se on vanhempi kuin haettu @version -> globaali.pois(), sitten ajetaan
 //   (jos pois() puuttuu: jätetään käyntiin ja merkitään "vaatii uudelleenlatauksen"). Sama tai uudempi -> ei kosketa (kp:n lataaja voi olla uudempi).
@@ -14,7 +14,7 @@
 //   Pois kytkettäessä TÄMÄN käynnistämät skriptit pysäytetään pois():lla; muualta käynnistetyt (esim. kp:n lataaja) jäävät ennalleen.
 // Testikäyttö: window.kayttajaskriptitTiedosto = 'kayttajat-testi.json' ennen käynnistystä.
 const POHJA = 'https://nipanii.github.io/huone-efektit/';
-const VERSIO = '0.2.2';
+const VERSIO = '0.2.3';
 const S = { versio: VERSIO, id: 0, ajossa: {}, vaatiiLatauksen: [], virhe: null, haettu: null, tiedosto: window.kayttajaskriptitTiedosto || 'kayttajat.json', pysaytetty: false };
 const omat = {};   // polku -> { globaali, versio, g }  (vain TÄMÄN käynnistämät)
 try { if (window.kayttajaskriptit && typeof window.kayttajaskriptit.pysayta === 'function') window.kayttajaskriptit.pysayta(); } catch (e) {}
@@ -93,6 +93,6 @@ const kuule = (ev) => {
 };
 addEventListener('keydown', kuule, true);
 S.pysayta = () => { S.pysaytetty = true; clearInterval(S._tiki); removeEventListener('keydown', kuule, true); for (const p of Object.keys(omat)) pysaytaOma(p); if (window.kayttajaskriptit === S) delete window.kayttajaskriptit; };
-S._tiki = setInterval(S.paivita, 15000);
+S._tiki = setInterval(S.paivita, 30000);
 S.paivita();
 return S.pysayta;
