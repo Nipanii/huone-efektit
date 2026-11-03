@@ -4,7 +4,7 @@
 // @match        https://kupla.cc/*
 // @grant        none
 // @run-at       document-idle
-// @version      0.3.0
+// @version      0.4.0
 // @kupla-oletus on
 // @description  Komento :aa vaihtaa pehmennyksen (LINEAR, kuten Boon) päälle/pois. Vaihto näkyy heti, ei uudelleenlatausta. Valinta muistetaan.
 // @author       re-lab
@@ -83,17 +83,21 @@
     for (const c of document.querySelectorAll('canvas')) { const x = c.clientWidth * c.clientHeight; if (x > a) { a = x; paras = c; } }
     return paras;
   }
+  // 0.4.0 (kp 06:44 "blendaa nii et vaalentaa eikä tummenna"): linear sekoittaa sRGB-arvoja, joten tummat ääriviivat leviävät ja kuva
+  //   tummuu. Gamma < 1 nostaa keskisävyjä (likimain sekoitus lineaarisessa valossa), aina kun pehmennys on päällä.
+  const GAMMA = 0.85;
   function teravoita() {
     const k = paalla ? K[teravyys] : 0;
     let d = document.getElementById('kupla-aa-svg');
-    if (k && !d) {
+    if (paalla && !d) {
       d = document.createElement('div'); d.id = 'kupla-aa-svg'; d.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden';
-      d.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg"><filter id="kupla-teravoita" color-interpolation-filters="sRGB"><feConvolveMatrix id="kupla-teravoita-k" order="3" preserveAlpha="true"/></filter></svg>';
+      const g = `type="gamma" amplitude="1" offset="0" exponent="${ GAMMA }"`;
+      d.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg"><filter id="kupla-teravoita" color-interpolation-filters="sRGB"><feComponentTransfer><feFuncR ${ g }/><feFuncG ${ g }/><feFuncB ${ g }/></feComponentTransfer><feConvolveMatrix order="3" preserveAlpha="true"/></filter></svg>`;
       document.body.appendChild(d);
     }
     if (d) d.querySelector('feConvolveMatrix').setAttribute('kernelMatrix', `0 ${ -k } 0 ${ -k } ${ 1 + 4 * k } ${ -k } 0 ${ -k } 0`);
     const c = huoneCanvas(); if (!c) return;
-    const f = k ? 'url(#kupla-teravoita)' : '';
+    const f = paalla ? 'url(#kupla-teravoita)' : '';
     if (c.style.filter !== f) c.style.filter = f;
   }
   setInterval(teravoita, 2000); // huoneen vaihto voi luoda canvasin uudelleen
