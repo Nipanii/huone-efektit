@@ -4,7 +4,7 @@
 // @match        https://kupla.cc/*
 // @grant        none
 // @run-at       document-idle
-// @version      0.4.4
+// @version      0.5.0
 // @kupla-oletus on
 // @description  Komento :aa vaihtaa pehmennyksen (LINEAR, kuten Boon) päälle/pois. Vaihto näkyy heti, ei uudelleenlatausta. Valinta muistetaan.
 // @author       re-lab
@@ -77,7 +77,9 @@
   // 0.3.0 (kp 06:38 "erillinen kerros joka tuo jotain takas" · 06:39 "laita :aaN variantit"): terävöinti pehmennyksen päälle.
   //   SVG feConvolveMatrix huonecanvasille (CSS filter), taso 0-5 = reunojen paino. Mitattu robolla 06:39: 56 fps suodattimella.
   const TAVAIN = 'kupla.aa.teravyys', K = [0, 0.1, 0.2, 0.35, 0.5, 0.75];
-  let teravyys = 0; try { teravyys = Math.max(0, Math.min(5, +(VW.localStorage.getItem(TAVAIN) || 0) || 0)); } catch (e) {}
+  // 0.5.0 (kp 06:58 "aa = sama ku boon" · "aa<N> on sit meidän variaatiot"): taso -1 = puhdas Boon (pelkkä linear, ei suodatinta),
+  //   0-5 = oma variaatio (gamma + terävöinti N). :aa / :aa on / :aa auto asettavat aina -1.
+  let teravyys = -1; try { const v = VW.localStorage.getItem(TAVAIN); if (v !== null && v !== '') teravyys = Math.max(-1, Math.min(5, +v)); if (isNaN(teravyys)) teravyys = -1; } catch (e) {}
   function huoneCanvas() {
     let paras = null, a = 0;
     for (const c of document.querySelectorAll('canvas')) { const x = c.clientWidth * c.clientHeight; if (x > a) { a = x; paras = c; } }
@@ -87,9 +89,9 @@
   //   tummuu. Gamma < 1 nostaa keskisävyjä (likimain sekoitus lineaarisessa valossa), aina kun pehmennys on päällä.
   const GAMMA = 0.94; // 0.4.3: 0.85 oli kp:lle "överi kirkas" (06:57)
   function teravoita() {
-    const k = paalla ? K[teravyys] : 0;
+    const vari = paalla && teravyys >= 0, k = vari ? K[teravyys] : 0;
     let d = document.getElementById('kupla-aa-svg');
-    if (paalla && !d) {
+    if (vari && !d) {
       d = document.createElement('div'); d.id = 'kupla-aa-svg'; d.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden';
       const g = `type="gamma" amplitude="1" offset="0" exponent="${ GAMMA }"`;
       d.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg"><filter id="kupla-teravoita" color-interpolation-filters="sRGB"><feComponentTransfer><feFuncR ${ g }/><feFuncG ${ g }/><feFuncB ${ g }/></feComponentTransfer><feConvolveMatrix order="3" preserveAlpha="true"/></filter></svg>`;
@@ -102,7 +104,7 @@
     const c0 = huoneCanvas(); if (!c0) return;
     if (c0.style.filter) c0.style.filter = '';
     const c = c0.parentElement || c0;
-    const f = paalla ? 'url(#kupla-teravoita)' : '';
+    const f = vari ? 'url(#kupla-teravoita)' : '';
     if (c.style.filter !== f) c.style.filter = f;
   }
   // 0.4.2 (kp 06:47 "sekunnin välein välähtää"): moottorin kuumapäivitys jätti vanhan version ajastimet henkiin, ja kaksi versiota
@@ -116,15 +118,15 @@
     asenna(); const n = pyyhi(); teravoita();
     const nimi = tila === 'auto' ? 'AUTO (DPR ' + (VW.devicePixelRatio || 1) + ' -> ' + (paalla ? 'pehmeä' : 'terävä') + ')'
       : (paalla ? 'PÄÄLLÄ (pehmeä, linear)' : 'POIS (terävä, nearest)');
-    return 'AA ' + nimi + (paalla && teravyys ? ' · terävöinti ' + teravyys : '') + (asennettu ? ' · ' + n + ' tekstuuria' : ' — odottaa huonetta');
+    return 'AA ' + nimi + (paalla && teravyys >= 0 ? ' · oma variaatio ' + teravyys + ' (gamma + terävöinti)' : (paalla ? ' · kuten Boon' : '')) + (asennettu ? ' · ' + n + ' tekstuuria' : ' — odottaa huonetta');
   }
   VW.addEventListener('resize', () => { const p = laske(); if (p !== paalla) { paalla = p; pyyhi(); teravoita(); } });
   for (let t = 0; t <= 5; t++) (VW.kuplaKomennotJono = VW.kuplaKomennotJono || []).push([['aa' + t], () => aseta('on', t),
-    'pehmennys + terävöinti ' + t + (t ? '' : ' (pelkkä pehmennys)') + ': :aa0 ... :aa5', 'AA-kytkin']);
+    'oma variaatio ' + t + ': pehmennys + gamma' + (t ? ' + terävöinti ' + t : ''), 'AA-kytkin']);
   (VW.kuplaKomennotJono = VW.kuplaKomennotJono || []).push([['aa'],
-    (teksti, sanat) => { const s = (sanat[0] || '').toLowerCase();
-      return aseta(/^auto$/.test(s) ? 'auto' : /^(on|päälle|paalle|1)$/.test(s) ? 'on' : /^(pois|off|0)$/.test(s) ? 'off' : (paalla ? 'off' : 'on')); },
-    'pehmennys: :aa vaihtaa · :aa on · :aa pois · :aa auto (kuten Boon: vain murtolukuskaalauksella)', 'AA-kytkin']);
+    // 0.5.0 (kp 06:58 "ei autoo, ei aa on aa off · on vaa :aa toggle on/off")
+    () => aseta(paalla ? 'off' : 'on', -1),
+    'pehmennys kuten Boon: :aa päälle/pois · omat variaatiot :aa0 ... :aa5', 'AA-kytkin']);
   // Ilman kuplaKomennot-lisäosaa (Res): oma Enter-käsittelijä kuten wired-piilo.user.js.
   const komennotHoitaa = n => { try { return !!(VW.kuplaKomennot && VW.kuplaKomennot.lista().some(k => k.nimet.includes(n))); } catch (e) { return false; } };
   function ilmoita(teksti) {
@@ -140,8 +142,7 @@
     try { const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(t), 'value').set;
       setter.call(t, ''); t.dispatchEvent(new Event('input', { bubbles: true })); } catch (err) { t.value = ''; }
     if (m[1] !== undefined) return ilmoita(aseta('on', +m[1]));
-    const s = (m[2] || '').toLowerCase();
-    ilmoita(aseta(/^auto$/.test(s) ? 'auto' : /^(on|päälle|paalle|1)$/.test(s) ? 'on' : /^(pois|off|0)$/.test(s) ? 'off' : (paalla ? 'off' : 'on')));
+    ilmoita(aseta(paalla ? 'off' : 'on', -1));
   }, true);
-  VW.kuplaAA = { versio: '0.4.4', pois: () => { VW.__kuplaAAsuku++; }, aseta, tila: () => ({ tila, paalla, asennettu, dpr: VW.devicePixelRatio }) };
+  VW.kuplaAA = { versio: '0.5.0', pois: () => { VW.__kuplaAAsuku++; }, aseta, tila: () => ({ tila, paalla, asennettu, dpr: VW.devicePixelRatio }) };
 })();
