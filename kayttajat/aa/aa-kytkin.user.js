@@ -4,7 +4,7 @@
 // @match        https://kupla.cc/*
 // @grant        none
 // @run-at       document-idle
-// @version      0.6.0
+// @version      0.6.1
 // @kupla-oletus on
 // @description  Komento :aa vaihtaa pehmennyksen (LINEAR, kuten Boon) päälle/pois. Vaihto näkyy heti, ei uudelleenlatausta. Valinta muistetaan.
 // @author       re-lab
@@ -128,8 +128,9 @@
     'oma variaatio ' + t + ': pehmennys + gamma' + (t ? ' + terävöinti ' + t : ''), 'AA-kytkin']);
   (VW.kuplaKomennotJono = VW.kuplaKomennotJono || []).push([['aa', 'aa1'],
     // 0.5.0 (kp 06:58 "ei autoo, ei aa on aa off · on vaa :aa toggle on/off")
-    () => aseta(paalla ? 'off' : 'on', -1),
-    'pehmennys kuten Boon: :aa päälle/pois · omat variaatiot :aa2 ... :aa7', 'AA-kytkin']);
+    // 0.6.1 (kp 07:00 "aa off kans vaihtoehtona"): :aa off sammuttaa aina, mikä tahansa variaatio päällä.
+    (teksti, sanat) => /^(off|pois)$/i.test(sanat[0] || '') ? aseta('off', -1) : aseta(paalla ? 'off' : 'on', -1),
+    'pehmennys kuten Boon: :aa päälle/pois · :aa off sammuttaa kaiken · omat variaatiot :aa2 ... :aa7 (yksi kerrallaan)', 'AA-kytkin']);
   // Ilman kuplaKomennot-lisäosaa (Res): oma Enter-käsittelijä kuten wired-piilo.user.js.
   const komennotHoitaa = n => { try { return !!(VW.kuplaKomennot && VW.kuplaKomennot.lista().some(k => k.nimet.includes(n))); } catch (e) { return false; } };
   function ilmoita(teksti) {
@@ -145,7 +146,7 @@
     try { const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(t), 'value').set;
       setter.call(t, ''); t.dispatchEvent(new Event('input', { bubbles: true })); } catch (err) { t.value = ''; }
     if (m[1] !== undefined) return ilmoita(+m[1] === 1 ? aseta(paalla ? 'off' : 'on', -1) : vaihdaN(+m[1] - 2));
-    ilmoita(aseta(paalla ? 'off' : 'on', -1));
+    ilmoita(/^(off|pois)$/i.test(m[2] || '') ? aseta('off', -1) : aseta(paalla ? 'off' : 'on', -1));
   }, true);
-  VW.kuplaAA = { versio: '0.6.0', pois: () => { VW.__kuplaAAsuku++; }, aseta, tila: () => ({ tila, paalla, asennettu, dpr: VW.devicePixelRatio }) };
+  VW.kuplaAA = { versio: '0.6.1', pois: () => { VW.__kuplaAAsuku++; }, aseta, tila: () => ({ tila, paalla, asennettu, dpr: VW.devicePixelRatio }) };
 })();
