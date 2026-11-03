@@ -4,7 +4,7 @@
 // @match        https://kupla.cc/*
 // @grant        none
 // @run-at       document-idle
-// @version      0.4.0
+// @version      0.4.1
 // @kupla-oletus on
 // @description  Komento :aa vaihtaa pehmennyksen (LINEAR, kuten Boon) päälle/pois. Vaihto näkyy heti, ei uudelleenlatausta. Valinta muistetaan.
 // @author       re-lab
@@ -96,7 +96,10 @@
       document.body.appendChild(d);
     }
     if (d) d.querySelector('feConvolveMatrix').setAttribute('kernelMatrix', `0 ${ -k } 0 ${ -k } ${ 1 + 4 * k } ${ -k } 0 ${ -k } 0`);
-    const c = huoneCanvas(); if (!c) return;
+    // 0.4.1 (kp 06:46 "vilkkuu edellee"): suodatin WebGL-canvasille itselleen vilkkui -> vanhemman divin kerrokselle.
+    const c0 = huoneCanvas(); if (!c0) return;
+    if (c0.style.filter) c0.style.filter = '';
+    const c = c0.parentElement || c0;
     const f = paalla ? 'url(#kupla-teravoita)' : '';
     if (c.style.filter !== f) c.style.filter = f;
   }
