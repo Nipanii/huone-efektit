@@ -1,4 +1,4 @@
-// Käyttäjäkohtaiset skriptit (versio 0.2.1). Moottori (0.6.2+) ajaa tämän kaikissa huoneissa huoneet.json:n "kaikki"-listalta.
+// Käyttäjäkohtaiset skriptit (versio 0.2.2). Moottori (0.6.2+) ajaa tämän kaikissa huoneissa huoneet.json:n "kaikki"-listalta.
 // Tämä skripti sisältää KAIKEN käyttäjälogiikan; moottori ei tiedä kenestäkään mitään (kp 28.10. 15:07-15:12 "lisää res whitelistille",
 //   "ja se auto updatee", "whitelist ei saa välttämättä antaa kaikkia scriptejä yhdelle henkilölle").
 // Hakee 15 s välein kayttajat.json:n samasta Pagesista: { ryhmat: [ { nimi, kayttajat: [id], skriptit: [{ polku, globaali }] } ] }.
@@ -14,7 +14,7 @@
 //   Pois kytkettäessä TÄMÄN käynnistämät skriptit pysäytetään pois():lla; muualta käynnistetyt (esim. kp:n lataaja) jäävät ennalleen.
 // Testikäyttö: window.kayttajaskriptitTiedosto = 'kayttajat-testi.json' ennen käynnistystä.
 const POHJA = 'https://nipanii.github.io/huone-efektit/';
-const VERSIO = '0.2.1';
+const VERSIO = '0.2.2';
 const S = { versio: VERSIO, id: 0, ajossa: {}, vaatiiLatauksen: [], virhe: null, haettu: null, tiedosto: window.kayttajaskriptitTiedosto || 'kayttajat.json', pysaytetty: false };
 const omat = {};   // polku -> { globaali, versio, g }  (vain TÄMÄN käynnistämät)
 try { if (window.kayttajaskriptit && typeof window.kayttajaskriptit.pysayta === 'function') window.kayttajaskriptit.pysayta(); } catch (e) {}
@@ -24,7 +24,8 @@ const dvh = (o, k) => { const d = o && Object.getOwnPropertyDescriptor(o, k); re
 const omaId = () => { const re = window.NitroDevTools && window.NitroDevTools.roomEngine, u = dvh(dvh(re, '_sessionDataManager'), '_userId'); return u > 0 ? u : 0; };
 const uudempi = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number);
   for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); return false; };
-const hae = async (polku) => { const v = await fetch(POHJA + polku + '?t=' + Date.now(), { cache: 'no-store' });
+// 0.2.2: no-cache + ETag (304 ilman runkoa) eikä ?t=-ohitusta, sama kuin moottori 0.7.2.
+const hae = async (polku) => { const v = await fetch(POHJA + polku, { cache: 'no-cache' });
   if (!v.ok) throw new Error('HTTP ' + v.status + ' ' + polku); return v.text(); };
 const virhe = (viesti) => { S.virhe = { viesti: String(viesti), aika: new Date().toTimeString().slice(0, 8) }; console.warn('[kayttajaskriptit] ' + viesti); };
 const poisKutsu = (g) => { try { g.pois(); return true; } catch (e) { virhe('pois() kaatui: ' + e); return true; } };

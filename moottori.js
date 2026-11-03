@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Huoneskriptit (moottori)
-// @version      0.7.1
+// @version      0.7.2
 // @match        https://kupla.cc/*
 // @grant        none
 // ==/UserScript==
@@ -31,7 +31,7 @@
 //   NIMI:lle jonka moottori vastaanottajalla nielee ja toteuttaa, :showrooms = piilotetut huonealueet näkyviin (hs.naytaPiilot).
 // Konsolissa: huoneskriptit.ajossa (mitä ajetaan) · huoneskriptit.loki · huoneskriptit.paivita(true) (hae ja käynnistä uudelleen)
 (() => {
-  const hs = { versio: '0.7.0', huone: 0, ajossa: new Map(), loki: [], pysaytetty: false };   // versio: myös 0.4.x:n itsepäivitys lukee tämän
+  const hs = { versio: '0.7.2', huone: 0, ajossa: new Map(), loki: [], pysaytetty: false };   // versio: myös 0.4.x:n itsepäivitys lukee tämän
   const POHJA = 'https://nipanii.github.io/huone-efektit/';
   const uudempi = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number);
     for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); return false; };
@@ -51,7 +51,9 @@
   }
   window.huoneskriptit = hs;
 
-  const hae = async (polku) => { const v = await fetch(POHJA + polku + '?t=' + Date.now(), { cache: 'no-store' });
+  // 0.7.2: ei ?t=-ohitusta eikä no-storea. no-cache = selain kysyy joka kerta ETagilla ja Pages vastaa 304 ilman runkoa, kun tiedosto ei
+  //   muuttunut (kp 3.11. 18:24; ennen ~280 kB gzip / 15 s / pelaaja, koska haetaan kaikkien huoneiden skriptit). Julkaisu tyhjentää CDN:n.
+  const hae = async (polku) => { const v = await fetch(POHJA + polku, { cache: 'no-cache' });
     if (!v.ok) throw new Error('HTTP ' + v.status + ' ' + polku); return v.text(); };
   const merkitse = (rivi) => { rivi.aika = new Date().toTimeString().slice(0, 8); hs.loki.push(rivi); if (hs.loki.length > 200) hs.loki.shift(); };
 
