@@ -90,6 +90,19 @@
           "globaali": "__kuplaSonaTeleport"
         }
       ]
+    },
+    {
+      "nimi": "aa-kytkin",
+      "kayttajat": [
+        1,
+        282
+      ],
+      "skriptit": [
+        {
+          "polku": "kayttajat/aa/aa-kytkin.user.js",
+          "globaali": "kuplaAA"
+        }
+      ]
     }
   ]
 }
