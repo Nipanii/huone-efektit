@@ -4,7 +4,7 @@
 // @match        https://kupla.cc/*
 // @grant        none
 // @run-at       document-idle
-// @version      0.4.2
+// @version      0.4.3
 // @kupla-oletus on
 // @description  Komento :aa vaihtaa pehmennyksen (LINEAR, kuten Boon) päälle/pois. Vaihto näkyy heti, ei uudelleenlatausta. Valinta muistetaan.
 // @author       re-lab
@@ -85,7 +85,7 @@
   }
   // 0.4.0 (kp 06:44 "blendaa nii et vaalentaa eikä tummenna"): linear sekoittaa sRGB-arvoja, joten tummat ääriviivat leviävät ja kuva
   //   tummuu. Gamma < 1 nostaa keskisävyjä (likimain sekoitus lineaarisessa valossa), aina kun pehmennys on päällä.
-  const GAMMA = 0.85;
+  const GAMMA = 0.94; // 0.4.3: 0.85 oli kp:lle "överi kirkas" (06:57)
   function teravoita() {
     const k = paalla ? K[teravyys] : 0;
     let d = document.getElementById('kupla-aa-svg');
@@ -141,5 +141,5 @@
     const s = (m[2] || '').toLowerCase();
     ilmoita(aseta(/^auto$/.test(s) ? 'auto' : /^(on|päälle|paalle|1)$/.test(s) ? 'on' : /^(pois|off|0)$/.test(s) ? 'off' : (paalla ? 'off' : 'on')));
   }, true);
-  VW.kuplaAA = { versio: '0.4.2', pois: () => { VW.__kuplaAAsuku++; }, aseta, tila: () => ({ tila, paalla, asennettu, dpr: VW.devicePixelRatio }) };
+  VW.kuplaAA = { versio: '0.4.3', pois: () => { VW.__kuplaAAsuku++; }, aseta, tila: () => ({ tila, paalla, asennettu, dpr: VW.devicePixelRatio }) };
 })();
