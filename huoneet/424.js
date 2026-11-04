@@ -26,10 +26,17 @@ const fdata = (st) => ({ flags: 0, uniqueNumber: 0, uniqueSeries: 0, rarityLevel
   writeRoomObjectModel(m) { m.setValue('furniture_data_format', 0); m.setValue('furniture_data', st); },
   initializeFromRoomObjectModel() {}, parseWrapper() {}, getLegacyString() { return st; },
   compare() { return false; }, setString() {}, getValue() { return ''; } });
+// Päälle/pois KOKO HUONEELLE (kp 07:57 ":toggleitems", 08:02 "päivittää myös muille", 08:04 "käytetää mun vps vaikka palvelimena"): tila on VPS:llä
+//   (vps/kupla-huonetila.js, Caddy /huonetila/*, levylle tallessa). Jokainen client hakee sen huoneeseen tullessa ja pollaa POLLI ms välein, joten myöhemmin
+//   tuleva saa nykytilan. POST hyväksytään vain user id 282:lle (kurkkupomo). 🔴 Se id on clientin oma väite, devtoolsista väärennettävissä; palvelin ei voi tarkistaa sitä.
+//   Komento kuten aa-kytkin 0.6.4: Enter-kaappaus (capture) pelin chat-kentässä, rivi ei lähde palvelimelle, kenttä tyhjennetään; vahvistus omana chattirivinä
+//   vain itselle (RSCE_CHAT_EVENT). Rekisteröidään myös window.kuplaKomennotJono:on (Resin kuplaKomennot-lisäosa), ja oma kaappaus väistää jos lisäosa hoitaa komennon.
+const PALVELIN = 'https://49-12-45-218.sslip.io/huonetila/', POLLI = 4000, VALIMUISTI = 'kupla424Esinekorvaukset', OMISTAJA_ID = 282;
+let paalla = null;   // null = ei vielä tietoa palvelimelta: ei vaihdeta mitään (verho peittää huoneen lataamisen ajan), 3 s jälkeen viimeksi tiedetty tai päällä
 const alku = e.addFurnitureFloor, omaAlku = Object.prototype.hasOwnProperty.call(e, 'addFurnitureFloor');
 const kaare = function (huoneId, id, tyyppi) {
   const a = Array.prototype.slice.call(arguments);
-  if (huoneId === huone && MIHIN.has(tyyppi) && id > 0) { a[2] = MIHIN.get(tyyppi); tila.vaihdetut.add(id); }
+  if (paalla === true && huoneId === huone && MIHIN.has(tyyppi) && id > 0) { a[2] = MIHIN.get(tyyppi); tila.vaihdetut.add(id); }
   return alku.apply(this, a);
 };
 e.addFurnitureFloor = kaare;
@@ -56,11 +63,51 @@ const vaihda = () => {
     catch (x) { tila.loki.push(String(x)); }
   }
 };
-vaihda();
-const tikki = setInterval(vaihda, 1500);
-return () => {
-  clearInterval(tikki);
-  if (e.addFurnitureFloor === kaare) { if (omaAlku) e.addFurnitureFloor = alku; else delete e.addFurnitureFloor; }
+// Palautus (sama polku pysäytyksessä ja :toggleitems pois): kaikki vaihdetut takaisin alkuperäiseen tyyppiin samalla id:llä ja omistajalla.
+const palauta = () => {
   try { for (const id of tila.vaihdetut) { const o = e.getRoomObject(huone, id, 10); const tt = o && o.model.getValue('furniture_type_id'); if (o && MISTA.has(tt)) korvaa(o, MISTA.get(tt)); } } catch (x) {}
+  tila.vaihdetut.clear();
+};
+const tikki = setInterval(() => { if (paalla === true) vaihda(); }, 1500);
+const omaRivi = (teksti) => {   // kuten kayttajat/aa/aa-kytkin.user.js omaRivi: pelin oma chat-tapahtuma, ei palvelimelle
+  try {
+    const ses = e._roomSessionManager && e._roomSessionManager.getSession(e.activeRoomId);
+    if (!e.events || !ses) return false;
+    e.events.dispatchEvent({ type: 'RSCE_CHAT_EVENT', session: ses, objectId: ses.ownRoomIndex, message: teksti, chatType: 1, style: 0, chatColours: '', links: null,
+      extraParam: -1, prefixText: '', prefixColor: '', prefixIcon: '', prefixEffect: '', prefixFont: '', nickIcon: '', displayOrder: 'icon-prefix-name' });
+    return true;
+  } catch (x) { return false; }
+};
+const kayta = (uusi) => { if (uusi === paalla) return; paalla = uusi; try { window.localStorage.setItem(VALIMUISTI, uusi ? 'on' : 'off'); } catch (x) {} if (uusi) vaihda(); else palauta(); };
+const haeTila = () => fetch(PALVELIN + huone, { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(o => { if (o && typeof o.paalla === 'boolean') kayta(o.paalla); }, () => {});
+const omaId = () => { try { const d = (o, k) => { const x = o && Object.getOwnPropertyDescriptor(o, k); return x && !x.get ? x.value : undefined; }; const u = d(d(e, '_sessionDataManager'), '_userId'); return u > 0 ? u : 0; } catch (x) { return 0; } };
+const vaihdaTila = () => {
+  if (omaId() !== OMISTAJA_ID) return omaRivi('esinekorvaukset: vain huoneen omistaja voi vaihtaa');
+  const uusi = paalla === false;   // pois -> päälle, muuten pois
+  fetch(PALVELIN + huone, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paalla: uusi, id: OMISTAJA_ID, nimi: 'kurkkupomo' }) })
+    .then(r => r.ok ? r.json() : Promise.reject(r.status)).then(o => { kayta(o.paalla); omaRivi(o.paalla ? 'esinekorvaukset: päällä (kaikille)' : 'esinekorvaukset: pois (kaikille)'); },
+      err => omaRivi('esinekorvaukset: palvelin ei vastannut (' + err + ')'));
+};
+haeTila();
+const pollaus = setInterval(haeTila, POLLI);
+const oletus = setTimeout(() => { if (paalla === null) { let v = true; try { v = window.localStorage.getItem(VALIMUISTI) !== 'off'; } catch (x) {} kayta(v); } }, 3000);   // palvelin ei vastannut: viimeksi tiedetty, muuten päällä
+tila.vaihdaTila = vaihdaTila;
+const jono = window.kuplaKomennotJono = window.kuplaKomennotJono || [], jonoRivi = [['toggleitems'], () => vaihdaTila(), 'huone 424: esinekorvaukset päälle/pois (vain sinulle)', 'Huone 424'];
+jono.push(jonoRivi);
+const komennotHoitaa = () => { try { return !!(window.kuplaKomennot && window.kuplaKomennot.lista().some(k => k.nimet.includes('toggleitems'))); } catch (x) { return false; } };
+const nappain = (ev) => {
+  if (ev.key !== 'Enter' || ev.isComposing) return;
+  const t = ev.target; if (!t || (t.tagName !== 'INPUT' && t.tagName !== 'TEXTAREA')) return;
+  if (!/^s*:toggleitemss*$/i.test(t.value || '') || komennotHoitaa()) return;
+  ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation();
+  try { const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(t), 'value').set; setter.call(t, ''); t.dispatchEvent(new Event('input', { bubbles: true })); } catch (x) { t.value = ''; }
+  vaihdaTila();
+};
+document.addEventListener('keydown', nappain, true);
+return () => {
+  clearInterval(tikki); clearInterval(pollaus); clearTimeout(oletus); document.removeEventListener('keydown', nappain, true);
+  const i = jono.indexOf(jonoRivi); if (i >= 0) jono.splice(i, 1);
+  if (e.addFurnitureFloor === kaare) { if (omaAlku) e.addFurnitureFloor = alku; else delete e.addFurnitureFloor; }
+  palauta();
   delete window.troni424;
 };
