@@ -4,7 +4,7 @@
 // @match        https://kupla.cc/*
 // @grant        none
 // @run-at       document-idle
-// @version      0.6.3
+// @version      0.6.4
 // @kupla-oletus on
 // @description  Komento :aa vaihtaa pehmennyksen (LINEAR, kuten Boon) päälle/pois. Vaihto näkyy heti, ei uudelleenlatausta. Valinta muistetaan.
 // @author       re-lab
@@ -115,10 +115,24 @@
   const SUKU = VW.__kuplaAAsuku = (VW.__kuplaAAsuku || 0) + 1;
   const ajastinT = setInterval(() => { if (VW.__kuplaAAsuku !== SUKU) return clearInterval(ajastinT); teravoita(); }, 2000);
 
+  // 0.6.4 (kp 07:04 "komennon pitäs sanoo mitkä settings menee pääl samanlail ku wired messaget näkyy vaa itel"): yksi chattirivi vain itselle.
+  //   Pelin oma RSCE_CHAT_EVENT (RoomSessionChatEvent, kuten DiscordRuntime.ts:119) globaaliin tapahtumajakajaan; ei lähde palvelimelle.
+  //   Luokkaa ei voi importata userscriptistä -> tavallinen olio samoilla kentillä (kuuntelija lukee vain kentät). Kuiskaustyyli (chatType 1).
+  function omaRivi(teksti) {
+    try {
+      const RE = VW.NitroDevTools && VW.NitroDevTools.roomEngine, ses = RE && RE._roomSessionManager && RE._roomSessionManager.getSession(RE.activeRoomId);
+      if (!RE || !RE.events || !ses) return false;
+      RE.events.dispatchEvent({ type: 'RSCE_CHAT_EVENT', session: ses, objectId: ses.ownRoomIndex, message: teksti, chatType: 1, style: 0, chatColours: '', links: null,
+        extraParam: -1, prefixText: '', prefixColor: '', prefixIcon: '', prefixEffect: '', prefixFont: '', nickIcon: '', displayOrder: 'icon-prefix-name' });
+      return true;
+    } catch (e) { return false; }
+  }
   function aseta(uusi, taso) {
     tila = uusi; paalla = laske(); try { VW.localStorage.setItem(AVAIN, tila); } catch (e) {}
     if (taso !== undefined) { teravyys = taso; try { VW.localStorage.setItem(TAVAIN, String(taso)); } catch (e) {} }
     asenna(); const n = pyyhi(); teravoita();
+    omaRivi(!paalla ? 'aa: pois' : teravyys < 0 ? 'aa: aa päällä (kuten Boon, linear)'
+      : 'aa: aa' + (teravyys + 2) + ' päällä (' + (teravyys ? 'terävöinti ' + teravyys : 'gamma ' + GAMMA) + ')');
     const nimi = tila === 'auto' ? 'AUTO (DPR ' + (VW.devicePixelRatio || 1) + ' -> ' + (paalla ? 'pehmeä' : 'terävä') + ')'
       : (paalla ? 'PÄÄLLÄ (pehmeä, linear)' : 'POIS (terävä, nearest)');
     return 'AA ' + nimi + (paalla && teravyys >= 0 ? ' · :aa' + (teravyys + 2) + (teravyys ? ' (terävöinti ' + teravyys + ')' : ' (gamma)') : (paalla ? ' · kuten Boon' : '')) + (asennettu ? ' · ' + n + ' tekstuuria' : ' — odottaa huonetta');
@@ -151,5 +165,5 @@
     if (m[1] !== undefined) return ilmoita(+m[1] === 1 ? aseta(paalla ? 'off' : 'on', -1) : vaihdaN(+m[1] - 2));
     ilmoita(/^(off|pois)$/i.test(m[2] || '') ? aseta('off', -1) : aseta(paalla ? 'off' : 'on', -1));
   }, true);
-  VW.kuplaAA = { versio: '0.6.3', pois: () => { VW.__kuplaAAsuku++; }, aseta, tila: () => ({ tila, paalla, asennettu, dpr: VW.devicePixelRatio }) };
+  VW.kuplaAA = { versio: '0.6.4', pois: () => { VW.__kuplaAAsuku++; }, aseta, tila: () => ({ tila, paalla, asennettu, dpr: VW.devicePixelRatio }) };
 })();
