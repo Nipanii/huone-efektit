@@ -5,7 +5,7 @@
 // TAPA (v2): esineen id PYSYY samana, vain sen tyyppi-id vaihtuu 1583 -> 230. Siksi palvelimen kaikki päivitykset (käännös, siirto, korkeus,
 //   tila, poisto/poiminta) osuvat samaan id:hen kuin ennenkin, ja klikkaus/siirto/poiminta lähettää palvelimelle alkuperäisen id:n.
 //   v1 poisti alkuperäisen ja piirsi toisen negatiivisella id:llä, jolloin käännös ja poiminta eivät löytäneet esinettä.
-//   1) kääre RoomEngine.addFurnitureFloorin ympärille: huoneeseen tuleva tai palvelimelta lisättävä LAHDE-tyyppinen esine luodaan KOHDE-tyyppisenä
+//   1) kääre RoomEngine.addFurnitureFloorin ympärille: huoneeseen tuleva tai palvelimelta lisättävä SAANNOT-listan mista-tyyppinen esine luodaan mihin-tyyppisenä
 //      samalla id:llä; 2) huoneessa jo olevat vaihdetaan poistamalla ja lisäämällä samalla id:llä (paikka, suunta, data, omistaja, käyttöoikeus säilyvät).
 //   Pysäytettäessä kääre pois ja vaihdetut palautetaan 1583:ksi samoilla id:illä.
 // Istumakorkeus: palvelimen items_base-dumpissa (nitro/data/items-base/dump-202610010618.sql) pillow*2 ja throne ovat molemmat stack_height 1.00
@@ -13,9 +13,13 @@
 //   korjausta tarvita. Istujan suunta tulee palvelimelta esineen suunnasta, ja esineen suunta on sama kuin ennen.
 const e = window.NitroDevTools && window.NitroDevTools.roomEngine;
 const huone = (kupla && kupla.roomId && kupla.roomId()) || (e && e.activeRoomId);
-// VAIHDETTAVAT (kp 07:20 "source esine voi vaihtua myöhemmin"): vaihda vain tämä yksi rivi.
-const LAHDE = { tyyppi: 1583 };   // punainen Tyyny: furniture_type_id (väri on tyypin oma: 1583 = pillow*2, furniture_color 2)
-const KOHDE = { tyyppi: 230 };    // Kuninkaantuoli (luokka throne)
+// VAIHDETTAVAT (kp 07:20 "source esine voi vaihtua myöhemmin", 07:43 toinen sääntö): sääntölista, yksi rivi per vaihto. mista/mihin = furniture_type_id.
+//   Väri on tyypin oma (1583 = pillow*2, furniture_color 2). Lisää, poista tai muuta rivejä; mikään muu koodi ei tiedä tyypeistä.
+const SAANNOT = [
+  { mista: 1583, mihin: 230 },          // punainen Tyyny -> Kuninkaantuoli (throne)
+  { mista: 425624465, mihin: 1619 },    // Lelu ankka (yang_d3_SPLITDuck, esine 528210) -> Musta lohikäärmelamppu (rare_dragonlamp)
+];
+const MIHIN = new Map(SAANNOT.map(s => [s.mista, s.mihin])), MISTA = new Map(SAANNOT.map(s => [s.mihin, s.mista]));
 const tila = window.troni424 = { versio: 'huone-424-v2', huone, vaihdetut: new Set(), loki: [] };
 const fdata = (st) => ({ flags: 0, uniqueNumber: 0, uniqueSeries: 0, rarityLevel: -1, state: 0,
   writeRoomObjectModel(m) { m.setValue('furniture_data_format', 0); m.setValue('furniture_data', st); },
@@ -24,7 +28,7 @@ const fdata = (st) => ({ flags: 0, uniqueNumber: 0, uniqueSeries: 0, rarityLevel
 const alku = e.addFurnitureFloor, omaAlku = Object.prototype.hasOwnProperty.call(e, 'addFurnitureFloor');
 const kaare = function (huoneId, id, tyyppi) {
   const a = Array.prototype.slice.call(arguments);
-  if (huoneId === huone && tyyppi === LAHDE.tyyppi && id > 0) { a[2] = KOHDE.tyyppi; tila.vaihdetut.add(id); }
+  if (huoneId === huone && MIHIN.has(tyyppi) && id > 0) { a[2] = MIHIN.get(tyyppi); tila.vaihdetut.add(id); }
   return alku.apply(this, a);
 };
 e.addFurnitureFloor = kaare;
@@ -47,7 +51,7 @@ const vaihda = () => {
   if (e.activeRoomId !== huone) return;
   let lattia; try { lattia = e.getRoomObjects(huone, 10) || []; } catch (x) { return; }
   for (const o of lattia.slice()) {
-    try { if (o.id > 0 && o.model.getValue('furniture_type_id') === LAHDE.tyyppi) { korvaa(o, KOHDE.tyyppi); tila.vaihdetut.add(o.id); } }
+    try { const tt = o.model.getValue('furniture_type_id'); if (o.id > 0 && MIHIN.has(tt)) { korvaa(o, MIHIN.get(tt)); tila.vaihdetut.add(o.id); } }
     catch (x) { tila.loki.push(String(x)); }
   }
 };
@@ -56,6 +60,6 @@ const tikki = setInterval(vaihda, 1500);
 return () => {
   clearInterval(tikki);
   if (e.addFurnitureFloor === kaare) { if (omaAlku) e.addFurnitureFloor = alku; else delete e.addFurnitureFloor; }
-  try { for (const id of tila.vaihdetut) { const o = e.getRoomObject(huone, id, 10); if (o && o.model.getValue('furniture_type_id') === KOHDE.tyyppi) korvaa(o, LAHDE.tyyppi); } } catch (x) {}
+  try { for (const id of tila.vaihdetut) { const o = e.getRoomObject(huone, id, 10); const tt = o && o.model.getValue('furniture_type_id'); if (o && MISTA.has(tt)) korvaa(o, MISTA.get(tt)); } } catch (x) {}
   delete window.troni424;
 };
