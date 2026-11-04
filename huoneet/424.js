@@ -29,12 +29,19 @@ const kaare = function (huoneId, id, tyyppi) {
 };
 e.addFurnitureFloor = kaare;
 // Korvaa huoneessa jo olevan esineen toisella tyypillä samalla id:llä. mista -> mihin: tyyppi-id:t.
+// Omistaja (kp 07:39 "puuttuu omistaja vielä"): infostand lukee omistajan esineen mallista (furniture_owner_id / furniture_owner_name, jotka palvelin
+//   antaa kun esine lisätään). Ne luetaan ennen vaihtoa ja annetaan uudelle objektille; talteen myös window.troni424Omistajat-karttaan, joka säilyy
+//   skriptin uudelleenkäynnistyksen yli, koska tyhjä malli (-1, '') on merkki aiemmin menetetystä omistajasta (v1 palautti tyynyt ilman omistajaa).
+const omistajat = window.troni424Omistajat = window.troni424Omistajat || new Map();
 const korvaa = (o, mihin) => {
   const m = o.model, l = o.getLocation(), V = l.constructor, id = o.id;
   const v = (k, d) => { const x = m.getValue(k); return x == null ? d : x; };
+  const oid = v('furniture_owner_id', -1), onimi = v('furniture_owner_name', '');
+  if (oid > 0 || onimi) omistajat.set(id, { id: oid, nimi: onimi, kaytto: v('furniture_usage_policy', 0), oikea: v('furniture_real_room_object', 0) });
+  const om = omistajat.get(id) || { id: oid, nimi: onimi, kaytto: v('furniture_usage_policy', 0), oikea: v('furniture_real_room_object', 0) };
   e.removeRoomObjectFloor(huone, id);
   return alku.call(e, huone, id, mihin, new V(l.x, l.y, l.z), new V(o.getDirection().x), 0, fdata(String(v('furniture_data', '0'))), Number(m.getValue('furniture_extras')),
-    v('furniture_expiry_time', -1), v('furniture_usage_policy', 0), v('furniture_owner_id', -1), v('furniture_owner_name', ''), true, !!v('furniture_real_room_object', 0));
+    v('furniture_expiry_time', -1), om.kaytto, om.id, om.nimi, true, !!om.oikea);
 };
 const vaihda = () => {
   if (e.activeRoomId !== huone) return;
