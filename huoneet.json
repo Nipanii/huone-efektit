@@ -1,6 +1,12 @@
 {
   "_ohje": "Huoneskriptit. Avain = huone-id, skriptit = polut tähän repoon. Moottori hakee tämän listan huoneeseen tullessa, ajaa huoneen skriptit ja pysäyttää ne kun huoneesta lähdetään. Skriptin muutos näkyy huoneessa oleville noin 15 s sisällä ilman version nostoa.",
   "huoneet": {
+    "424": {
+      "nimi": "zen den (tyynyt valtaistuimiksi)",
+      "skriptit": [
+        "huoneet/424.js"
+      ]
+    },
     "650": {
       "nimi": "Halloween rata 1/6",
       "skriptit": [
