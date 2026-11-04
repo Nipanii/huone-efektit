@@ -18,6 +18,7 @@ const huone = (kupla && kupla.roomId && kupla.roomId()) || (e && e.activeRoomId)
 const SAANNOT = [
   { mista: 1583, mihin: 230 },          // punainen Tyyny -> Kuninkaantuoli (throne)
   { mista: 425624465, mihin: 1619 },    // Lelu ankka (yang_d3_SPLITDuck, esine 528210) -> Musta lohikäärmelamppu (rare_dragonlamp)
+  { mista: 425624520, mihin: 449 },     // Tupakoiva ankka (yang_d61_Bald_duck, esine 528216) -> djesko_turntable
 ];
 const MIHIN = new Map(SAANNOT.map(s => [s.mista, s.mihin])), MISTA = new Map(SAANNOT.map(s => [s.mihin, s.mista]));
 const tila = window.troni424 = { versio: 'huone-424-v2', huone, vaihdetut: new Set(), loki: [] };
