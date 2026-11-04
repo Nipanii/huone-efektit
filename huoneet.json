@@ -4,7 +4,8 @@
     "424": {
       "nimi": "zen den (tyynyt valtaistuimiksi)",
       "skriptit": [
-        "huoneet/424.js"
+        "huoneet/424.js",
+        "huoneet/424-myrsky.js"
       ]
     },
     "650": {

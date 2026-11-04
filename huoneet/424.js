@@ -79,8 +79,30 @@ const omaRivi = (teksti) => {   // kuten kayttajat/aa/aa-kytkin.user.js omaRivi:
   } catch (x) { return false; }
 };
 const kayta = (uusi) => { if (uusi === paalla) return; paalla = uusi; try { window.localStorage.setItem(VALIMUISTI, uusi ? 'on' : 'off'); } catch (x) {} if (uusi) vaihda(); else palauta(); };
-const haeTila = () => fetch(PALVELIN + huone, { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(o => { if (o && typeof o.paalla === 'boolean') kayta(o.paalla); }, () => {});
+// Myrsky (kp 08:08 ":tornado"): huoneet/424-myrsky.js on 656:n pyörremyrsky 424:n pohjalle; tämä tiedosto vain käynnistää sen. Palvelin antaa alkuajan omalla kellollaan
+//   (tila.tornado.alku, "nyt" = palvelimen kello vastauksen hetkellä), joten clientin oma kello ei merkitse. Sama alku soitetaan kerran (window.troni424Myrskyt säilyy
+//   uudelleenkäynnistyksen yli); alkuun on 6 s, jotta pollaus (POLLI) ehtii kaikille, ja myöhässä tuleva liittyy kesken (aja(ohi)), jos efekti on vielä käynnissä.
+const MYRSKY_KESTO = 27000;
+const soitetut = window.troni424Myrskyt = window.troni424Myrskyt || new Set(), myrskyAjastimet = new Set();
+const kaynnistaMyrsky = (alku, nyt) => {
+  if (!alku || soitetut.has(alku)) return;
+  const ohi = nyt - alku; if (ohi > MYRSKY_KESTO) return;   // vanha
+  soitetut.add(alku);
+  const ajaNyt = () => { try { const m = window.myrsky424; if (m && m.aja) m.aja(Math.max(0, ohi < 0 ? 0 : ohi)); } catch (x) { tila.loki.push(String(x)); } };
+  if (ohi >= 0) return ajaNyt();
+  const a = setTimeout(() => { myrskyAjastimet.delete(a); ajaNyt(); }, -ohi); myrskyAjastimet.add(a);
+};
+const haeTila = () => fetch(PALVELIN + huone, { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(o => {
+  if (!o) return; if (typeof o.paalla === 'boolean') kayta(o.paalla);
+  if (o.tornado && o.nyt) kaynnistaMyrsky(o.tornado.alku, o.nyt);
+}, () => {});
 const omaId = () => { try { const d = (o, k) => { const x = o && Object.getOwnPropertyDescriptor(o, k); return x && !x.get ? x.value : undefined; }; const u = d(d(e, '_sessionDataManager'), '_userId'); return u > 0 ? u : 0; } catch (x) { return 0; } };
+const tornado = () => {
+  if (omaId() !== OMISTAJA_ID) return omaRivi('myrsky: ei oikeutta');
+  fetch(PALVELIN + huone, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tornado: true, id: OMISTAJA_ID, nimi: 'kurkkupomo' }) })
+    .then(r => r.json().then(o => ({ ok: r.ok, status: r.status, o }))).then(x => { if (x.ok) { omaRivi('myrsky: tulee kaikille 6 s päästä'); haeTila(); } else omaRivi(x.status === 429 ? 'myrsky: jäähy, odota hetki' : 'myrsky: epäonnistui (' + x.status + ')'); },
+      err => omaRivi('myrsky: palvelin ei vastannut'));
+};
 const vaihdaTila = () => {
   if (omaId() !== OMISTAJA_ID) return omaRivi('esinekorvaukset: vain huoneen omistaja voi vaihtaa');
   const uusi = paalla === false;   // pois -> päälle, muuten pois
@@ -91,22 +113,23 @@ const vaihdaTila = () => {
 haeTila();
 const pollaus = setInterval(haeTila, POLLI);
 const oletus = setTimeout(() => { if (paalla === null) { let v = true; try { v = window.localStorage.getItem(VALIMUISTI) !== 'off'; } catch (x) {} kayta(v); } }, 3000);   // palvelin ei vastannut: viimeksi tiedetty, muuten päällä
-tila.vaihdaTila = vaihdaTila;
-const jono = window.kuplaKomennotJono = window.kuplaKomennotJono || [], jonoRivi = [['toggleitems'], () => vaihdaTila(), 'huone 424: esinekorvaukset päälle/pois (vain sinulle)', 'Huone 424'];
-jono.push(jonoRivi);
-const komennotHoitaa = () => { try { return !!(window.kuplaKomennot && window.kuplaKomennot.lista().some(k => k.nimet.includes('toggleitems'))); } catch (x) { return false; } };
+tila.vaihdaTila = vaihdaTila; tila.haeTila = haeTila;
+const jono = window.kuplaKomennotJono = window.kuplaKomennotJono || [], jonoRivi = [['toggleitems'], () => vaihdaTila(), 'huone 424: esinekorvaukset päälle/pois (koko huoneelle, vain kurkkupomo)', 'Huone 424'], jonoRivi2 = [['tornado'], () => tornado(), 'huone 424: pyörremyrsky (vain kurkkupomo)', 'Huone 424'];
+jono.push(jonoRivi, jonoRivi2);
+const komennotHoitaa = (komento) => { try { return !!(window.kuplaKomennot && window.kuplaKomennot.lista().some(k => k.nimet.includes(komento))); } catch (x) { return false; } };
 const nappain = (ev) => {
   if (ev.key !== 'Enter' || ev.isComposing) return;
   const t = ev.target; if (!t || (t.tagName !== 'INPUT' && t.tagName !== 'TEXTAREA')) return;
-  if (!/^s*:toggleitemss*$/i.test(t.value || '') || komennotHoitaa()) return;
+  const m = /^\s*:(toggleitems|tornado)\s*$/i.exec(t.value || ''); if (!m || komennotHoitaa(m[1].toLowerCase())) return;
   ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation();
   try { const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(t), 'value').set; setter.call(t, ''); t.dispatchEvent(new Event('input', { bubbles: true })); } catch (x) { t.value = ''; }
-  vaihdaTila();
+  if (m[1].toLowerCase() === 'tornado') tornado(); else vaihdaTila();
 };
 document.addEventListener('keydown', nappain, true);
 return () => {
   clearInterval(tikki); clearInterval(pollaus); clearTimeout(oletus); document.removeEventListener('keydown', nappain, true);
-  const i = jono.indexOf(jonoRivi); if (i >= 0) jono.splice(i, 1);
+  for (const r of [jonoRivi, jonoRivi2]) { const i = jono.indexOf(r); if (i >= 0) jono.splice(i, 1); }
+  for (const a of myrskyAjastimet) clearTimeout(a);
   if (e.addFurnitureFloor === kaare) { if (omaAlku) e.addFurnitureFloor = alku; else delete e.addFurnitureFloor; }
   palauta();
   delete window.troni424;
