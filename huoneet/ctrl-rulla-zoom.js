@@ -33,7 +33,7 @@ const pyor = v => Math.round(v * 1e6) / 1e6;
 const peliTaso = (E, k = kerroin) => (k === 1 || E === 1) ? E : Math.round(E / k * 1000) / 1000;
 const moottoriTaso = (G, k = kerroin) => { if (k === 1 || G === 1) return G; const e = pyor(G * k); return e === 1 ? 1.000001 : e; };
 const RE = () => VW.NitroDevTools && VW.NitroDevTools.roomEngine;
-const tila = VW.__huoneCtrlZoom = { versio: 'huone-0.9.2', natiivi: false, loki: [], poistu() {}, aseta: null, tilaNyt: null };
+const tila = VW.__huoneCtrlZoom = { versio: 'huone-0.9.3', natiivi: false, loki: [], poistu() {}, aseta: null, tilaNyt: null };
 // B201 (kp 6.11. 16:42 "huone välil hypähtää vasemmalle paljon ... kun zoomaan ulospäin ... pelin zoomilla", 16:47 "ei silti toistu consistently"):
 //   huonekamera (RoomEngine.updateRoomCamera, ajaa VAIN skaalalla tasan 1) kirjoittaa offsetiksi -(kameran oma sijainti) aina kun hahmo liikkuu tai canvaksen
 //   koko muuttuu. Moottori päivittää kameran sijainnin raahauksen jälkeen (handleRoomDragging MOUSE_UP: camera.resetLocation(-offset)), mutta EI zoomin
@@ -86,7 +86,7 @@ const kasittele = e => {
     if (uusi === tama) return;
     const uusiE = moottoriTaso(uusi);
     vartija(re, rid, uusi);
-    if (pehmea(re, rid, uusiE, e.target)) return;
+    if (pehmea(re, rid, uusiE, e.target, uusi)) return;
     zoomaaNyt(re, rid, uusiE);
 };
 
@@ -101,12 +101,28 @@ const kasittele = e => {
 //   mitattu robolla :9223 kehyksen järjestys on render() -> ruudun piirto -> muut rAF:t ("CTTTTTTTTS|CS|CS|", C = RoomSpriteCanvas.render, S = näytön
 //   piirto), joten uusi kuva ja uusi CSS kootaan samaan kehykseen. rAF päivittää CSS:n animaation aikana.
 //   Kuplat siirtyvät puhujan kohdalle moottorin vaihdossa (kaariS -> seuraa): zoom outissa heti alussa, zoom inissä lopussa.
-// HINTA: nopeat zoom in -askeleet kertyvät yhdeksi moottorikutsuksi; zoom out -askel vaihtaa moottorin heti, joten yksi kutsu per askel.
+// HINTA (0.9.3): yksi moottorikutsu per ylitetty taso (g kulkee tasojen läpi), ei per tikki.
 // VARA: jos huonecanvasta ei löydy DOMista (leveys != _width*dpr) zoom on välitön kuten 0.7.2. Jos render() ei aja (piilotettu välilehti: silloin ei aja
-//   rAF:kään), ajastin KESTO + 300 ms viimeisestä askeleesta asettaa tavoitteen ja pudottaa transformin. Selaimen resize kesken: päätetään heti.
-const KESTO = 150;
-let anim = null;   // { rid, cv, c, v0, v1, t0, raf, kaari, alkuR, omaR, vanhaT, vanhaO, ajastin }
-const helpotus = p => 1 - Math.pow(1 - p, 3);
+//   rAF:kään), ajastin VARA ms viimeisestä tikistä asettaa tavoitteen ja pudottaa transformin. Selaimen resize kesken: päätetään heti.
+// 0.9.3 JATKUVA (kp 17:01 "kun se interpolaatio on done- jos jatkaa zoomausta se jatkuu saumattomasti eteenpäin. nyt se menee asteittain"): ei enää
+//   askelkohtaista 150 ms ease-outia joka alkaa alusta joka tikillä. Yksi juokseva TAVOITE (pelitaso, jokainen rullatikki siirtää sitä) ja näkyvä pelitaso g
+//   jahtaa sitä log-asteikolla eksponentiaalisesti joka kehys (aikavakio TAU), joten jatkettu rullaus jatkaa samaa liikettä nopeutta katkaisematta.
+//   Moottori on aina g:n ALEMPI kelvollinen taso (kokonaisluku >= 1, puolitus < 1) ja vaihtuu kun g ylittää tason; CSS = näkyvä / moottori >= 1 (ei mustia
+//   palkkeja). Asettuessa g napsahtaa tavoitteeseen, moottori = tavoite, transform pois. Ankkuri on yhä canvaksen KESKIPISTE (ei hiiren kohta).
+const KESTO = 150;   // vartijan ja RAE-vahdin ajoitukset (ei enää siirtymän kesto)
+const TAU = 80, VALMIS = 0.001, VARA = 1500;   // aikavakio ms; |ln(g / tavoite)| alle tämän = asettunut; varapudotus ms viimeisestä tikistä
+let anim = null;   // { rid, cv, c, g, G1, v1, tl, t0, raf, kaari, alkuR, omaR, vanhaT, vanhaO, ajastin }
+const alaG = g => g >= 1 ? Math.floor(g + 1e-9) : Math.pow(2, Math.floor(Math.log2(g) + 1e-9));
+const ylaG = g => { const a = alaG(g); return Math.abs(g - a) < 1e-9 ? a : (a >= 1 ? a + 1 : Math.min(1, a * 2)); };
+// näkyvä MOOTTORIskaala pelitasolle g: log-interpolaatio viereisten tasojen moottoriarvojen välillä (selainzoomin kerroin mukana, ks. moottoriTaso)
+const visE = g => { const a = alaG(g), b = ylaG(g), ea = moottoriTaso(a); if (Math.abs(g - a) < 1e-9 || a === b) return ea;
+    const eb = moottoriTaso(b); return Math.exp(Math.log(ea) + Math.log(g / a) / Math.log(b / a) * Math.log(eb / ea)); };
+const paivita = a => {   // g kohti tavoitetta kuluneen ajan verran; palauttaa näkyvän moottoriskaalan v ja moottorin tason E
+    const t = performance.now(), dt = Math.max(0, t - a.tl); a.tl = t;
+    if (a.g !== a.G1) { const g = a.g * Math.exp(Math.log(a.G1 / a.g) * (1 - Math.exp(-dt / TAU))); a.g = Math.abs(Math.log(a.G1 / g)) < VALMIS ? a.G1 : g; }
+    const valmis = a.g === a.G1;
+    return { valmis, v: valmis ? a.v1 : visE(a.g), E: valmis ? a.v1 : moottoriTaso(alaG(a.g)) };
+};
 // mittaus (vain kun tila.mittaa = true): askel = rAF (render+piirto jo ajettu tässä kehyksessä), render = render():n jälkeen (uusi piirto)
 //   HUOM: worldTransform päivittyy vasta näytön piirrossa (render() jälkeen), joten käytetään näytön PAIKALLISTA muunnosta, jonka render() asettaa.
 const mitta = (lahde, a, r) => { if (!tila.mittaa || !a) return; const d = a.c._display, t = d && d.worldTransform;
@@ -117,7 +133,6 @@ const huoneCanvas = (c, ehdokas) => {
     for (const el of document.querySelectorAll('canvas')) if (sopii(el)) return el;
     return null;
 };
-const vNyt = a => { const p = Math.min(1, (performance.now() - a.t0) / KESTO); return { p, v: a.v0 + (a.v1 - a.v0) * helpotus(p) }; };
 const sama = (x, y) => Math.abs(x - y) < 1e-9;
 const css = (a, r) => { a.cv.style.transform = 'scale(' + Math.max(1, r) + ')'; };
 const omaMuoto = v => /^scale\([\d.e+-]+\)$/.test(v || '');   // tämän skriptin kirjoittama transform-muoto
@@ -133,25 +148,25 @@ const lopeta = (a, syy) => {   // tavoite moottoriin jos ei vielä siellä, sitt
     const re = RE(); if (re && re.activeRoomId === a.rid && !sama(a.c.scale, a.v1)) zoomaaNyt(re, a.rid, a.v1);
     pudota(syy);
 };
-const vara = a => { clearTimeout(a.ajastin); a.ajastin = setTimeout(() => { if (anim === a) { tila.pehmea.varapudotuksia++; lopeta(a, 'vara'); } }, KESTO + 300); };
+const vara = a => { clearTimeout(a.ajastin); a.ajastin = setTimeout(() => { if (anim === a) { tila.pehmea.varapudotuksia++; lopeta(a, 'vara'); } }, VARA); };
 // render():n sisällä ENNEN piirtoa: moottorin vaihto + sitä vastaava CSS samaan kehykseen
 const ennenPiirtoa = a => {
     const re = RE(); if (!re || re.activeRoomId !== a.rid) { pudota('huone vaihtui'); return; }
-    const { p, v } = vNyt(a), E = a.c.scale;
-    const uusiE = (a.v1 < E && !sama(a.v1, E)) ? a.v1 : ((p >= 1 && !sama(a.v1, E)) ? a.v1 : E);   // zoom out heti, zoom in lopussa
-    if (uusiE !== E) { zoomaaNyt(re, a.rid, uusiE); tila.pehmea.moottorikutsuja++; css(a, v / a.c.scale); }
+    const { v, E } = paivita(a);   // moottori = g:n alempi taso: zoom out vaihtaa heti kun g alittaa tason, zoom in kun g saavuttaa seuraavan
+    if (!sama(E, a.c.scale)) { zoomaaNyt(re, a.rid, E); tila.pehmea.moottorikutsuja++; }
+    css(a, v / a.c.scale);
 };
 const askel = () => {
     const a = anim; if (!a) return;
-    const { p, v } = vNyt(a); css(a, v / a.c.scale); mitta('askel', a, v / a.c.scale);
-    if (p >= 1 && sama(a.c.scale, a.v1)) { pudota('valmis'); return; }
+    const { valmis, v } = paivita(a); css(a, v / a.c.scale); mitta('askel', a, v / a.c.scale);
+    if (valmis && sama(a.c.scale, a.v1)) { pudota('valmis'); return; }
     a.raf = requestAnimationFrame(askel);
 };
 // palauttaa true jos animaatio aloitettiin / kohdetta vaihdettiin
-const pehmea = (re, rid, uusi, ehdokas) => {
+const pehmea = (re, rid, uusi, ehdokas, G = null) => {   // uusi = moottorin tavoite, G = sama pelitasona (puuttuu = peliTaso(uusi))
     if (anim) {
         if (anim.rid !== rid) { pudota('huone vaihtui'); return false; }
-        const { v } = vNyt(anim); anim.v0 = v; anim.v1 = uusi; anim.t0 = performance.now(); vara(anim); tila.pehmea.uudelleenkohdistuksia++;
+        paivita(anim); anim.G1 = G != null ? G : peliTaso(uusi); anim.v1 = uusi; anim.t0 = performance.now(); vara(anim); tila.pehmea.uudelleenkohdistuksia++;   // g jatkaa siitä missä on
         if (!anim.raf) anim.raf = requestAnimationFrame(askel);
         return true;
     }
@@ -160,12 +175,12 @@ const pehmea = (re, rid, uusi, ehdokas) => {
     const cv = huoneCanvas(c, ehdokas); if (!cv) { tila.pehmea.eiCanvasta++; return false; }
     // RAE (kp 17:05-17:06 "se näkyy vaan tosi vähän aikaa se rakeisuus ... muutaman kerran se jumittu pidemmäks aikaa", pelizoomilla): jos canvakselle on jäänyt
     //   tämän skriptin muotoinen transform (edellinen instanssi kesken moottorin uudelleenkäynnistyksen tms.), sitä EI oteta palautettavaksi arvoksi
-    const a = anim = { rid, cv, c, v0: c.scale, v1: uusi, t0: performance.now(), raf: 0, ajastin: 0, vanhaT: omaMuoto(cv.style.transform) ? '' : cv.style.transform, vanhaO: omaMuoto(cv.style.transform) ? '' : cv.style.transformOrigin,
+    const a = anim = { rid, cv, c, g: peliTaso(c.scale), G1: G != null ? G : peliTaso(uusi), v1: uusi, tl: performance.now(), t0: performance.now(), raf: 0, ajastin: 0, vanhaT: omaMuoto(cv.style.transform) ? '' : cv.style.transform, vanhaO: omaMuoto(cv.style.transform) ? '' : cv.style.transformOrigin,
         omaR: Object.prototype.hasOwnProperty.call(c, 'render'), alkuR: c.render };
     a.kaari = function () {
         if (anim === a) ennenPiirtoa(a);
         const r = a.alkuR.apply(this, arguments);
-        if (anim === a) { const { p, v } = vNyt(a); mitta('render', a, v / c.scale); if (p >= 1 && sama(c.scale, a.v1)) { tila.pehmea.napsautuksia++; pudota('piirretty'); } }
+        if (anim === a) { mitta('render', a, (a.g === a.G1 ? a.v1 : visE(a.g)) / c.scale); if (a.g === a.G1 && sama(c.scale, a.v1)) { tila.pehmea.napsautuksia++; pudota('piirretty'); } }
         return r;
     };
     c.render = a.kaari;
@@ -555,7 +570,7 @@ let vahtiPoistu = () => {};
         const rivi = { v: tila.versio, laji, klo: new Date().toTimeString().slice(0, 8), rid, hyppy: [Math.round(dx), Math.round(dy)], ennen: nakyma(e), jalkeen: nakyma(n),
             dt: e && n ? Math.round(n.t - e.t) : null, dpr: VW.devicePixelRatio, kerroin: pyor(kerroin), dprPohja, ikkuna: [VW.innerWidth, VW.innerHeight, VW.outerWidth, VW.outerHeight],
             ms: { fokus: ms(vahti.fokus), blur: ms(vahti.blur), nakyvyys: ms(vahti.nakyvyys), resize: ms(vahti.resize), init: ms(vahti.init), rulla: ms(vahti.rulla), zoom: vahti.zoom ? ms(vahti.zoom.t) : null },
-            nakyvyys: document.visibilityState, fokusNyt: document.hasFocus(), siirtyma: anim ? { v0: pyor(anim.v0), v1: pyor(anim.v1) } : null, selainPurske: selainAuki(),
+            nakyvyys: document.visibilityState, fokusNyt: document.hasFocus(), siirtyma: anim ? { g: pyor(anim.g), G1: pyor(anim.G1), v1: pyor(anim.v1) } : null, selainPurske: selainAuki(),
             rullaTikit: vahti.rullaN, zoom: vahti.zoom ? { s0: vahti.zoom.s0, s1: vahti.zoom.s1 } : null, hiiri: hiiriAlas, raahaa: !!(re && re._activeRoomIsDragged), kamera: kamera(re, rid), ...lisa };
         (tila.hypyt = tila.hypyt || []).push(rivi); if (tila.hypyt.length > 20) tila.hypyt.shift();
         if (nyt() - viimeKonsoli > 1000 || laji === 'KORJAUS') { viimeKonsoli = nyt(); try { console.warn('[huone-zoom ' + laji + '] ' + JSON.stringify(rivi)); } catch (x) {} }
@@ -575,7 +590,8 @@ let vahtiPoistu = () => {};
                 if (v.cv.isConnected && (Math.abs(v.cv.width - c._width * dpr) > 2 || Math.abs(v.cv.height - c._height * dpr) > 2)) kirjaa('RAE', re, rid, n, n, 0, 0, { syy: 'backing', backing: [v.cv.width, v.cv.height], odotettu: [c._width * dpr, c._height * dpr] }); }
             const e = edell; edell = n;
             if (!e || e.rid !== rid) { huoneAlku = n.t; return; }
-            // B201 varapolku: taso tuli 1:een MILLÄ TAHANSA (myös userscript-kopio tai muu skripti, joka ei kulje zoomaaNyt/kaariS:n kautta) -> kamera synkkaan
+            // B201 varapolku: taso tuli 1:een MILLÄ TAHANSA (myös userscript-kopio tai muu skripti, joka ei kulje zoomaaNyt/kaariS:n kautta) -> kamera synkkaan.
+            //   Kattaa myös kameran ilman sijaintia (huoneeseen tultu tasolla != 1: muuten initializeLocation(0,0,0) -> offset (0,0), RoomEngine.ts:1457-1462).
             if (e.s !== 1 && n.s === 1) kameraSynk(re, rid, c);
             if (n.t - huoneAlku < 3000) return;
             const dx = (n.Rx - e.Rx) * n.s, dy = (n.Ry - e.Ry) * n.s;
