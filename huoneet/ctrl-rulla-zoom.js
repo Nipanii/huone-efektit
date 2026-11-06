@@ -22,7 +22,7 @@
 //   clientilla eikä oikealla natiivibuildillä (PR #820 ei livessä); deltaY=0 -tapahtumat ohitetaan (natiivi ohittaa myös, kortti zoomasi ulos).
 if (window.__huoneCtrlZoom) { try { window.__huoneCtrlZoom.poistu(); } catch (e) {} }
 const VW = window;
-const ASKEL = 0.5;
+const ASKEL = 1;
 const RE = () => VW.NitroDevTools && VW.NitroDevTools.roomEngine;
 const tila = VW.__huoneCtrlZoom = { versio: 'huone-0.6.0', natiivi: false, loki: [], poistu() {}, aseta: null, tilaNyt: null };
 const loki = s => { tila.loki.push(new Date().toTimeString().slice(0, 8) + ' ' + s); if (tila.loki.length > 50) tila.loki.shift(); };
@@ -47,10 +47,11 @@ const kasittele = e => {
     const nyt = performance.now(); if (nyt - viime < 120) return;   // kosketuslevyn sarja yhdeksi askeleeksi
     viime = nyt;
     const tama = re.getRoomInstanceRenderingCanvasScale(rid, 1) || 1;
-    // ei ylärajaa (kp 5.11. 01:10); ei alarajaa: 0.5:n alapuolella askel puolittaa (0.25, 0.125 ...), koska -0.5 veisi nollaan
+    // ei ylärajaa (kp 5.11. 01:10); 1:stä ylöspäin vain kokonaisluvut (kp 6.11. 13:44 "scroll zoom pitää poistaa murtoluvut, ei toimi":
+    //   sipuli mittasi 1->1.5 ja 2->2.5 ei tee mitään). Alle 1 askel puolittaa (0.5, 0.25 ...) kuten ennen.
     const ylos = e.deltaY < 0;
-    const uusi = tama > 0.5 || (ylos && tama === 0.5) ? Math.max(0.5, Math.round((tama + (ylos ? ASKEL : -ASKEL)) * 2) / 2)
-        : (ylos ? Math.min(0.5, tama * 2) : tama / 2);
+    const uusi = ylos ? (tama >= 1 ? Math.floor(tama) + ASKEL : Math.min(1, tama * 2))
+        : (tama > 1 ? Math.ceil(tama) - ASKEL : tama / 2);
     if (uusi === tama) return;
     re.setRoomInstanceRenderingCanvasScale(rid, 1, uusi, null, null, false, true);   // keskipisteeseen kuten :zoom
 };
