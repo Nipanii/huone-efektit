@@ -89,7 +89,7 @@ const peliTaso = (E, k = kerroin, t = kokoTila) => {
     return Math.round(g0 * 1000) / 1000;
 };
 const RE = () => VW.NitroDevTools && VW.NitroDevTools.roomEngine;
-const tila = VW.__huoneCtrlZoom = { versio: 'huone-0.11.0', natiivi: false, loki: [], poistu() {}, aseta: null, tilaNyt: null };
+const tila = VW.__huoneCtrlZoom = { versio: 'huone-0.11.1', natiivi: false, loki: [], poistu() {}, aseta: null, tilaNyt: null };
 // B201 (kp 6.11. 16:42 "huone välil hypähtää vasemmalle paljon ... kun zoomaan ulospäin ... pelin zoomilla", 16:47 "ei silti toistu consistently"):
 //   huonekamera (RoomEngine.updateRoomCamera, ajaa VAIN skaalalla tasan 1) kirjoittaa offsetiksi -(kameran oma sijainti) aina kun hahmo liikkuu tai canvaksen
 //   koko muuttuu. Moottori päivittää kameran sijainnin raahauksen jälkeen (handleRoomDragging MOUSE_UP: camera.resetLocation(-offset)), mutta EI zoomin
@@ -835,6 +835,9 @@ const asetaKoko = (re, rid, R, W2, H2, res, P, E = 1) => {   // rendereri + huon
         re.initializeRoomInstanceRenderingCanvas(rid, 1, w, h); } finally { PIENI.omaKoko = false; }
     re.setRoomInstanceRenderingCanvasOffset(rid, 1, { x: Math.trunc(w / 2 - (P.x + Math.trunc(w / 2)) * E), y: Math.trunc(h / 2 - (P.y + Math.trunc(h / 2)) * E) });
     const b = taustaSprite(re.getRoomInstanceRenderingCanvas(rid, 1)); if (b) { b.width = w; b.height = h; } PIENI.tausta = !!b;
+    // 0.11.1 (kp 6.11. 21:21 "välil nopee välähdys mustana", 21:23 "occasional musta flashbang pitää korjaa"): R.resize tyhjentää WebGL-puskurin,
+    //   ja jos tickerin piirto ei osu samaan kehykseen (korkea Hz / maxFPS; robolla 60 Hz 0/12 ei toistunut) tyhjä puskuri näkyy mustana. Piirretään heti.
+    try { const c2 = re.getRoomInstanceRenderingCanvas(rid, 1); if (c2 && typeof c2.render === 'function') c2.render(-1, true); if (R.lastObjectRendered) R.render(R.lastObjectRendered); } catch (e) {}
     return { w, h };
 };
 const pieniTyhja = () => { PIENI.P = null; PIENI.G = null; PIENI.E = 1; PIENI.alku = null; PIENI.rid = null; pC = null; pCv = null; clearInterval(pVahti); pVahti = 0; cancelAnimationFrame(pRaf); pRaf = 0; };
