@@ -4,7 +4,7 @@
 //   Moottori (moottori.js:66-67) ajaa tämän new Function('kupla', koodi)(api):lla ja kutsuu paluuarvoa huoneesta lähtiessä.
 //
 // MITEN: :zoom lähettää RoomZoomEvent(roomId, taso), joka päätyy RoomEngine.setRoomInstanceRenderingCanvasScale(roomId, 1, taso, ...). Askel 0.5 (0.5, 1, 1.5 ...),
-//   ei ylä- eikä alarajaa; 0.5:n alapuolella askel puolittaa/kaksinkertaistaa. wheel-kuuntelija passive:false + preventDefault estää Chromen ctrl+rulla-zoomin
+//   ei ylärajaa, alaraja 1/8 (0.7.2, musta ruutu); 0.5:n alapuolella askel puolittaa/kaksinkertaistaa. wheel-kuuntelija passive:false + preventDefault estää Chromen ctrl+rulla-zoomin
 //   vain kun tapahtuma osuu canvakseen; UI:n päällä ja ctrl +/- zoomaavat selainta kuten ennenkin. `:zoombeta [on|pois]` vaihtaa pelizoomin ja selaimen välillä
 //   (tila localStorage 'kupla.ctrlZoom', sama kuin kortissa).
 //
@@ -23,8 +23,10 @@
 if (window.__huoneCtrlZoom) { try { window.__huoneCtrlZoom.poistu(); } catch (e) {} }
 const VW = window;
 const ASKEL = 1;
+const ALIN = 0.125;   // pienin rullatessa (kp 15:16 musta ruutu: 1/128:ssa huone on 1 px ja paluumatkalla karkaa, ks. kasittele)
+let ankkuri = null;   // keskipisteen huonepiste liukulukuna omien rulla-askelten yli
 const RE = () => VW.NitroDevTools && VW.NitroDevTools.roomEngine;
-const tila = VW.__huoneCtrlZoom = { versio: 'huone-0.7.1', natiivi: false, loki: [], poistu() {}, aseta: null, tilaNyt: null };
+const tila = VW.__huoneCtrlZoom = { versio: 'huone-0.7.2', natiivi: false, loki: [], poistu() {}, aseta: null, tilaNyt: null };
 const loki = s => { tila.loki.push(new Date().toTimeString().slice(0, 8) + ' ' + s); if (tila.loki.length > 50) tila.loki.shift(); };
 let viime = 0, paalla = true, varaTimer = 0;
 try { paalla = localStorage.getItem('kupla.ctrlZoom') !== 'off'; } catch (e) {}
@@ -51,8 +53,27 @@ const kasittele = e => {
     //   sipuli mittasi 1->1.5 ja 2->2.5 ei tee mitään). Alle 1 askel puolittaa (0.5, 0.25 ...) kuten ennen.
     const ylos = e.deltaY < 0;
     const uusi = ylos ? (tama >= 1 ? Math.floor(tama) + ASKEL : Math.min(1, tama * 2))
-        : (tama > 1 ? Math.ceil(tama) - ASKEL : tama / 2);
+        : (tama > 1 ? Math.ceil(tama) - ASKEL : Math.max(ALIN, tama / 2));
     if (uusi === tama) return;
+    // MUSTA RUUTU (kp 6.11. 15:16 "ja taas tuli blackscreen"), mitattu robolla :9223 (tmp/zoom-kuplat/opus/out-e10..e12.json):
+    //   moottori laskee uuden offsetin kokonaisluku-offsetista (setter Math.trunc) ja näytön worldTransformista (toLocal), joka on vanha jos
+    //   välissä ei ole piirretty (piilotettu välilehti, raskas kehys). 1/32:ssa yksi pikseli = 32 huonepikseliä, takaisin 3:een x96:
+    //   edestakainen 6 -> 1/128 -> 6 siirsi hahmon y -796 -> -2790; 6 nopeaa askelta 0.125 -> 4 piilotetulla välilehdellä heitti huoneen ruudun ulos.
+    //   Korjaus: (1) alaraja ALIN (alle sen huone on pelkkä piste = musta ruutu); (2) keskipisteen huonepiste pidetään liukulukuna omien askelten yli
+    //   ja annetaan moottorille point, jonka toLocal juuri sen hetken (mahdollisesti vanhalla) worldTransformilla palauttaa tarkalleen sen pisteen.
+    let c = null; try { c = typeof re.getRoomInstanceRenderingCanvas === 'function' ? re.getRoomInstanceRenderingCanvas(rid, 1) : null; } catch (x) {}
+    const t = c && c._display && c._display.worldTransform;
+    let P = null, O = null;
+    if (c && t && t.a > 0 && t.d > 0 && c.scale > 0 && Number.isFinite(t.tx + t.ty + c.screenOffsetX + c.screenOffsetY) && c._width > 0 && c._height > 0) {
+        O = { x: c._width / 2, y: c._height / 2 };
+        const sama = ankkuri && ankkuri.rid === rid && ankkuri.s === c.scale && ankkuri.ox === c.screenOffsetX && ankkuri.oy === c.screenOffsetY && ankkuri.w === c._width && ankkuri.h === c._height;
+        const L = sama ? ankkuri : { x: (O.x - c.screenOffsetX) / c.scale, y: (O.y - c.screenOffsetY) / c.scale };
+        P = { x: t.a * L.x + t.c * L.y + t.tx, y: t.b * L.x + t.d * L.y + t.ty };
+        re.setRoomInstanceRenderingCanvasScale(rid, 1, uusi, P, O, false, true);
+        ankkuri = { rid, x: L.x, y: L.y, s: c.scale, ox: c.screenOffsetX, oy: c.screenOffsetY, w: c._width, h: c._height };
+        return;
+    }
+    ankkuri = null;
     re.setRoomInstanceRenderingCanvasScale(rid, 1, uusi, null, null, false, true);   // keskipisteeseen kuten :zoom
 };
 
