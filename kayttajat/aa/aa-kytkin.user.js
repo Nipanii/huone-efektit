@@ -4,9 +4,9 @@
 // @match        https://kupla.cc/*
 // @grant        none
 // @run-at       document-idle
-// @version      0.6.4
+// @version      0.7.0
 // @kupla-oletus on
-// @description  Komento :aa vaihtaa pehmennyksen (LINEAR, kuten Boon) päälle/pois. Vaihto näkyy heti, ei uudelleenlatausta. Valinta muistetaan.
+// @description  Komento :aa vaihtaa pehmennyksen päälle/pois (linear + terävöinti + roundPixels, vahvin versio). Vaihto näkyy heti, ei uudelleenlatausta. Valinta muistetaan.
 // @author       re-lab
 // ==/UserScript==
 //
@@ -19,25 +19,35 @@
 //   haetaan mistä tahansa huoneen spritestä (NitroDevTools.roomEngine), koska pixiä ei voi importata userscriptistä.
 // RAJA: vaatii huoneen (spriten) ennen kuin proto löytyy; yritetään 2 s välein. Tekstuurit joilla oma nitroFixedScaleMode-arvo
 //   (instanssikenttä) ohittavat getterin ja pysyvät ennallaan. Koskee vain tätä selainta.
+//
+// 0.7.0 (kp 21:22 "laita se :aa komentoo ja poista kaikki variantit siit komennost" · "se togglee vaa on/off meidän vahvinta versioo"):
+//   :aa on pelkkä on/off. Päällä = linear + VAHVIN terävöinti (entinen :aa7, taso 5 = VAHVUUS alla, ei gammaa) + roundPixels.
+//   Poistettu: :aa1-:aa7, auto-tila, tason tallennus. Pois palauttaa kaiken (scaleMode, suodatin, roundPixels).
+//   roundPixels kuten Boon (index-762329f4.js: ROUND_PIXELS=!0). Pixi 8: AbstractRenderer.mjs:67 this._roundPixels (vain getter
+//   `roundPixels`, ei setteriä) ja SpritePipe.mjs:39 lukee sen VAIN kun spritelle luodaan GPU-data (_initGPUSprite) -> jo olemassa
+//   olevien spritejen _gpuData[uid].roundPixels päivitetään käsin. HUOM: kupla-client asettaa jo roundPixels:true (Nitro-V3/src/App.tsx:376),
+//   joten päällä-tilassa tämä on yleensä no-op; pois-tilassa palautetaan se arvo joka renderöijällä oli ennen :aa:ta.
 (function () {
   'use strict';
   const VW = (typeof unsafeWindow !== 'undefined' && unsafeWindow) || window;
   // Moottoriversio (kayttajat.json ryhmä aa-kytkin): jos sama lisäosa on jo ajossa (kp:n loader), ei toista kertaa.
   if (VW.kuplaAA) return;
   const AVAIN = 'kupla.aa';
-  // 0.2.0 (kp 06:05 "joo lisätään"): tila on | off | auto. auto = Boonin logiikka (index-762329f4.js
-  //   SCALE_MODE = devicePixelRatio%1 ? LINEAR : NEAREST) — pehmeä vain murto-DPR:llä; sivun zoom muuttaa DPR:ää, joten resize arvioi uudelleen.
-  let tila = 'off'; try { tila = VW.localStorage.getItem(AVAIN) || 'off'; } catch (e) {}
-  const laske = () => tila === 'on' || (tila === 'auto' && (VW.devicePixelRatio || 1) % 1 !== 0);
+  // 0.7.0: vain on | off. Vanha 'auto' (0.2.0-0.4.x) luetaan pois-tilaksi.
+  let tila = 'off'; try { tila = VW.localStorage.getItem(AVAIN) === 'on' ? 'on' : 'off'; } catch (e) {}
+  const laske = () => tila === 'on';
   let paalla = laske();
   let asennettu = false;
 
   // Kaikki huoneen näkymän tekstuurit. Mitattu robolla 05:58 (DPR 1.5, 683 tekstuuria): pelkkä getter vaihtoi vain 1/683, koska
   //   staattinen huone ei sido tekstuureja uudelleen -> vaihdossa käydään kaikki läpi ja päivitetään suoraan.
-  function lahteet() {
-    const RE = VW.NitroDevTools && VW.NitroDevTools.roomEngine; if (!RE || !RE.getRoomInstanceRenderingCanvas) return [];
+  function huoneJuuri() {
+    const RE = VW.NitroDevTools && VW.NitroDevTools.roomEngine; if (!RE || !RE.getRoomInstanceRenderingCanvas) return null;
     let c = null; try { c = RE.getRoomInstanceRenderingCanvas(RE.activeRoomId, 1); } catch (e) {}
-    const juuri = c && (c.master || c._master); if (!juuri) return [];
+    return (c && (c.master || c._master)) || null;
+  }
+  function lahteet() {
+    const juuri = huoneJuuri(); if (!juuri) return [];
     const seen = new Set(), S = new Set();
     const walk = (o, d) => { if (!o || d > 15 || seen.has(o)) return; seen.add(o);
       if (o.texture && o.texture.source && o.texture.source.style) S.add(o.texture.source);
@@ -60,6 +70,35 @@
     return n;
   }
 
+  // roundPixels (0.7.0). Renderöijä ei ole julkinen: huonekanvaksen juuren parentRenderGroup -> instructionSet.renderPipes -> sprite._renderer
+  //   (mitattu robolla 21:2x, Pixi 8.19). Alkuperäinen arvo muistetaan VW:hen, jotta kuumapäivitys ei kadota sitä.
+  function renderoija() {
+    const juuri = huoneJuuri(), rg = juuri && juuri.parentRenderGroup; if (!rg) return null;
+    const hae = g => { const rp = g && g.instructionSet && g.instructionSet.renderPipes;
+      return (rp && ((rp.sprite && rp.sprite._renderer) || (rp.graphics && rp.graphics.renderer))) || null; };
+    let r = hae(rg);
+    if (!r) for (const ch of rg.renderGroupChildren || []) { r = hae(ch); if (r) break; }
+    return r && '_roundPixels' in r ? r : null;
+  }
+  // Pixi lukee renderöijän lipun vain kun spritelle luodaan GPU-data, joten olemassa olevat spritet päivitetään itse.
+  function kierrosRP(arvo) {
+    const r = renderoija(); if (!r) return false;
+    if (r._roundPixels === arvo) return true;
+    r._roundPixels = arvo;
+    const juuri = huoneJuuri(), seen = new Set();
+    const walk = (o, d) => { if (!o || d > 15 || seen.has(o)) return; seen.add(o);
+      const g = o._gpuData && o._gpuData[r.uid];
+      if (g && 'roundPixels' in g) { g.roundPixels = arvo | (o._roundPixels ? 1 : 0); o.onViewUpdate && o.onViewUpdate(); }
+      (o.children || []).forEach(ch => walk(ch, d + 1)); };
+    walk(juuri, 0);
+    return true;
+  }
+  function roundPixels() {
+    const r = renderoija(); if (!r) return;
+    if (paalla) { if (VW.__kuplaAAedRP === undefined) VW.__kuplaAAedRP = r._roundPixels; kierrosRP(1); }
+    else if (VW.__kuplaAAedRP !== undefined) { if (kierrosRP(VW.__kuplaAAedRP)) VW.__kuplaAAedRP = undefined; }
+  }
+
   function asenna() {
     if (asennettu) return true;
     const P = etsiProto(); if (!P) return false;
@@ -74,34 +113,26 @@
       set(v) { Object.defineProperty(this, 'nitroFixedScaleMode', { value: v, writable: true, configurable: true }); } });
     asennettu = true; return true;
   }
-  const ajastin = setInterval(() => { if (asenna()) { clearInterval(ajastin); if (paalla) pyyhi(); } }, 2000);
+  const ajastin = setInterval(() => { if (asenna()) { clearInterval(ajastin); if (paalla) { pyyhi(); roundPixels(); } } }, 2000);
 
-  // 0.3.0 (kp 06:38 "erillinen kerros joka tuo jotain takas" · 06:39 "laita :aaN variantit"): terävöinti pehmennyksen päälle.
-  //   SVG feConvolveMatrix huonecanvasille (CSS filter), taso 0-5 = reunojen paino. Mitattu robolla 06:39: 56 fps suodattimella.
-  const TAVAIN = 'kupla.aa.teravyys', K = [0, 0.1, 0.2, 0.35, 0.5, 0.75];
-  // 0.5.0 (kp 06:58 "aa = sama ku boon" · "aa<N> on sit meidän variaatiot"): taso -1 = puhdas Boon (pelkkä linear, ei suodatinta),
-  //   0-5 = oma variaatio (gamma + terävöinti N). :aa / :aa on / :aa auto asettavat aina -1.
-  let teravyys = -1; try { const v = VW.localStorage.getItem(TAVAIN); if (v !== null && v !== '') teravyys = Math.max(-1, Math.min(5, +v)); if (isNaN(teravyys)) teravyys = -1; } catch (e) {}
+  // Terävöinti pehmennyksen päälle (0.3.0): SVG feConvolveMatrix huonecanvasille (CSS filter), kerroin = reunojen paino.
+  // 0.7.0: yksi kiinteä taso = entisen :aa7:n (sisäinen taso 5) kerroin. Gamma poistettu (se oli vain entisessä :aa2:ssa).
+  const VAHVUUS = 0.75;
   function huoneCanvas() {
     let paras = null, a = 0;
     for (const c of document.querySelectorAll('canvas')) { const x = c.clientWidth * c.clientHeight; if (x > a) { a = x; paras = c; } }
     return paras;
   }
-  // 0.4.0 (kp 06:44 "blendaa nii et vaalentaa eikä tummenna"): linear sekoittaa sRGB-arvoja, joten tummat ääriviivat leviävät ja kuva
-  //   tummuu. Gamma < 1 nostaa keskisävyjä (likimain sekoitus lineaarisessa valossa), aina kun pehmennys on päällä.
-  const GAMMA = 0.94; // 0.4.3: 0.85 oli kp:lle "överi kirkas" (06:57)
   function teravoita() {
-    const vari = paalla && teravyys >= 0, k = vari ? K[teravyys] : 0;
+    const vari = paalla, k = vari ? VAHVUUS : 0;
     let d = document.getElementById('kupla-aa-svg');
     if (vari && !d) {
       d = document.createElement('div'); d.id = 'kupla-aa-svg'; d.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden';
-      const g = `type="gamma" amplitude="1" offset="0" exponent="${ GAMMA }"`;
-      d.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg"><filter id="kupla-teravoita" color-interpolation-filters="sRGB"><feComponentTransfer><feFuncR ${ g }/><feFuncG ${ g }/><feFuncB ${ g }/></feComponentTransfer><feConvolveMatrix order="3" preserveAlpha="true"/></filter></svg>`;
+      d.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg"><filter id="kupla-teravoita" color-interpolation-filters="sRGB"><feComponentTransfer><feFuncR type="gamma" amplitude="1" offset="0" exponent="1"/><feFuncG type="gamma" amplitude="1" offset="0" exponent="1"/><feFuncB type="gamma" amplitude="1" offset="0" exponent="1"/></feComponentTransfer><feConvolveMatrix order="3" preserveAlpha="true"/></filter></svg>';
       document.body.appendChild(d);
     }
-    // 0.4.4: SVG jää sivulle versiosta toiseen -> gamma asetetaan joka kierroksella, ei vain luodessa
-    // 0.6.2 (kp 07:01 "ei saa gamma juttuu pois et koittaa vaa terävöintii"): gamma vain :aa2:ssa, :aa3-7 pelkkä terävöinti.
-    if (d) d.querySelectorAll('feFuncR,feFuncG,feFuncB').forEach(e => e.setAttribute('exponent', String(teravyys === 0 ? GAMMA : 1)));
+    // 0.4.4: SVG jää sivulle versiosta toiseen (vanhassa voi olla gamma) -> exponent asetetaan joka kierroksella, ei vain luodessa
+    if (d) d.querySelectorAll('feFuncR,feFuncG,feFuncB').forEach(e => e.setAttribute('exponent', '1'));
     if (d) d.querySelector('feConvolveMatrix').setAttribute('kernelMatrix', `0 ${ -k } 0 ${ -k } ${ 1 + 4 * k } ${ -k } 0 ${ -k } 0`);
     // 0.4.1 (kp 06:46 "vilkkuu edellee"): suodatin WebGL-canvasille itselleen vilkkui -> vanhemman divin kerrokselle.
     const c0 = huoneCanvas(); if (!c0) return;
@@ -113,7 +144,7 @@
   // 0.4.2 (kp 06:47 "sekunnin välein välähtää"): moottorin kuumapäivitys jätti vanhan version ajastimet henkiin, ja kaksi versiota
   //   kirjoitti suodatinta vuorotellen. Sukupolvi: uusi ajo kasvattaa laskuria, vanhan ajastin pysähtyy itse.
   const SUKU = VW.__kuplaAAsuku = (VW.__kuplaAAsuku || 0) + 1;
-  const ajastinT = setInterval(() => { if (VW.__kuplaAAsuku !== SUKU) return clearInterval(ajastinT); teravoita(); }, 2000);
+  const ajastinT = setInterval(() => { if (VW.__kuplaAAsuku !== SUKU) return clearInterval(ajastinT); teravoita(); if (paalla) roundPixels(); }, 2000);
 
   // 0.6.4 (kp 07:04 "komennon pitäs sanoo mitkä settings menee pääl samanlail ku wired messaget näkyy vaa itel"): yksi chattirivi vain itselle.
   //   Pelin oma RSCE_CHAT_EVENT (RoomSessionChatEvent, kuten DiscordRuntime.ts:119) globaaliin tapahtumajakajaan; ei lähde palvelimelle.
@@ -127,27 +158,18 @@
       return true;
     } catch (e) { return false; }
   }
-  function aseta(uusi, taso) {
+  function aseta(uusi) {
     tila = uusi; paalla = laske(); try { VW.localStorage.setItem(AVAIN, tila); } catch (e) {}
-    if (taso !== undefined) { teravyys = taso; try { VW.localStorage.setItem(TAVAIN, String(taso)); } catch (e) {} }
-    asenna(); const n = pyyhi(); teravoita();
-    omaRivi(!paalla ? 'aa: pois' : teravyys < 0 ? 'aa: aa päällä (kuten Boon, linear)'
-      : 'aa: aa' + (teravyys + 2) + ' päällä (' + (teravyys ? 'terävöinti ' + teravyys : 'gamma ' + GAMMA) + ')');
-    const nimi = tila === 'auto' ? 'AUTO (DPR ' + (VW.devicePixelRatio || 1) + ' -> ' + (paalla ? 'pehmeä' : 'terävä') + ')'
-      : (paalla ? 'PÄÄLLÄ (pehmeä, linear)' : 'POIS (terävä, nearest)');
-    return 'AA ' + nimi + (paalla && teravyys >= 0 ? ' · :aa' + (teravyys + 2) + (teravyys ? ' (terävöinti ' + teravyys + ')' : ' (gamma)') : (paalla ? ' · kuten Boon' : '')) + (asennettu ? ' · ' + n + ' tekstuuria' : ' — odottaa huonetta');
+    asenna(); const n = pyyhi(); roundPixels(); teravoita();
+    omaRivi(paalla ? 'aa: päällä (linear + terävöinti + roundPixels)' : 'aa: pois');
+    return 'AA ' + (paalla ? 'PÄÄLLÄ (linear + terävöinti ' + VAHVUUS + ' + roundPixels)' : 'POIS (terävä, nearest)') + (asennettu ? ' · ' + n + ' tekstuuria' : ' — odottaa huonetta');
   }
-  VW.addEventListener('resize', () => { const p = laske(); if (p !== paalla) { paalla = p; pyyhi(); teravoita(); } });
-  // 0.5.1 (kp 06:58 "kirjottamal saman komennon uusiks"): sama :aaN uudestaan sammuttaa.
-  const vaihdaN = t => (paalla && teravyys === t) ? aseta('off', -1) : aseta('on', t);
-  // 0.6.0 (kp 06:59 "miks aa0 alkaen, aa2 on seuraava"): :aa = :aa1 = Boon, omat alkavat :aa2:sta (sisäinen taso = N - 2).
-  for (let t = 0; t <= 5; t++) (VW.kuplaKomennotJono = VW.kuplaKomennotJono || []).push([['aa' + (t + 2)], () => vaihdaN(t),
-    'pehmennys + ' + (t ? 'terävöinti ' + t : 'gamma'), 'AA-kytkin']);
-  (VW.kuplaKomennotJono = VW.kuplaKomennotJono || []).push([['aa', 'aa1'],
-    // 0.5.0 (kp 06:58 "ei autoo, ei aa on aa off · on vaa :aa toggle on/off")
-    // 0.6.1 (kp 07:00 "aa off kans vaihtoehtona"): :aa off sammuttaa aina, mikä tahansa variaatio päällä.
-    (teksti, sanat) => /^(off|pois)$/i.test(sanat[0] || '') ? aseta('off', -1) : aseta(paalla ? 'off' : 'on', -1),
-    'pehmennys kuten Boon: :aa päälle/pois · :aa off sammuttaa kaiken · omat variaatiot :aa2 ... :aa7 (yksi kerrallaan)', 'AA-kytkin']);
+  // 0.7.0: sivun zoom muuttaa DPR:ää ja kuvan skaalaa, mutta tila ei riipu siitä -> resize-kuuntelijaa ei enää tarvita (auto poistui).
+
+  // :aa = päälle/pois, :aa off / :aa pois = sammuttaa aina.
+  (VW.kuplaKomennotJono = VW.kuplaKomennotJono || []).push([['aa'],
+    (teksti, sanat) => /^(off|pois)$/i.test(sanat[0] || '') ? aseta('off') : aseta(paalla ? 'off' : 'on'),
+    'pehmennys: :aa päälle/pois (linear + terävöinti + roundPixels) · :aa off sammuttaa', 'AA-kytkin']);
   // Ilman kuplaKomennot-lisäosaa (Res): oma Enter-käsittelijä kuten wired-piilo.user.js.
   const komennotHoitaa = n => { try { return !!(VW.kuplaKomennot && VW.kuplaKomennot.lista().some(k => k.nimet.includes(n))); } catch (e) { return false; } };
   function ilmoita(teksti) {
@@ -158,12 +180,11 @@
   document.addEventListener('keydown', ev => {
     if (ev.key !== 'Enter' || ev.isComposing || VW.__kuplaAAsuku !== SUKU) return;
     const t = ev.target; if (!t || (t.tagName !== 'INPUT' && t.tagName !== 'TEXTAREA')) return;
-    const m = /^\s*:aa([1-7])?(?:\s+(\S+))?\s*$/i.exec(t.value || ''); if (!m || komennotHoitaa('aa' + (m[1] || ''))) return;
+    const m = /^\s*:aa(?:\s+(\S+))?\s*$/i.exec(t.value || ''); if (!m || komennotHoitaa('aa')) return;
     ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation();
     try { const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(t), 'value').set;
       setter.call(t, ''); t.dispatchEvent(new Event('input', { bubbles: true })); } catch (err) { t.value = ''; }
-    if (m[1] !== undefined) return ilmoita(+m[1] === 1 ? aseta(paalla ? 'off' : 'on', -1) : vaihdaN(+m[1] - 2));
-    ilmoita(/^(off|pois)$/i.test(m[2] || '') ? aseta('off', -1) : aseta(paalla ? 'off' : 'on', -1));
+    ilmoita(/^(off|pois)$/i.test(m[1] || '') ? aseta('off') : aseta(paalla ? 'off' : 'on'));
   }, true);
-  VW.kuplaAA = { versio: '0.6.4', pois: () => { VW.__kuplaAAsuku++; }, aseta, tila: () => ({ tila, paalla, asennettu, dpr: VW.devicePixelRatio }) };
+  VW.kuplaAA = { versio: '0.7.0', pois: () => { VW.__kuplaAAsuku++; }, aseta, tila: () => ({ tila, paalla, asennettu, dpr: VW.devicePixelRatio }) };
 })();
