@@ -9,7 +9,8 @@
 const e0 = window.NitroDevTools && window.NitroDevTools.roomEngine;
 const huone = (kupla && kupla.roomId && kupla.roomId()) || (e0 && e0.activeRoomId);
 const tila = window.myrsky424 = { versio: 'huone-424-myrsky', huone, ajossa: false, loki: [] };
-const V = (() => { try { const a = e0.getRoomObjects(huone, 10)[0] || e0.getRoomObjects(huone, 100)[0]; return a && a.getLocation().constructor; } catch (x) { return undefined; } })();
+// V haetaan laiskasti (kp 6.11. 19:02 "tornado ei tullu"): välimuistista huoneeseen tullessa käynnistyvä skripti näki tyhjän huoneen, V jäi undefinediksi ja aja() kieltäytyi hiljaa
+let V; const haeV = () => V || (V = (() => { try { const a = e0.getRoomObjects(huone, 10)[0] || e0.getRoomObjects(huone, 100)[0]; return a && a.getLocation().constructor; } catch (x) { return undefined; } })());
 // 424:n lattiapeite (kupla_pokemon_grass 206 kpl, kasja_g2_sstonepath 118, hc23_3-laatat, matot) jää maahan: muuten satoja litteitä ruutuja lentäisi mukana. Muut esineet (tuolit, tyynyt, lamput) lentävät.
 const OHITA = /^(conf_|hole|nyc_c23_building|nyc_c23_firestairs|kupla_pokemon_grass|kasja_g2_sstonepath|hc23_3|bling11_rug|rare_daffodil_rug)/;
 const R = 2.4, LEPO = 5000;
@@ -123,7 +124,7 @@ const lopeta = () => { if (ajo) ajo.kaynnissa = false; tila.ajossa = false; kehy
   for (const k of roska.values()) if (!k.irti && sama(k.o.getLocation(), k.viime)) k.o.setLocation(new V(k.a0.x, k.a0.y, k.a0.z));
   roska.clear(); };
 
-tila.aja = (ohi = 0) => { if (!e0 || !V || (ajo && ajo.kaynnissa) || ohi >= T_HUIPPU) return false;
+tila.aja = (ohi = 0) => { if (!e0 || !haeV() || (ajo && ajo.kaynnissa) || ohi >= T_HUIPPU) { tila.loki.push({ ajo: 'kielto', syy: !e0 ? 'e0' : !V ? 'V' : (ajo && ajo.kaynnissa) ? 'kaynnissa' : 'myohassa', t: new Date().toTimeString().slice(0, 8) }); return false; }
   kavelyEsto(); ajo = { alku: performance.now() - ohi, kaynnissa: true }; tila.ajossa = true;
   tila.loki.push({ ajo: 'alku', ohi: Math.round(ohi), t: new Date().toTimeString().slice(0, 8) });
   kehys = document.hidden ? setTimeout(askel, 30) : requestAnimationFrame(askel); return true; };

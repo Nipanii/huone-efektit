@@ -88,7 +88,8 @@ const kaynnistaMyrsky = (alku, nyt) => {
   if (!alku || soitetut.has(alku)) return;
   const ohi = nyt - alku; if (ohi > MYRSKY_KESTO) return;   // vanha
   soitetut.add(alku);
-  const ajaNyt = () => { try { const m = window.myrsky424; if (m && m.aja) m.aja(Math.max(0, ohi < 0 ? 0 : ohi)); } catch (x) { tila.loki.push(String(x)); } };
+  // kielletty käynnistys ei kuluta tätä myrskyä (6.11.): seuraava pollaus yrittää uudelleen niin kauan kuin myrsky on kesken
+  const ajaNyt = () => { try { const m = window.myrsky424; if (!(m && m.aja && m.aja(Math.max(0, ohi < 0 ? 0 : ohi)))) soitetut.delete(alku); } catch (x) { soitetut.delete(alku); tila.loki.push(String(x)); } };
   if (ohi >= 0) return ajaNyt();
   const a = setTimeout(() => { myrskyAjastimet.delete(a); ajaNyt(); }, -ohi); myrskyAjastimet.add(a);
 };
