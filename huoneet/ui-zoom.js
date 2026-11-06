@@ -5,14 +5,15 @@
   'use strict';
   const VW = (typeof unsafeWindow !== 'undefined' && unsafeWindow) || window;
   if (VW.kuplaUiZoom) return () => {};   // jo ajossa (loader tai kp:n oma)
-  const VERSIO = '0.1.0';
+  const VERSIO = '0.1.1';
   const AVAIN = 'kupla.uiZoom', TYYLI_ID = 'kupla-ui-zoom-tyyli', MUUTTUJA = '--kupla-ui-zoom';
   const MIN = 0.5, MAX = 2.5, ASKEL = 0.1;
   const RAJAUS = x => Math.min(MAX, Math.max(MIN, Math.round(x * 100) / 100));
   const PUU = 'main.nitro-client > div > div > ';
   const HUD = '--hud-toolbar-height';
   const SAANTO = [PUU + '.nitro-toolbar', PUU + '.side-toolbar', PUU + '.side-toolbar-upside', PUU + '.nitro-left-side', PUU + '.nitro-right-side',
-    PUU + '.mobile-friend-bar-container', PUU + '.wired-menu-root', '#draggable-windows-container > .draggable-window > *'].join(',\n') + ' { zoom: var(' + MUUTTUJA + '); }\n' +
+    PUU + '.mobile-friend-bar-container', PUU + '.wired-menu-root', '#draggable-windows-container > .draggable-window > *',
+    '.nitro-chat-widget > .bubble-container > *'].join(',\n') + ' { zoom: var(' + MUUTTUJA + '); }\n' +
     // ToolbarView.tsx:50 mittaa toolbarin getBoundingClientRect().height (zoomattu) -> --hud-toolbar-height (main) ja ToolbarView.scss:32 antaa sen takaisin toolbarin
     //   height:ksi, jonka zoom kertoo uudestaan -> ResizeObserver mittaa uudestaan: eksponentiaalinen kasvu (mitattu 1.5: 1452 px, 2.5: 129 700 px, jäi jumiin zoomin poistonkin jälkeen).
     //   Jaetaan zoomilla: mitattu = var -> kiintopiste. Pohjakorkeus = tyylitiedoston --hud-toolbar-height (.nitro-client, 85 px); tason vaihtuessa var asetetaan arvoon pohja * taso (ks. hudAseta).

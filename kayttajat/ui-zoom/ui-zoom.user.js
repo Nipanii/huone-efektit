@@ -4,7 +4,7 @@
 // @match        https://kupla.cc/*
 // @grant        none
 // @run-at       document-idle
-// @version      0.1.0
+// @version      0.1.1
 // @kupla-oletus on
 // @description  Ctrl+rulla (ei pelialueen päällä) ja Ctrl +/-/0 zoomaavat vain käyttöliittymää CSS:llä, ei selainta: DPR pysyy ja pelikuva terävänä. Taso muistetaan.
 // @author       re-lab
@@ -15,6 +15,7 @@
 //   UI:n zoomaus CSS:llä jättää DPR:n ja canvaksen ennalleen.
 // MITEN: CSS `zoom` (Chrome 128+: getBoundingClientRect ja clientX ovat yhtäpitäviä zoomin kanssa) UI-säiliöille tyylisäännöllä, joka asennetaan vain kun taso != 1
 //   (taso 1 = ei tyylielementtiä lainkaan). Taso CSS-muuttujassa --kupla-ui-zoom (:root).
+// 0.1.1 (kp 6.11. 23:04 "ei toimi kupliin"): chat-kuplien SISÄLTÖ zoomataan (.bubble-container > *), kontaineri ei: sen left/top on pelin koordinaateissa, joten kupla pysyy puhujan kohdalla ja kasvaa vasemmasta yläkulmastaan.
 //   Zoomataan (main.nitro-client > div > div > ...): nitro-toolbar, side-toolbar, side-toolbar-upside, nitro-left-side, nitro-right-side,
 //   mobile-friend-bar-container, wired-menu-root, sekä ikkunoiden SISÄLTÖ (#draggable-windows-container > .draggable-window > *).
 //   EI zoomata: roomView-background (canvas + chat-kuplat + huonewidgetit: ne ovat canvaksen koordinaateissa), body-tason overlayt
@@ -30,14 +31,15 @@
   'use strict';
   const VW = (typeof unsafeWindow !== 'undefined' && unsafeWindow) || window;
   if (VW.kuplaUiZoom) return;   // jo ajossa (loader tai kp:n oma)
-  const VERSIO = '0.1.0';
+  const VERSIO = '0.1.1';
   const AVAIN = 'kupla.uiZoom', TYYLI_ID = 'kupla-ui-zoom-tyyli', MUUTTUJA = '--kupla-ui-zoom';
   const MIN = 0.5, MAX = 2.5, ASKEL = 0.1;
   const RAJAUS = x => Math.min(MAX, Math.max(MIN, Math.round(x * 100) / 100));
   const PUU = 'main.nitro-client > div > div > ';
   const HUD = '--hud-toolbar-height';
   const SAANTO = [PUU + '.nitro-toolbar', PUU + '.side-toolbar', PUU + '.side-toolbar-upside', PUU + '.nitro-left-side', PUU + '.nitro-right-side',
-    PUU + '.mobile-friend-bar-container', PUU + '.wired-menu-root', '#draggable-windows-container > .draggable-window > *'].join(',\n') + ' { zoom: var(' + MUUTTUJA + '); }\n' +
+    PUU + '.mobile-friend-bar-container', PUU + '.wired-menu-root', '#draggable-windows-container > .draggable-window > *',
+    '.nitro-chat-widget > .bubble-container > *'].join(',\n') + ' { zoom: var(' + MUUTTUJA + '); }\n' +
     // ToolbarView.tsx:50 mittaa toolbarin getBoundingClientRect().height (zoomattu) -> --hud-toolbar-height (main) ja ToolbarView.scss:32 antaa sen takaisin toolbarin
     //   height:ksi, jonka zoom kertoo uudestaan -> ResizeObserver mittaa uudestaan: eksponentiaalinen kasvu (mitattu 1.5: 1452 px, 2.5: 129 700 px, jäi jumiin zoomin poistonkin jälkeen).
     //   Jaetaan zoomilla: mitattu = var -> kiintopiste. Pohjakorkeus = tyylitiedoston --hud-toolbar-height (.nitro-client, 85 px); tason vaihtuessa var asetetaan arvoon pohja * taso (ks. hudAseta).
