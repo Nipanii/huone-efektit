@@ -103,6 +103,18 @@
           "globaali": "kuplaAA"
         }
       ]
+    },
+    {
+      "nimi": "ui-zoom",
+      "kayttajat": [
+        282
+      ],
+      "skriptit": [
+        {
+          "polku": "kayttajat/ui-zoom/ui-zoom.user.js",
+          "globaali": "kuplaUiZoom"
+        }
+      ]
     }
   ]
 }
