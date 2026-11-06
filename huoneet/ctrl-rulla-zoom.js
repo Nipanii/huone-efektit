@@ -26,7 +26,7 @@ const ASKEL = 1;
 const ALIN = 0.125;   // pienin rullatessa (kp 15:16 musta ruutu: 1/128:ssa huone on 1 px ja paluumatkalla karkaa, ks. kasittele)
 let ankkuri = null;   // keskipisteen huonepiste liukulukuna omien rulla-askelten yli
 const RE = () => VW.NitroDevTools && VW.NitroDevTools.roomEngine;
-const tila = VW.__huoneCtrlZoom = { versio: 'huone-0.7.2', natiivi: false, loki: [], poistu() {}, aseta: null, tilaNyt: null };
+const tila = VW.__huoneCtrlZoom = { versio: 'huone-0.8.0', natiivi: false, loki: [], poistu() {}, aseta: null, tilaNyt: null };
 const loki = s => { tila.loki.push(new Date().toTimeString().slice(0, 8) + ' ' + s); if (tila.loki.length > 50) tila.loki.shift(); };
 let viime = 0, paalla = true, varaTimer = 0;
 try { paalla = localStorage.getItem('kupla.ctrlZoom') !== 'off'; } catch (e) {}
@@ -48,13 +48,89 @@ const kasittele = e => {
     e.preventDefault();
     const nyt = performance.now(); if (nyt - viime < 120) return;   // kosketuslevyn sarja yhdeksi askeleeksi
     viime = nyt;
-    const tama = re.getRoomInstanceRenderingCanvasScale(rid, 1) || 1;
+    // animaation aikana askel lasketaan tavoitteesta, ei moottorin skaalasta (nopeat askeleet kertyvät yhdeksi moottorikutsuksi)
+    const tama = anim ? (anim.jono || anim.tavoite) : (re.getRoomInstanceRenderingCanvasScale(rid, 1) || 1);
     // ei ylärajaa (kp 5.11. 01:10); 1:stä ylöspäin vain kokonaisluvut (kp 6.11. 13:44 "scroll zoom pitää poistaa murtoluvut, ei toimi":
     //   sipuli mittasi 1->1.5 ja 2->2.5 ei tee mitään). Alle 1 askel puolittaa (0.5, 0.25 ...) kuten ennen.
     const ylos = e.deltaY < 0;
     const uusi = ylos ? (tama >= 1 ? Math.floor(tama) + ASKEL : Math.min(1, tama * 2))
         : (tama > 1 ? Math.ceil(tama) - ASKEL : Math.max(ALIN, tama / 2));
     if (uusi === tama) return;
+    if (pehmea(re, rid, uusi, e.target)) return;
+    zoomaaNyt(re, rid, uusi);
+};
+
+// ---- PEHMEÄ ZOOM (0.8.0, kp 6.11. ~15:00 "smooth-feeling zoom instead of the hard jump") ----
+// MIKSI: moottori piirtää vain kokonaislukuskaaloja >= 1 (ja puolikkaita alle 1), joten askel on kova hyppy.
+// MITEN: rulla-askel animoi huonecanvaksen CSS transformia (scale, ~150 ms, ease-out) vanhasta näkyvästä skaalasta kohti uutta, origona piste jonka
+//   moottori pitää paikallaan (canvaksen keskipiste _width/2, _height/2 = setScalen offsetPoint). Nopeat askeleet vaihtavat käynnissä olevan animaation
+//   tavoitetta (yksi moottorikutsu lopussa). Lopussa zoomaaNyt (0.7.2:n liukulukukeskipiste) ja transform pudotetaan canvaksen OMAN render()-kutsun
+//   sisällä heti kun se on piirtänyt uuden skaalan: mitattu robolla :9223 kehyksen järjestys on render() -> ruudun piirto -> muut rAF:t
+//   ("CTTTTTTTTS|CS|CS|", C = RoomSpriteCanvas.render, S = näytön piirto), joten pudotus ja uusi kuva näkyvät samassa kehyksessä.
+//   Kuplat pysyvät animaation ajan paikallaan ja siirtyvät puhujan kohdalle lopun oikeassa zoomissa (kaariS -> seuraa).
+// VARA: jos huonecanvasta ei löydy DOMista (leveys != _width*dpr) tai render() ei aja 300 ms sisällä (piilotettu välilehti), transform
+//   pudotetaan silti ja zoom on kuten 0.7.2. Selaimen resize kesken animaation: animaatio päätetään heti.
+const KESTO = 150;
+let anim = null;   // { rid, cv, c, perus, alku, loppu, t0, tavoite, raf, jono, odottaa, vanhaT, vanhaO, ajastin }
+const helpotus = p => 1 - Math.pow(1 - p, 3);
+// mittaus (vain kun tila.mittaa = true): yksi rivi per koottu kehys. askel = rAF (render+piirto jo ajettu tässä kehyksessä), piirretty = render() uudella skaalalla
+//   HUOM: worldTransform päivittyy vasta näytön piirrossa (render() jälkeen), joten käytetään näytön PAIKALLISTA muunnosta, jonka render() asettaa.
+const mitta = (lahde, a, r) => { if (!tila.mittaa || !a) return; const d = a.c._display, t = d && d.worldTransform;
+    (tila.mitat = tila.mitat || []).push({ t: +performance.now().toFixed(1), lahde, r, s: a.c.scale, wt: d ? [d.scale.x, d.x, d.y] : null, maailma: t ? [t.a, t.tx, t.ty] : null, off: [a.c.screenOffsetX, a.c.screenOffsetY] }); };
+const huoneCanvas = (c, ehdokas) => {
+    const dpr = VW.devicePixelRatio || 1, sopii = el => el instanceof HTMLCanvasElement && Math.abs(el.width - c._width * dpr) <= 2 && Math.abs(el.height - c._height * dpr) <= 2;
+    if (sopii(ehdokas)) return ehdokas;
+    for (const el of document.querySelectorAll('canvas')) if (sopii(el)) return el;
+    return null;
+};
+const pudota = (syy) => {
+    const a = anim; if (!a) return; anim = null;
+    cancelAnimationFrame(a.raf); clearTimeout(a.ajastin);
+    if (a.kaari && a.c.render === a.kaari) { if (a.omaR) a.c.render = a.alkuR; else delete a.c.render; }
+    a.cv.style.transform = a.vanhaT; a.cv.style.transformOrigin = a.vanhaO;
+    tila.pehmea.viimeisin = syy;
+    if (a.jono && syy === 'piirretty') { const re = RE(); if (re && re.activeRoomId === a.rid) pehmea(re, a.rid, a.jono, a.cv) || zoomaaNyt(re, a.rid, a.jono); }
+};
+const napsauta = () => {
+    const a = anim, re = RE(); if (!a || !re) return pudota('ei moottoria');
+    if (re.activeRoomId !== a.rid) return pudota('huone vaihtui');
+    a.odottaa = true;
+    const c = a.c, omaR = Object.prototype.hasOwnProperty.call(c, 'render'), alkuR = c.render;
+    const kaari = function () { const r = alkuR.apply(this, arguments); if (anim === a && c.scale === a.tavoite) { tila.pehmea.napsautuksia++; mitta('piirretty', a, 1); pudota('piirretty'); } return r; };
+    if (typeof alkuR === 'function') { a.omaR = omaR; a.alkuR = alkuR; a.kaari = kaari; c.render = kaari; }
+    zoomaaNyt(re, a.rid, a.tavoite);
+    a.ajastin = setTimeout(() => { if (anim === a) { tila.pehmea.varapudotuksia++; pudota('vara 300 ms'); } }, 300);
+};
+const askel = () => {
+    const a = anim; if (!a || a.odottaa) return;
+    const p = Math.min(1, (performance.now() - a.t0) / KESTO);
+    a.nyt = a.alku + (a.loppu - a.alku) * helpotus(p);
+    a.cv.style.transform = 'scale(' + a.nyt + ')';
+    mitta('askel', a, a.nyt);
+    if (p < 1) a.raf = requestAnimationFrame(askel); else napsauta();
+};
+// palauttaa true jos animaatio aloitettiin / kohdetta vaihdettiin
+const pehmea = (re, rid, uusi, ehdokas) => {
+    if (anim) {
+        if (anim.rid !== rid) { pudota('huone vaihtui'); return false; }
+        if (anim.odottaa) { anim.jono = uusi; return true; }   // moottori jo kutsuttu, uusi askel alkaa kun pudotus on piirretty
+        anim.alku = anim.nyt; anim.loppu = uusi / anim.perus; anim.tavoite = uusi; anim.t0 = performance.now(); tila.pehmea.uudelleenkohdistuksia++; return true;
+    }
+    let c = null; try { c = typeof re.getRoomInstanceRenderingCanvas === 'function' ? re.getRoomInstanceRenderingCanvas(rid, 1) : null; } catch (x) {}
+    if (!c || !(c.scale > 0) || !(c._width > 0) || !(c._height > 0) || typeof c.render !== 'function') return false;
+    const cv = huoneCanvas(c, ehdokas); if (!cv) { tila.pehmea.eiCanvasta++; return false; }
+    anim = { rid, cv, c, perus: c.scale, alku: 1, nyt: 1, loppu: uusi / c.scale, t0: performance.now(), tavoite: uusi, raf: 0, jono: null, odottaa: false,
+        vanhaT: cv.style.transform, vanhaO: cv.style.transformOrigin };
+    cv.style.transformOrigin = (c._width / 2) + 'px ' + (c._height / 2) + 'px';
+    tila.pehmea.animaatioita++;
+    anim.raf = requestAnimationFrame(askel);
+    return true;
+};
+tila.pehmea = { animaatioita: 0, uudelleenkohdistuksia: 0, napsautuksia: 0, varapudotuksia: 0, eiCanvasta: 0, viimeisin: null };
+const resizePehmea = () => { if (anim) { const a = anim, re = RE(); const t = a.tavoite; pudota('resize'); if (re && !a.odottaa) zoomaaNyt(re, a.rid, t); } };
+window.addEventListener('resize', resizePehmea, true);
+
+const zoomaaNyt = (re, rid, uusi) => {
     // MUSTA RUUTU (kp 6.11. 15:16 "ja taas tuli blackscreen"), mitattu robolla :9223 (tmp/zoom-kuplat/opus/out-e10..e12.json):
     //   moottori laskee uuden offsetin kokonaisluku-offsetista (setter Math.trunc) ja näytön worldTransformista (toLocal), joka on vanha jos
     //   välissä ei ole piirretty (piilotettu välilehti, raskas kehys). 1/32:ssa yksi pikseli = 32 huonepikseliä, takaisin 3:een x96:
@@ -327,6 +403,7 @@ loki('asennettu');
 
 tila.poistu = () => {
     clearTimeout(varaTimer); window.removeEventListener('wheel', kasittele, { passive: false });
+    pudota('poistu'); window.removeEventListener('resize', resizePehmea, true);
     document.removeEventListener('keydown', enter, true); kuplaPoistu(); kameraPoistu(); selainPoistu();
     try { const j = VW.kuplaKomennotJono, i = j ? j.indexOf(jonoRivi) : -1; if (i >= 0) j.splice(i, 1); } catch (e) {}   // jos komentomoduuli ei ole vielä lukenut jonoa
     if (VW.__huoneCtrlZoom === tila) delete VW.__huoneCtrlZoom;
