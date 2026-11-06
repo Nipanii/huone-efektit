@@ -24,7 +24,7 @@ if (window.__huoneCtrlZoom) { try { window.__huoneCtrlZoom.poistu(); } catch (e)
 const VW = window;
 const ASKEL = 1;
 const RE = () => VW.NitroDevTools && VW.NitroDevTools.roomEngine;
-const tila = VW.__huoneCtrlZoom = { versio: 'huone-0.6.0', natiivi: false, loki: [], poistu() {}, aseta: null, tilaNyt: null };
+const tila = VW.__huoneCtrlZoom = { versio: 'huone-0.7.0', natiivi: false, loki: [], poistu() {}, aseta: null, tilaNyt: null };
 const loki = s => { tila.loki.push(new Date().toTimeString().slice(0, 8) + ' ' + s); if (tila.loki.length > 50) tila.loki.shift(); };
 let viime = 0, paalla = true, varaTimer = 0;
 try { paalla = localStorage.getItem('kupla.ctrlZoom') !== 'off'; } catch (e) {}
@@ -116,6 +116,131 @@ if (!VW.__kuplaBubbleZoomFix) {
     tila.kuplat = { chats, fixes };   // fixes: px each bubble had to be moved back (diagnostic)
     kuplaPoistu = () => { clearTimeout(timer); window.removeEventListener('resize', onResize, true); };
 } else loki('kortin kuplakorjaus ajossa, omaa ei asenneta');
+// ---- Kuplat seuraavat puhujaa pelin zoomissa + raahauksen päällekkäisyys/järjestys (kp 6.11. "kupla seuraa puhujaa toteutetaan zoomiin", "järjestys menee väärin",
+//   "kun vie kameraa siirtämällä kuplat sivuun edelleen overlappaa") ----
+// MIKSI (mitattu robolla :9223 6.11., tmp/zoom-kuplat/opus-loki.md): (1) pelin zoom ei liikuta kuplia lainkaan (chat-widget ei kuuntele ROOM_ZOOMED) -> puhujat
+//   liukuvat kuplien alta (s 2->1: kupla 336 vs puhuja 456 px). (2) Raahauksessa client tarkistaa vain parit joissa toinen kupla on REUNASSA
+//   (ChatWidgetView.tsx checkOverlappingChats fromDrag): reunan takia rivin ylös nostettu kupla (ei itse reunassa) jää vanhemman päälle, ja päällekkäisyys
+//   jää myös raahauksen takaisin jälkeen (RestoreEdgeLifts ei pääse alas, koska se leikkaa jo valmiiksi). Toistui s=1 ja s=2 samalla asettelulla.
+// MITEN: pelin zoom (setRoomInstanceRenderingCanvasScale, myös :zoom ja natiivi #820) ja raahaus/kamera (setRoomInstanceRenderingCanvasOffset) kääritään
+//   roomEnginen instanssissa (vain aktiivinen huone, canvas 1). Zoomin jälkeen jokainen kupla siirtyy SIVUSUUNNASSA puhujansa kohdalle (huone-x muistetaan
+//   ensimmäisestä näkemästä, kaava RoomEngine.getRoomObjectScreenLocation: x*scale + width/2 + offsetX), sitten kameran nostot palautetaan ja koko pino
+//   tarkistetaan: vanhempi kupla aina kokonaan uudemman yläpuolelle samassa sarakkeessa. Raahauksessa sama tarkistus clientin oman rAF-korjauksen JÄLKEEN,
+//   ja myös reunan takia nostetut kuplat lasketaan kameran siirtämiksi. Nostot kirjataan edgeLiftiin, joten clientin oma palautus tuo ne takaisin alas.
+// ITSESAMMUTUS: natiivi korjaus (PR robo/zoom-bubbles-follow) laittaa .nitro-chat-widget[data-camera-follow] -> kääreet päästävät kaiken läpi.
+// RAJA: kuplan vaakapaikka on puhujan paikka VIESTIN hetkellä (kuten raahauksessa), ei kävelevän hahmon nykyinen paikka. Ennen tätä skriptiä tulleiden
+//   kuplien huone-x lasketaan niiden nykyisestä paikasta, joten jos selainzoom on jo siirtänyt huonetta niiden alta, ne seuraavat sitä vanhaa paikkaa.
+let kameraPoistu = () => {};
+{
+    const reK = RE();
+    const widgetEl = () => document.querySelector('.nitro-chat-widget');
+    const natiiviSeuraa = () => { const w = widgetEl(); return !!(w && w.dataset && w.dataset.cameraFollow); };
+    const lista = () => {
+        const w = widgetEl(); if (!w) return null;
+        const key = Object.keys(w).find(k => k.startsWith('__reactFiber$')); if (!key) return null;
+        for (let f = w[key]; f; f = f.return) {
+            if (typeof f.type !== 'function') continue;
+            for (const fiber of [ f, f.alternate ]) {
+                const l = fiber && fiber.memoizedState && fiber.memoizedState.memoizedState;
+                if (Array.isArray(l) && (!l.length || (l[0] && typeof l[0] === 'object' && ('skipMovement' in l[0]) && ('elementRef' in l[0])))) return l;
+            }
+            return null;
+        }
+        return null;
+    };
+    // sama geometria kuin clientin ChatEdgeLift.ts / DoChatsOverlap.ts (drawnLeft = piirretty paikka, left = puhujan paikka)
+    const dl = c => (typeof c.drawnLeft === 'number' ? c.drawnLeft : c.left);
+    const reunassa = c => Math.round(dl(c)) !== Math.round(c.left);
+    const kameranSiirtama = c => reunassa(c) || c.edgeLift > 0;
+    const samaSarake = (a, b) => !(((dl(a) + a.width) < dl(b)) || (dl(a) > (dl(b) + b.width)));
+    const tiella = (vanha, uusi) => samaSarake(vanha, uusi) && ((vanha.top + vanha.height) >= uusi.top);
+    const paallaPuhujilla = (a, b) => !(((a.left + a.width) < b.left) || (a.left > (b.left + b.width)) || ((a.top + a.height) < b.top) || (a.top > (b.top + b.height)));
+    const paallekkain = (a, b, alas) => !(((dl(a) + a.width) < dl(b)) || (dl(a) > (dl(b) + b.width)) || ((a.top + a.height) < (b.top + alas)) || (a.top > (b.top + alas + b.height)));
+    // LiftOlderChats (syy 'drag' | 'zoom'): uusimmasta vanhimpaan, vanhempi uudemman yläpuolelle, nosto kirjataan edgeLiftiin
+    const nosta = (chats, syy) => {
+        const uusin = chats[chats.length - 1]; if (!uusin) return 0;
+        const valmiit = [ uusin ]; let n = 0;
+        for (let i = chats.length - 2; i >= 0; i--) {
+            const vanha = chats[i];
+            for (let vartija = 0; vartija <= valmiit.length; vartija++) {
+                const esteet = valmiit.filter(u => tiella(vanha, u) && ((syy !== 'drag') || kameranSiirtama(vanha) || kameranSiirtama(u)));
+                if (!esteet.length) break;
+                const este = esteet.reduce((yl, u) => (u.top < yl.top ? u : yl));
+                const ennen = vanha.top;
+                vanha.top = este.top - vanha.height - 1;
+                vanha.skipMovement = este.skipMovement;
+                vanha.edgeLift = (vanha.edgeLift || 0) + (ennen - vanha.top); n++;
+            }
+            valmiit.push(vanha);
+        }
+        return n;
+    };
+    // RestoreEdgeLifts (clientin sama): nostettu kupla alas niin pitkälle kuin tilaa on
+    const palauta = chats => {
+        for (let kierros = 0; kierros <= chats.length; kierros++) {
+            let liikkui = false;
+            for (const c of chats) {
+                if (!(c.edgeLift > 0)) continue;
+                let alas = 0;
+                while (alas < c.edgeLift && !chats.some(o => o !== c && paallekkain(o, c, alas + 1))) alas++;
+                if (alas <= 0) continue;
+                c.top += alas; c.edgeLift -= alas; liikkui = true;
+                if (c.edgeLift) continue;
+                const vieressa = chats.find(o => o !== c && Math.abs(o.top - c.top) <= 1);
+                c.skipMovement = vieressa ? vieressa.skipMovement : false;
+            }
+            if (!liikkui) break;
+        }
+    };
+    const huoneX = new WeakMap();   // kupla -> puhujan x huoneen koordinaatteina
+    const nakyma = (re, rid) => { const c = re.getRoomInstanceRenderingCanvas(rid, 1); return (c && c.scale > 0) ? { s: c.scale, w: c.width, ox: c.screenOffsetX } : null; };
+    const k = tila.kamera = { zoomeja: 0, siirtoja: 0, nostoja: 0, raahauksia: 0, virheita: 0 };
+    const seuraa = (rid, a, b) => {
+        if (!a || !b || (a.s === b.s && a.w === b.w && a.ox === b.ox)) return;
+        const l = lista(); if (!l || !l.length) return;
+        const kartta = x => ((x - a.w / 2 - a.ox) / a.s) * b.s + b.w / 2 + b.ox;
+        let n = 0;
+        for (const c of l) {
+            if (typeof c.roomId === 'number' && c.roomId !== rid) continue;
+            if (!c.elementRef) { if (c.location && typeof c.location.x === 'number') c.location.x = Math.round(kartta(c.location.x)); continue; }   // ei vielä piirretty: paikka mountissa
+            if (!huoneX.has(c)) huoneX.set(c, (c.left + c.width / 2 - a.w / 2 - a.ox) / a.s);
+            const uusi = Math.round(huoneX.get(c) * b.s + b.w / 2 + b.ox - c.width / 2);
+            if (uusi !== c.left) { c.left = uusi; n++; }
+        }
+        k.zoomeja++; k.siirtoja += n;
+        if (!n) return;
+        const m = l.filter(c => c.elementRef);
+        palauta(m); k.nostoja += nosta(m, 'zoom');
+    };
+    const raahausKorjaus = () => {
+        if (natiiviSeuraa()) return;
+        const l = lista(); if (!l || !l.length) return;
+        const m = l.filter(c => c.elementRef);
+        if (m.some(kameranSiirtama)) { k.raahauksia++; k.nostoja += nosta(m, 'drag'); }
+    };
+    if (reK && typeof reK.setRoomInstanceRenderingCanvasScale === 'function' && typeof reK.setRoomInstanceRenderingCanvasOffset === 'function') {
+        const omatS = Object.prototype.hasOwnProperty.call(reK, 'setRoomInstanceRenderingCanvasScale'), omatO = Object.prototype.hasOwnProperty.call(reK, 'setRoomInstanceRenderingCanvasOffset');
+        const alkuS = reK.setRoomInstanceRenderingCanvasScale, alkuO = reK.setRoomInstanceRenderingCanvasOffset;
+        const kaariS = function (rid, cid) {
+            if (cid !== 1 || rid !== this.activeRoomId || natiiviSeuraa()) return alkuS.apply(this, arguments);
+            let ennen = null; try { ennen = nakyma(this, rid); } catch (e) {}
+            const r = alkuS.apply(this, arguments);
+            try { seuraa(rid, ennen, nakyma(this, rid)); } catch (e) { k.virheita++; loki('zoom-seuranta virhe: ' + e.message); }
+            return r;
+        };
+        const kaariO = function (rid, cid) {
+            const r = alkuO.apply(this, arguments);
+            // clientin oma ROOM_DRAG-korjaus rekisteröi rAF:n tämän kutsun sisällä -> tämä ajetaan sen jälkeen samassa kehyksessä
+            if (cid === 1 && rid === this.activeRoomId) requestAnimationFrame(() => { try { raahausKorjaus(); } catch (e) { k.virheita++; loki('raahauskorjaus virhe: ' + e.message); } });
+            return r;
+        };
+        reK.setRoomInstanceRenderingCanvasScale = kaariS; reK.setRoomInstanceRenderingCanvasOffset = kaariO;
+        kameraPoistu = () => {
+            if (reK.setRoomInstanceRenderingCanvasScale === kaariS) { if (omatS) reK.setRoomInstanceRenderingCanvasScale = alkuS; else delete reK.setRoomInstanceRenderingCanvasScale; }
+            if (reK.setRoomInstanceRenderingCanvasOffset === kaariO) { if (omatO) reK.setRoomInstanceRenderingCanvasOffset = alkuO; else delete reK.setRoomInstanceRenderingCanvasOffset; }
+        };
+    } else loki('roomEngine puuttuu: kuplien zoom-seuranta ei asennettu');
+}
 // ---- Selainzoom pitää huoneen keskellä (kp 6.11. 14:00 "selain zoom ei pidä huoneen sijaintia ruudulla samana ... pitää keskittää samanlail ku huone zoom") ----
 // MIKSI: kun pelin zoom != 1, huonekamera (RoomEngine.updateRoomCamera) on pois päältä ja clientin resize-käsittelijä (useRoom.ts, PR #197) ankkuroi huoneen
 //   CSS-pikseleihin: offset -= scale * (uusi leveys - vanha leveys) / 2. Selainzoom muuttaa viewportin CSS-kokoa, joten huone liukuu nurkkaan (zoom out) tai ulos
@@ -157,7 +282,7 @@ loki('asennettu');
 
 tila.poistu = () => {
     clearTimeout(varaTimer); window.removeEventListener('wheel', kasittele, { passive: false });
-    document.removeEventListener('keydown', enter, true); kuplaPoistu(); selainPoistu();
+    document.removeEventListener('keydown', enter, true); kuplaPoistu(); kameraPoistu(); selainPoistu();
     try { const j = VW.kuplaKomennotJono, i = j ? j.indexOf(jonoRivi) : -1; if (i >= 0) j.splice(i, 1); } catch (e) {}   // jos komentomoduuli ei ole vielä lukenut jonoa
     if (VW.__huoneCtrlZoom === tila) delete VW.__huoneCtrlZoom;
 };
