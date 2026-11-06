@@ -28,10 +28,13 @@ const ASKEL = 1;
 //   (lohko "PIENI"): alle 1 moottori 1 ja G = taso; yli 1 moottori E = ceil(taso) ja G = taso / E (2.24 ... 2.83: E 3; 3.17, 3.56: E 4).
 //   Aiemmat taulukot (VALI 1 ... 2, PIENET alle 1, kokonaisluvut 2 -> 3 -> 4 ...) korvattu tällä yhdellä.
 // 0.13.0 (kp 6.11. 22:21 "sisääpäi tyssää aika aikasee", 22:21 "kyl kestää"): yläraja 4 -> 8, alaraja 1/8 -> 1/4 (kp 22:23) (k = -12..18). Moottori E = ceil(taso) 5 ... 8.
+// 0.14.0 (kp 6.11. 22:13 "et se tunnistaa ton browser scaling jne ja tekee JOTAIN jos on huonot setit"; Shorp: Windows 1920x1080 150 % -> dpr 1.5): lohko "DPR-SNAP" alla. Kun devicePixelRatio ei ole
+//   kokonaisluku, rullaportaat ovat tasot n / dpr (n = kokonaisluku laite-px per taide-px) ja ne piirretään pikselintarkasti; kokonaisluku-dpr:llä ja snap("pois"):lla kaikki kuten 0.13.0.
 const TASOT = []; for (let k = -12; k <= 18; k++) TASOT.push(Math.pow(2, k / 6));
-const tasoAskel = (x, ylos) => {   // seuraava taso taulukossa; rajalla (yli 4 ylös, alle 1/8 alas) sama taso eli ei askelta
-    if (ylos) { for (const v of TASOT) if (v > x + 1e-6) return v; return x; }
-    for (let i = TASOT.length - 1; i >= 0; i--) if (TASOT[i] < x - 1e-6) return TASOT[i];
+const tasoAskel = (x, ylos) => {   // seuraava taso taulukossa; rajalla (yli 8 ylös, alle 1/4 alas) sama taso eli ei askelta
+    const L = snapPaalla() ? snapLadder() : TASOT;   // 0.14.0: murto-dpr -> tasot n / dpr
+    if (ylos) { for (const v of L) if (v > x + 1e-6) return v; return x; }
+    for (let i = L.length - 1; i >= 0; i--) if (L[i] < x - 1e-6) return L[i];
     return x;
 };
 const onVali = u => PIENI.paalla && u > 1 + 1e-6 && Math.abs(u - Math.round(u)) > 1e-6;   // yli 1, ei kokonaisluku: moottori ceil(u) + kutistus
@@ -92,18 +95,24 @@ const peliTaso = (E, k = kerroin, t = kokoTila) => {
     return Math.round(g0 * 1000) / 1000;
 };
 const RE = () => VW.NitroDevTools && VW.NitroDevTools.roomEngine;
-const tila = VW.__huoneCtrlZoom = { versio: 'huone-0.13.0', natiivi: false, loki: [], poistu() {}, aseta: null, tilaNyt: null };
+const tila = VW.__huoneCtrlZoom = { versio: 'huone-0.14.0', natiivi: false, loki: [], poistu() {}, aseta: null, tilaNyt: null };
 // B201 (kp 6.11. 16:42 "huone välil hypähtää vasemmalle paljon ... kun zoomaan ulospäin ... pelin zoomilla", 16:47 "ei silti toistu consistently"):
 //   huonekamera (RoomEngine.updateRoomCamera, ajaa VAIN skaalalla tasan 1) kirjoittaa offsetiksi -(kameran oma sijainti) aina kun hahmo liikkuu tai canvaksen
 //   koko muuttuu. Moottori päivittää kameran sijainnin raahauksen jälkeen (handleRoomDragging MOUSE_UP: camera.resetLocation(-offset)), mutta EI zoomin
 //   jälkeen. Zoom ulos tasolle 1 jättää kameraan vanhan sijainnin (esim. tasolla 2 raahattu: -offset tason 2 pikseleinä), ja seuraava hahmon askel napsauttaa
 //   huoneen sinne. Korjaus: kameraSynk tekee saman kuin moottorin raahauksen loppu jokaisen tasolle 1 päättyvän zoomin jälkeen.
-const kameraSynk = (re, rid, c) => {
+// B211 (kp 6.11. 23:13 "mul se oikeestaa vasta snäppää ku zoom sanoo 0.89"; robolla toistettu 6.11., tmp/dpr-snap/loki.md): moottorin kamera (RoomEngine.updateRoomCamera) laskee
+//   uudelleen vain kun canvaksen koko, geometria, kohteen paikka tai isMoving muuttuu. Paluu tasolle 1 (E=2 -> 1 tai kutistus -> 1) palauttaa canvaksen TÄSMÄLLEEN siihen kokoon jonka kamera
+//   kirjasi viimeksi (screenWd/Ht päivittyy vain kun scale === 1), joten mikään ehto ei täyty eikä hahmoa keskitetä; 0.89:ssä canvas on 1408x1475 != 1254x1313 ja kamera keskittää.
+//   Korjaus: keskita = true nollaa kameran muistaman koon (setterit RoomCamera.ts:114,124), jolloin seuraava updateRoomCameras lukee koon "muuttuneeksi" ja keskittää kuten 0.89:ssä.
+//   Hyppyvahdin oma korjaus (keskita = false) ei saa keskittää.
+const kameraSynk = (re, rid, c, keskita = true) => {
     try {
         if (!re || !c || c.scale !== 1) return false;
         const d = re._roomInstanceDatas && typeof re._roomInstanceDatas.get === 'function' ? re._roomInstanceDatas.get(rid) : null, k = d && d.roomCamera;
         if (!k || typeof k.resetLocation !== 'function') return false;
         const x = -c.screenOffsetX, y = -c.screenOffsetY, l = k.location;
+        if (keskita) { try { k.screenWd = 0; k.screenHt = 0; } catch (e) {} }
         if (l && l.x === x && l.y === y) return false;
         if (!k.isMoving) { k.centeredLocX = false; k.centeredLocY = false; }   // kuten moottorin raahauksen loppu
         k.resetLocation({ x, y, z: 0 }); vahti.synkkeja++;
@@ -115,7 +124,7 @@ const vahti = { fokus: null, blur: null, nakyvyys: null, resize: null, init: nul
 let vartija = () => {}, selainAuki = () => false, vaihdaTila = () => 'zoomtila: selainzoom-lohko ei asentunut';   // asetetaan lohkoissa "Hyppyvahti" ja "Selainzoom erillään"
 let paivitaNappi = () => {};
 // alle 1 kutistus (0.10.0, lohko "PIENI"): tila tässä, koska kuplien näkymä ja selainzoom-lohko lukevat sitä ennen lohkon ajoa
-const PIENI = { paalla: true, G: null, E: 1, alku: null, res: null, rid: null, tausta: null, backing: null };
+const PIENI = { paalla: true, G: null, E: 1, alku: null, res: null, rid: null, tausta: null, backing: null, snap: null };
 tila.pieni = PIENI;
 let kuplaSeuraa = () => {}, kuplaNakyma = () => null;   // asetetaan lohkossa "Kuplat seuraavat"   // lohko "Tilanappi"
 const loki = s => { tila.loki.push(new Date().toTimeString().slice(0, 8) + ' ' + s); if (tila.loki.length > 50) tila.loki.shift(); };
@@ -126,6 +135,71 @@ const aseta = v => { paalla = v; try { localStorage.setItem('kupla.ctrlZoom', v 
 const komento = (t, sanat) => { const s = (sanat[0] || '').toLowerCase();
     return aseta(/^(on|päälle|paalle|1)$/.test(s) ? true : /^(pois|off|0)$/.test(s) ? false : !paalla); };
 tila.aseta = aseta; tila.tilaNyt = () => ({ paalla });
+
+// ---- DPR-SNAP (0.14.0) ----
+// MIKSI: kun dpr ei ole kokonaisluku (Windows 125 / 150 / 175 %, selain 110 % jne.) yksi taide-pikseli on laitepikseleinä murtoluku ja Chrome näytteistää sen 1 tai 2 px leveäksi vuoronperään: rakeinen.
+//   MITATTU robolla (dpr 1.5 = Windows 150 %), tmp/dpr-snap/loki.md, juoksuanalyysi (osuus juoksuista jotka ovat n:n monikertoja, n = odotettu laite-px per taide-px):
+//   taso 1 (1.5 px/taide-px) 0.42 = epätasainen; taso 2 (3 px) 0.98 = terävä; taso 4/3 (2 px) nykyisellä kutistuspolulla 0.30 (sumea), moottorin murtotaso 4/3 0.37 (moottori pyöristää).
+// MITEN: pelitasot ovat n / dpr (n = 1, 2, 3 ...), jolloin pelitaso * dpr = n laite-px per taide-px. Piirto: moottori AINA tasolla 1, rendereri W/G x H/G CSS-px resoluutiolla res = n
+//   (= G * dpr, kokonaisluku, joten spritejen paikat ovat kokonaislukuja laite-px:inä), canvas CSS scale(G = n / dpr) ja image-rendering: pixelated. Puskuri on silloin tasan laitepikselin kokoinen
+//   (ei välikuvaa kuten kutistuspolulla E * dpr, 2.25 kertaa laite-px tasolla 4/3) ja kuva kulkee Chromen läpi 1:1. pixelated on PAKOLLINEN: ilman sitä sama kuva mitattiin 0.24 (Chromen
+//   kompositointi on bilineaarinen skaalan 1.33333 pyöristyksen takia). Mitattu kaikilla n = 2 ... 12 (0.99 ... 0.95).
+//   Rullaportaat: alle n = 1 (taide-px < 1 laite-px, tarkkaa kuvaa ei ole) jatketaan 2^(1/6) -portailla 1 / dpr:stä alas ALIN:iin (vanha pehmeä kutistus); n / dpr ylös 8:aan. Taso 1 EI ole
+//   portaalla: se on rakeinen (n = dpr). Huoneeseen tulo ja client-napit "1" laskeutuvat lähimpään porrastasoon (log-etäisyys): dpr 1.5 -> 4/3 (n = 2), dpr 1.25 -> 0.8 (n = 1).
+//   Kamera: moottori on tasolla 1 kaikilla porrastasoilla, joten kamera seuraa hahmoa myös zoomattuna (ennen vain tasolla 1 ja kutistuksessa; E >= 2 ei seurannut).
+// KYTKIN: 'auto' (oletus) = snap kun dpr ei ole kokonaisluku; 'off' = kuten 0.13.0. Konsoli: __huoneCtrlZoom.snap('pois') / snap('auto') / snap() = tila. Muistetaan localStorage 'kupla.ctrlZoomSnap'.
+// RAJA: (1) kokonaisluku-dpr:llä rullaportaat (2^(1/6)) ovat edelleen rakeiset välitasoilla (kp pitää portaat). (2) alle 1 / dpr tasot ovat pehmeä kutistus. (3) porrasvälit ovat suuria
+//   alhaalla (n 1 -> 2 on 2-kertainen), tasaisia vasta n >= 8. (4) kuvaa ei ole tarkistettu muulla kuin robon dpr 1.5:lla (+ emuloidut arvot ks. loki).
+const SNAP_OLETUS = 'off', YLA = 8;
+let snapTila = SNAP_OLETUS;
+try { const s = localStorage.getItem('kupla.ctrlZoomSnap'); if (s === 'auto' || s === 'off') snapTila = s; } catch (e) {}
+const DPR = () => VW.devicePixelRatio || 1;
+const fraktio = d => Math.abs(d - Math.round(d)) > 1e-3;
+const snapPaalla = () => PIENI.paalla && snapTila === 'auto' && fraktio(DPR());
+const snapTasot = d => { const a = [], m1 = 1 / d; for (let j = 1; m1 * Math.pow(2, -j / 6) >= ALIN - 1e-9; j++) a.unshift(m1 * Math.pow(2, -j / 6)); for (let n = 1; n / d <= YLA + 1e-9; n++) a.push(n / d); return a; };
+let snapD = null, snapL = [];
+const snapLadder = () => { const d = DPR(); if (d !== snapD) { snapD = d; snapL = snapTasot(d); } return snapL; };
+const lahin = (L, G) => { let p = L[0]; for (const v of L) if (Math.abs(Math.log(v / G)) < Math.abs(Math.log(p / G))) p = v; return p; };
+const lahinSnap = G => lahin(snapLadder(), G);
+// porrastaso M -> piirto (ks. yllä); false jos M ei ole n / dpr (alle n = 1: vanha kutistus)
+const snapAseta = (re, rid, M) => {
+    const d = DPR(), n = Math.round(M * d);
+    if (!(n >= 1) || Math.abs(M * d - n) > 1e-4 || M > YLA + 1e-6) return false;
+    pudota('snap');
+    return pieniAseta(re, rid, n / d, null, 1, { n });
+};
+// taso G samaa polkua kuin rullatikin loppu (kasittele); true jos asetettiin
+const tasoAseta = (re, rid, G) => {
+    if (snapPaalla() && snapAseta(re, rid, lahinSnap(G))) return true;
+    if (PIENI.paalla && G < 1 - 1e-6) { pudota('pieni'); return pieniAseta(re, rid, G); }
+    if (onVali(G)) { pudota('pieni'); const E = Math.ceil(G - 1e-6); return pieniAseta(re, rid, G / E, null, E); }
+    if (PIENI.G) { pieniPois(re, rid, moottoriTaso(G)); return true; }
+    zoomaaNyt(re, rid, moottoriTaso(G)); return true;
+};
+tila.asetaTaso = G => { const re = RE(), rid = re && re.activeRoomId; if (!re || rid == null || rid === -1) return false; return tasoAseta(re, rid, G); };
+tila.snapTasot = () => snapLadder().slice();
+const snapKomento = v => {
+    const s = String(v === undefined ? '' : v).toLowerCase();
+    if (/^(pois|off|0)$/.test(s)) snapTila = 'off'; else if (/^(auto|on|paalle|päälle|1)$/.test(s)) snapTila = 'auto';
+    else return 'zoom-snap: ' + snapTila + ', dpr ' + DPR() + (snapPaalla() ? ' -> snap PÄÄLLÄ' : ' -> ei snappia') + '. Käyttö: __huoneCtrlZoom.snap("auto" | "pois")';
+    try { localStorage.setItem('kupla.ctrlZoomSnap', snapTila); } catch (e) {}
+    snapCv = null;
+    try { const re = RE(), rid = re && re.activeRoomId; if (re && rid != null && rid !== -1) { const G = re.getRoomInstanceRenderingCanvasScale(rid, 1) || 1; tasoAseta(re, rid, snapPaalla() ? G : lahin(TASOT, G)); } } catch (e) { loki('snap-vaihto virhe: ' + e.message); }
+    loki('snap ' + snapTila); return 'zoom-snap: ' + snapTila + (snapPaalla() ? ' (dpr ' + DPR() + ': porrastasot n / dpr)' : ' (ei käytössä: dpr ' + DPR() + ')');
+};
+tila.snap = snapKomento;
+// huoneeseen tulo / uusi canvas / dpr:n muutos: laskeudu lähimpään porrastasoon kerran per canvas (ei taistele käyttäjää vastaan: sen jälkeen vain rulla ja client-napit)
+let snapCv = null, snapDprViim = null;
+const snapVahti = setInterval(() => { try {
+    const re = RE(); if (!re) return; const rid = re.activeRoomId; if (rid == null || rid === -1) return;
+    const c = re.getRoomInstanceRenderingCanvas(rid, 1); if (!c) return; const d = DPR();
+    if (!snapPaalla()) { snapCv = null; snapDprViim = d; return; }
+    if (snapCv === c && snapDprViim === d) return;
+    snapCv = c; snapDprViim = d;
+    if (PIENI.snap && PIENI.rid === rid && pC === c) return;   // jo porrastasolla (dpr:n muutoksen hoitaa PIENI:n resize-käsittelijä)
+    const G = re.getRoomInstanceRenderingCanvasScale(rid, 1) || 1;
+    if (tasoAseta(re, rid, G)) loki('snap: huoneeseen tulo / dpr ' + d + ' -> taso ' + +(re.getRoomInstanceRenderingCanvasScale(rid, 1) || 0).toFixed(3));
+} catch (e) { loki('snap-vahti virhe: ' + e.message); } }, 400);
 
 const kasittele = e => {
     if (!paalla || !e.ctrlKey || !e.deltaY || !(e.target instanceof HTMLCanvasElement)) return;
@@ -158,6 +232,7 @@ const kasittele = e => {
     try { nytE = PIENI.G ? null : anim ? anim.v1 : re.getRoomInstanceRenderingCanvas(rid, 1).scale; } catch (x) {}   // PIENI: moottori on 1 kaikilla alle-1 tasoilla, ei ohitusta
     for (let i = 0; i < 4 && nytE != null && !onVali(uusi) && (uusi >= 1 || !PIENI.paalla) && sama(moottoriTaso(uusi), nytE); i++) { const s = seur(uusi); if (s === uusi) break; uusi = s; }
     if (uusi === tama) return;
+    if (snapPaalla() && snapAseta(re, rid, uusi)) return;   // 0.14.0: porrastaso n / dpr
     // alle 1: moottori pysyy 1:ssä ja kuva kutistetaan (lohko "PIENI"); rendereriä ei löydy -> moottorin taso kuten 0.9.4
     if (PIENI.paalla && uusi < 1) { pudota('pieni'); if (pieniAseta(re, rid, uusi)) return; uusi = puolita(tama); if (uusi === tama) return; }   // vara: moottorin puolikkaat
     // uusi > 1, ei kokonaisluku: moottori E = ceil(uusi) + kutistus G = uusi / E; rendereriä ei löydy -> lähin kokonaisluku askeleen suuntaan
@@ -746,7 +821,7 @@ let vahtiPoistu = () => {};
         const x = c._width / 2 - (o.R.x + Math.trunc(c._width / 2)) * c.scale, y = c._height / 2 - (o.R.y + Math.trunc(c._height / 2)) * c.scale;
         re.setRoomInstanceRenderingCanvasOffset(o.rid, 1, { x, y });
         ankkuri = { rid: o.rid, x: o.R.x, y: o.R.y, s: c.scale, ox: c.screenOffsetX, oy: c.screenOffsetY, w: c._width, h: c._height };
-        kameraSynk(re, o.rid, c); vahti.korjauksia++;
+        kameraSynk(re, o.rid, c, false); vahti.korjauksia++;
         const n = { t: nyt(), s: c.scale, ox: c.screenOffsetX, oy: c.screenOffsetY, w: c._width, h: c._height };
         edell = null;   // oma korjaus ei ole hyppy
         kirjaa('KORJAUS', re, o.rid, e, n, dx, dy, { korjattu: true });
@@ -846,7 +921,7 @@ const asetaKoko = (re, rid, R, W2, H2, res, P, E = 1) => {   // rendereri + huon
     try { const c2 = re.getRoomInstanceRenderingCanvas(rid, 1); if (c2 && typeof c2.render === 'function') c2.render(-1, true); if (R.lastObjectRendered) R.render(R.lastObjectRendered); } catch (e) {}
     return { w, h };
 };
-const pieniTyhja = () => { PIENI.P = null; PIENI.G = null; PIENI.E = 1; PIENI.alku = null; PIENI.rid = null; pC = null; pCv = null; clearInterval(pVahti); pVahti = 0; cancelAnimationFrame(pRaf); pRaf = 0; };
+const pieniTyhja = () => { PIENI.P = null; PIENI.G = null; PIENI.snap = null; PIENI.E = 1; PIENI.alku = null; PIENI.rid = null; pC = null; pCv = null; clearInterval(pVahti); pVahti = 0; cancelAnimationFrame(pRaf); pRaf = 0; };
 // irti ilman huonetta (huone vaihtui, canvas luotiin uudelleen, poistu): CSS takaisin, rendereri normaaliin kokoon jos se on yhä suurennettu
 const pieniIrti = syy => {
     const a = PIENI.alku, R = pR, cv = pCv;
@@ -855,7 +930,7 @@ const pieniIrti = syy => {
     if (a) loki('pieni irti: ' + syy);
     pieniTyhja();
 };
-const pieniAseta = (re, rid, G, Pyli = null, E = 1) => {   // Pyli = keskelle jäävä huonepiste (selainzoom: muistettu ennen clientin ankkurointia)
+const pieniAseta = (re, rid, G, Pyli = null, E = 1, snap = null) => {   // snap = { n }: res = n, pixelated (lohko "DPR-SNAP")   // Pyli = keskelle jäävä huonepiste (selainzoom: muistettu ennen clientin ankkurointia)
     let c = typeof re.getRoomInstanceRenderingCanvas === 'function' ? re.getRoomInstanceRenderingCanvas(rid, 1) : null; const R = c ? etsiRenderer() : null; if (!c || !R || !R.canvas) { loki('pieni: renderer/canvas puuttuu, moottorin taso'); return false; }
     if (PIENI.alku && (PIENI.rid !== rid || pC !== c || pR !== R)) pieniIrti('uusi huone/canvas');
     const ennen = kuplaNakyma(re, rid), cv = R.canvas;
@@ -868,16 +943,16 @@ const pieniAseta = (re, rid, G, Pyli = null, E = 1) => {   // Pyli = keskelle j�
             if (!re2 || re2.activeRoomId !== PIENI.rid || re2.getRoomInstanceRenderingCanvas(PIENI.rid, 1) !== pC || pR.destroyed) pieniIrti('huone vaihtui'); }, 400);
     }
     const P = Pyli || pieniKeski(rid, c), W = PIENI.alku.W, H = PIENI.alku.H, W2 = Math.ceil(W / G - 1e-6), H2 = Math.ceil(H / G - 1e-6), dpr = VW.devicePixelRatio || 1;
-    let res = Math.min(dpr, Math.floor(gpuRaja(R) / Math.max(W2, H2) * 1000) / 1000);
-    PIENI.G = G; PIENI.E = E;
+    let res = snap ? snap.n : Math.min(dpr, Math.floor(gpuRaja(R) / Math.max(W2, H2) * 1000) / 1000);
+    PIENI.G = G; PIENI.E = E; PIENI.snap = snap;
     let k = asetaKoko(re, rid, R, W2, H2, res, P, E);
-    try { const gl = R.gl, sx = gl.drawingBufferWidth / cv.width, sy = gl.drawingBufferHeight / cv.height;
+    if (!snap) try { const gl = R.gl, sx = gl.drawingBufferWidth / cv.width, sy = gl.drawingBufferHeight / cv.height;
         if (sx < 0.999 || sy < 0.999) { res = Math.floor(res * Math.min(sx, sy) * 0.98 * 1000) / 1000; k = asetaKoko(re, rid, R, W2, H2, res, P, E); } } catch (e) {}
     PIENI.res = res; PIENI.backing = [cv.width, cv.height]; pieniMuista(rid, re.getRoomInstanceRenderingCanvas(rid, 1), P);
-    cv.style.transformOrigin = '0 0'; cv.style.transform = 'scale(' + G + ')'; cv.style.imageRendering = 'auto';
+    cv.style.transformOrigin = '0 0'; cv.style.transform = 'scale(' + G + ')'; cv.style.imageRendering = snap ? 'pixelated' : 'auto';
     kameraSynk(re, rid, re.getRoomInstanceRenderingCanvas(rid, 1));
     kuplaSeuraa(rid, ennen, kuplaNakyma(re, rid)); kameraJalki(re, rid, kuplaNakyma(re, rid));
-    loki('pieni ' + (E * G) + (E !== 1 ? ' (moottori ' + E + ', kutistus ' + G + ')' : '') + ': canvas ' + k.w + 'x' + k.h + ' res ' + res + ' backing ' + cv.width + 'x' + cv.height + (PIENI.tausta ? '' : ' (ei taustaa)'));
+    loki('pieni ' + (E * G) + (snap ? ' [snap n=' + snap.n + ']' : '') + (E !== 1 ? ' (moottori ' + E + ', kutistus ' + G + ')' : '') + ': canvas ' + k.w + 'x' + k.h + ' res ' + res + ' backing ' + cv.width + 'x' + cv.height + (PIENI.tausta ? '' : ' (ei taustaa)'));
     return true;
 };
 const pieniPois = (re, rid, E2 = null) => {   // E2 = moottoritaso johon mennään (zoomataan ENNEN koon palautusta, ettei välitilaa piirretä)
@@ -904,6 +979,7 @@ let pieniPoistu = () => {};
     kaari('getRoomInstanceRenderingCanvasScale', alku => function (rid, cid) { const v = alku.apply(this, arguments); return (aktiivinen(this) && (rid === undefined || rid === -1000 || rid === this.activeRoomId) && (cid === undefined || cid === -1 || cid === 1)) ? PIENI.E * PIENI.G : v; });
     kaari('setRoomInstanceRenderingCanvasScale', alku => function (rid, cid, level, point, offsetPoint, isFlipForced) {
         const oma = cid === 1 && rid === this.activeRoomId && !isFlipForced && !arguments[6] && PIENI.paalla && typeof level === 'number' && Number.isFinite(level);
+        if (oma && level > 0 && snapPaalla() && snapAseta(this, rid, lahinSnap(level))) return;   // 0.14.0: client-napit / :zoom -> porrastaso (1 -> lähin)
         if (oma && level < 1) { const G = Math.max(ALIN, Math.min(0.5, Math.pow(2, Math.round(Math.log2(Math.max(level, 1e-9))))));   // suurennuslasi / :zoom alle 1
             if (pieniAseta(this, rid, G)) return; }
         else if (oma && PIENI.G) pieniPois(this, rid);
@@ -913,7 +989,7 @@ let pieniPoistu = () => {};
         const re2 = RE(); if (!PIENI.G || !PIENI.alku) return; if (!re2 || re2.activeRoomId !== PIENI.rid) { pieniIrti('huone vaihtui'); return; }
         const G = PIENI.G, a = PIENI.alku, c = re2.getRoomInstanceRenderingCanvas(PIENI.rid, 1); if (!c) return;
         if (Math.abs(c._width - a.W / G) > 2 || Math.abs(c._height - a.H / G) > 2) { a.W = c._width; a.H = c._height; }   // client asetti uuden normaalikoon
-        const P = PIENI.P; PIENI.P = null; try { pieniAseta(re2, PIENI.rid, G, P, PIENI.E); } catch (e) { loki('pieni uudelleen virhe: ' + e.message); } }); };
+        const P = PIENI.P; PIENI.P = null; try { const sn = PIENI.snap; if (sn) pieniAseta(re2, PIENI.rid, sn.n / DPR(), P, 1, sn); else pieniAseta(re2, PIENI.rid, G, P, PIENI.E); } catch (e) { loki('pieni uudelleen virhe: ' + e.message); } }); };
     const vvP = VW.visualViewport;
     window.addEventListener('resize', uudelleen); if (vvP) { vvP.addEventListener('resize', uudelleen); vvP.addEventListener('scroll', uudelleen); }
     pieniPoistu = () => { cancelAnimationFrame(pJalki); try { const re2 = RE(); if (PIENI.G && re2 && re2.activeRoomId === PIENI.rid) pieniPois(re2, re2.activeRoomId); else pieniIrti('poistu'); } catch (e) {}
@@ -952,7 +1028,7 @@ const paivitaNaytto = () => {
 const nayttoAjastin = setInterval(() => { try { paivitaNaytto(); } catch (x) {} }, 100);
 
 tila.poistu = () => {
-    pieniPoistu(); vahtiPoistu(); clearInterval(nayttoAjastin); if (nayttoEl) nayttoEl.remove();
+    clearInterval(snapVahti); pieniPoistu(); vahtiPoistu(); clearInterval(nayttoAjastin); if (nayttoEl) nayttoEl.remove();
     clearTimeout(varaTimer); window.removeEventListener('wheel', kasittele, { passive: false });
     pudota('poistu'); window.removeEventListener('resize', resizePehmea, true);
     document.removeEventListener('keydown', enter, true); kuplaPoistu(); kameraPoistu(); selainPoistu(); nappiPoistu();
