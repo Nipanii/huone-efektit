@@ -4,9 +4,9 @@
 // @match        https://kupla.cc/*
 // @grant        none
 // @run-at       document-idle
-// @version      0.7.0
+// @version      0.7.1
 // @kupla-oletus on
-// @description  Komento :aa vaihtaa pehmennyksen päälle/pois (linear + terävöinti + roundPixels, vahvin versio). Vaihto näkyy heti, ei uudelleenlatausta. Valinta muistetaan.
+// @description  Komento :aa vaihtaa pehmennyksen päälle/pois (linear, kuten Boon; ei terävöintiä). Vaihto näkyy heti, ei uudelleenlatausta. Valinta muistetaan.
 // @author       re-lab
 // ==/UserScript==
 //
@@ -21,7 +21,7 @@
 //   (instanssikenttä) ohittavat getterin ja pysyvät ennallaan. Koskee vain tätä selainta.
 //
 // 0.7.0 (kp 21:22 "laita se :aa komentoo ja poista kaikki variantit siit komennost" · "se togglee vaa on/off meidän vahvinta versioo"):
-//   :aa on pelkkä on/off. Päällä = linear + VAHVIN terävöinti (entinen :aa7, taso 5 = VAHVUUS alla, ei gammaa) + roundPixels.
+//   :aa on pelkkä on/off. Päällä = linear (0.7.0:n terävöinti poistettu 0.7.1:ssä, kp 21:39-21:40) + roundPixels.
 //   Poistettu: :aa1-:aa7, auto-tila, tason tallennus. Pois palauttaa kaiken (scaleMode, suodatin, roundPixels).
 //   roundPixels kuten Boon (index-762329f4.js: ROUND_PIXELS=!0). Pixi 8: AbstractRenderer.mjs:67 this._roundPixels (vain getter
 //   `roundPixels`, ei setteriä) ja SpritePipe.mjs:39 lukee sen VAIN kun spritelle luodaan GPU-data (_initGPUSprite) -> jo olemassa
@@ -124,7 +124,7 @@
     return paras;
   }
   function teravoita() {
-    const vari = paalla, k = vari ? VAHVUUS : 0;
+    const vari = false, k = 0;   // 0.7.1: EI terävöintiä (kp 21:39 "kuka sano et piti olla terävöintiä lainkaan aa:ssa", 21:40 "viiva paheni"); filtteri vain poistetaan
     let d = document.getElementById('kupla-aa-svg');
     if (vari && !d) {
       d = document.createElement('div'); d.id = 'kupla-aa-svg'; d.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden';
@@ -161,15 +161,15 @@
   function aseta(uusi) {
     tila = uusi; paalla = laske(); try { VW.localStorage.setItem(AVAIN, tila); } catch (e) {}
     asenna(); const n = pyyhi(); roundPixels(); teravoita();
-    omaRivi(paalla ? 'aa: päällä (linear + terävöinti + roundPixels)' : 'aa: pois');
-    return 'AA ' + (paalla ? 'PÄÄLLÄ (linear + terävöinti ' + VAHVUUS + ' + roundPixels)' : 'POIS (terävä, nearest)') + (asennettu ? ' · ' + n + ' tekstuuria' : ' — odottaa huonetta');
+    omaRivi(paalla ? 'aa: päällä (linear)' : 'aa: pois');
+    return 'AA ' + (paalla ? 'PÄÄLLÄ (linear)' : 'POIS (terävä, nearest)') + (asennettu ? ' · ' + n + ' tekstuuria' : ' — odottaa huonetta');
   }
   // 0.7.0: sivun zoom muuttaa DPR:ää ja kuvan skaalaa, mutta tila ei riipu siitä -> resize-kuuntelijaa ei enää tarvita (auto poistui).
 
   // :aa = päälle/pois, :aa off / :aa pois = sammuttaa aina.
   (VW.kuplaKomennotJono = VW.kuplaKomennotJono || []).push([['aa'],
     (teksti, sanat) => /^(off|pois)$/i.test(sanat[0] || '') ? aseta('off') : aseta(paalla ? 'off' : 'on'),
-    'pehmennys: :aa päälle/pois (linear + terävöinti + roundPixels) · :aa off sammuttaa', 'AA-kytkin']);
+    'pehmennys: :aa päälle/pois (linear) · :aa off sammuttaa', 'AA-kytkin']);
   // Ilman kuplaKomennot-lisäosaa (Res): oma Enter-käsittelijä kuten wired-piilo.user.js.
   const komennotHoitaa = n => { try { return !!(VW.kuplaKomennot && VW.kuplaKomennot.lista().some(k => k.nimet.includes(n))); } catch (e) { return false; } };
   function ilmoita(teksti) {
@@ -186,5 +186,5 @@
       setter.call(t, ''); t.dispatchEvent(new Event('input', { bubbles: true })); } catch (err) { t.value = ''; }
     ilmoita(/^(off|pois)$/i.test(m[1] || '') ? aseta('off') : aseta(paalla ? 'off' : 'on'));
   }, true);
-  VW.kuplaAA = { versio: '0.7.0', pois: () => { VW.__kuplaAAsuku++; }, aseta, tila: () => ({ tila, paalla, asennettu, dpr: VW.devicePixelRatio }) };
+  VW.kuplaAA = { versio: '0.7.1', pois: () => { VW.__kuplaAAsuku++; }, aseta, tila: () => ({ tila, paalla, asennettu, dpr: VW.devicePixelRatio }) };
 })();
