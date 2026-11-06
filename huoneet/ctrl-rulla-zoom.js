@@ -24,9 +24,16 @@ if (window.__huoneCtrlZoom) { try { window.__huoneCtrlZoom.poistu(); } catch (e)
 const VW = window;
 const ASKEL = 1;
 const ALIN = 0.125;   // pienin rullatessa (kp 15:16 musta ruutu: 1/128:ssa huone on 1 px ja paluumatkalla karkaa, ks. kasittele)
-let ankkuri = null;   // keskipisteen huonepiste liukulukuna omien rulla-askelten yli
+let ankkuri = null;   // keskipisteen huonepiste (HUONEEN koordinaatit, ks. fokus) liukulukuna omien askelten yli
+// pelin zoom erillään selaimen zoomista (0.9.1): moottorin taso = pelitaso * kerroin, kerroin = dprPohja / devicePixelRatio (ks. lohko "Selainzoom erillään")
+let kerroin = 1, dprPohja = null;
+const pyor = v => Math.round(v * 1e6) / 1e6;
+// pelitaso 1 pysyy moottorissa 1:nä (huonekamera seuraa hahmoa VAIN skaalalla tasan 1, RoomEngine.updateRoomCamera), ja muu taso ei saa osua tasan 1:een
+//   (esim. 200 %: 2 * 0.5) ettei kamera käynnisty pelitasolla 2
+const peliTaso = (E, k = kerroin) => (k === 1 || E === 1) ? E : Math.round(E / k * 1000) / 1000;
+const moottoriTaso = (G, k = kerroin) => { if (k === 1 || G === 1) return G; const e = pyor(G * k); return e === 1 ? 1.000001 : e; };
 const RE = () => VW.NitroDevTools && VW.NitroDevTools.roomEngine;
-const tila = VW.__huoneCtrlZoom = { versio: 'huone-0.8.1', natiivi: false, loki: [], poistu() {}, aseta: null, tilaNyt: null };
+const tila = VW.__huoneCtrlZoom = { versio: 'huone-0.9.1', natiivi: false, loki: [], poistu() {}, aseta: null, tilaNyt: null };
 const loki = s => { tila.loki.push(new Date().toTimeString().slice(0, 8) + ' ' + s); if (tila.loki.length > 50) tila.loki.shift(); };
 let viime = 0, paalla = true, varaTimer = 0;
 try { paalla = localStorage.getItem('kupla.ctrlZoom') !== 'off'; } catch (e) {}
@@ -49,15 +56,17 @@ const kasittele = e => {
     const nyt = performance.now(); if (nyt - viime < 120) return;   // kosketuslevyn sarja yhdeksi askeleeksi
     viime = nyt;
     // animaation aikana askel lasketaan tavoitteesta, ei moottorin skaalasta (nopeat askeleet kertyvät yhdeksi moottorikutsuksi)
-    const tama = anim ? anim.v1 : (re.getRoomInstanceRenderingCanvasScale(rid, 1) || 1);
+    //   Askeleet PELITASOINA (tason luku palauttaa pelitason, ks. reKaariG); moottorille pelitaso * kerroin.
+    const tama = anim ? peliTaso(anim.v1) : (re.getRoomInstanceRenderingCanvasScale(rid, 1) || 1);
     // ei ylärajaa (kp 5.11. 01:10); 1:stä ylöspäin vain kokonaisluvut (kp 6.11. 13:44 "scroll zoom pitää poistaa murtoluvut, ei toimi":
     //   sipuli mittasi 1->1.5 ja 2->2.5 ei tee mitään). Alle 1 askel puolittaa (0.5, 0.25 ...) kuten ennen.
     const ylos = e.deltaY < 0;
     const uusi = ylos ? (tama >= 1 ? Math.floor(tama) + ASKEL : Math.min(1, tama * 2))
         : (tama > 1 ? Math.ceil(tama) - ASKEL : Math.max(ALIN, tama / 2));
     if (uusi === tama) return;
-    if (pehmea(re, rid, uusi, e.target)) return;
-    zoomaaNyt(re, rid, uusi);
+    const uusiE = moottoriTaso(uusi);
+    if (pehmea(re, rid, uusiE, e.target)) return;
+    zoomaaNyt(re, rid, uusiE);
 };
 
 // ---- PEHMEÄ ZOOM (0.8.0 kp 6.11. ~15:00 "smooth-feeling zoom instead of the hard jump"; 0.8.1 kp 15:50 "näkyy tollaset mustat palkit hetken smooth zoomin kaa") ----
@@ -144,7 +153,13 @@ tila.pehmea = { animaatioita: 0, uudelleenkohdistuksia: 0, napsautuksia: 0, moot
 const resizePehmea = () => { if (anim) lopeta(anim, 'resize'); };
 window.addEventListener('resize', resizePehmea, true);
 
-const zoomaaNyt = (re, rid, uusi) => {
+// Keskipisteen huonepiste HUONEEN koordinaatteina: sprite piirretään näytön paikalliseen x = huone-x + Math.trunc(_width / 2) (RoomSpriteCanvas.ts:736),
+//   joten paikallinen piste siirtyy kun canvaksen leveys muuttuu (selainzoom), huonepiste ei. Oma ankkuri jos tila on sama kuin jätimme, muuten kokonaisluvuista.
+const fokus = (c, rid) => {
+    const sama = ankkuri && ankkuri.rid === rid && ankkuri.s === c.scale && ankkuri.ox === c.screenOffsetX && ankkuri.oy === c.screenOffsetY && ankkuri.w === c._width && ankkuri.h === c._height;
+    return sama ? { x: ankkuri.x, y: ankkuri.y } : { x: (c._width / 2 - c.screenOffsetX) / c.scale - Math.trunc(c._width / 2), y: (c._height / 2 - c.screenOffsetY) / c.scale - Math.trunc(c._height / 2) };
+};
+const zoomaaNyt = (re, rid, uusi, R = null) => {   // R = keskelle jäävä huonepiste (selainzoom: purskeen alusta), oletus fokus()
     // MUSTA RUUTU (kp 6.11. 15:16 "ja taas tuli blackscreen"), mitattu robolla :9223 (tmp/zoom-kuplat/opus/out-e10..e12.json):
     //   moottori laskee uuden offsetin kokonaisluku-offsetista (setter Math.trunc) ja näytön worldTransformista (toLocal), joka on vanha jos
     //   välissä ei ole piirretty (piilotettu välilehti, raskas kehys). 1/32:ssa yksi pikseli = 32 huonepikseliä, takaisin 3:een x96:
@@ -156,11 +171,10 @@ const zoomaaNyt = (re, rid, uusi) => {
     let P = null, O = null;
     if (c && t && t.a > 0 && t.d > 0 && c.scale > 0 && Number.isFinite(t.tx + t.ty + c.screenOffsetX + c.screenOffsetY) && c._width > 0 && c._height > 0) {
         O = { x: c._width / 2, y: c._height / 2 };
-        const sama = ankkuri && ankkuri.rid === rid && ankkuri.s === c.scale && ankkuri.ox === c.screenOffsetX && ankkuri.oy === c.screenOffsetY && ankkuri.w === c._width && ankkuri.h === c._height;
-        const L = sama ? ankkuri : { x: (O.x - c.screenOffsetX) / c.scale, y: (O.y - c.screenOffsetY) / c.scale };
+        const F = R || fokus(c, rid), L = { x: F.x + Math.trunc(c._width / 2), y: F.y + Math.trunc(c._height / 2) };
         P = { x: t.a * L.x + t.c * L.y + t.tx, y: t.b * L.x + t.d * L.y + t.ty };
         re.setRoomInstanceRenderingCanvasScale(rid, 1, uusi, P, O, false, true);
-        ankkuri = { rid, x: L.x, y: L.y, s: c.scale, ox: c.screenOffsetX, oy: c.screenOffsetY, w: c._width, h: c._height };
+        ankkuri = { rid, x: F.x, y: F.y, s: c.scale, ox: c.screenOffsetX, oy: c.screenOffsetY, w: c._width, h: c._height };
         return;
     }
     ankkuri = null;
@@ -355,6 +369,12 @@ let kameraPoistu = () => {};
             // VARTIJA (kp 6.11. 14:48): `:zoom` ilman lukua lähettää parseFloat('') = NaN -> RoomEngine: level<1 ? 0.5 : Math.floor(NaN) = NaN -> musta huone.
             //   Ei-äärellinen taso ei pääse moottoriin, paitsi isFlipForced (moottori käyttää silloin -1:tä eikä lue tasoa).
             if (!isFlipForced && (typeof level !== 'number' || !Number.isFinite(level))) { k.hylattyjaZoomeja++; loki('hylätty zoom-taso ' + String(level)); return; }
+            // SELAINZOOM ERILLÄÄN: clientin omat kutsut (:zoom, RoomZoomEvent, zoomnapit) antavat PELITASON ilman flagia -> moottorin oma rajaus
+            //   (alle 1 -> 0.5, muuten floor, RoomEngine.setRoomInstanceRenderingCanvasScale) ja sitten * kerroin, flag päälle ettei moottori floorita.
+            if (kerroin !== 1 && cid === 1 && rid === this.activeRoomId && !isFlipForced && !arguments[6]) {
+                k.erotusKutsuja = (k.erotusKutsuja || 0) + 1;
+                return kaariS.call(this, rid, cid, moottoriTaso(level < 1 ? 0.5 : Math.floor(level)), point, offsetPoint, false, true);
+            }
             if (cid !== 1 || rid !== this.activeRoomId || natiiviSeuraa()) return alkuS.apply(this, arguments);
             let ennen = null; try { ennen = nakyma(this, rid); } catch (e) {}
             const r = alkuS.apply(this, arguments);
@@ -368,50 +388,111 @@ let kameraPoistu = () => {};
             return r;
         };
         reK.setRoomInstanceRenderingCanvasScale = kaariS; reK.setRoomInstanceRenderingCanvasOffset = kaariO;
+        // tason LUKU palauttaa pelitason (zoomnapit RoomToolsWidgetView/RoomWidgetsView puolittavat/tuplaavat sen, RoomView vertaa siihen);
+        //   geometria (klikit, kuplat, MessengerPoint, pokemon-merkit) lukee canvas.scale:a suoraan = moottorin taso, joten se pysyy johdonmukaisena CSS-pikseleissä
+        const omatG = Object.prototype.hasOwnProperty.call(reK, 'getRoomInstanceRenderingCanvasScale'), alkuG = reK.getRoomInstanceRenderingCanvasScale;
+        const kaariG = typeof alkuG === 'function' ? function (rid, cid) { const v = alkuG.apply(this, arguments);
+            const oma = (rid === undefined || rid === -1000 || rid === this.activeRoomId) && (cid === undefined || cid === -1 || cid === 1);
+            return (kerroin !== 1 && oma && v > 0) ? peliTaso(v) : v; } : null;
+        if (kaariG) reK.getRoomInstanceRenderingCanvasScale = kaariG;
         window.addEventListener('resize', resizeAlku, true);
         kameraPoistu = () => {
             window.removeEventListener('resize', resizeAlku, true); clearTimeout(purskeAjastin);
+            if (kaariG && reK.getRoomInstanceRenderingCanvasScale === kaariG) { if (omatG) reK.getRoomInstanceRenderingCanvasScale = alkuG; else delete reK.getRoomInstanceRenderingCanvasScale; }
             if (reK.setRoomInstanceRenderingCanvasScale === kaariS) { if (omatS) reK.setRoomInstanceRenderingCanvasScale = alkuS; else delete reK.setRoomInstanceRenderingCanvasScale; }
             if (reK.setRoomInstanceRenderingCanvasOffset === kaariO) { if (omatO) reK.setRoomInstanceRenderingCanvasOffset = alkuO; else delete reK.setRoomInstanceRenderingCanvasOffset; }
         };
     } else loki('roomEngine puuttuu: kuplien zoom-seuranta ei asennettu');
 }
-// ---- Selainzoom pitää huoneen keskellä (kp 6.11. 14:00 "selain zoom ei pidä huoneen sijaintia ruudulla samana ... pitää keskittää samanlail ku huone zoom") ----
-// MIKSI: kun pelin zoom != 1, huonekamera (RoomEngine.updateRoomCamera) on pois päältä ja clientin resize-käsittelijä (useRoom.ts, PR #197) ankkuroi huoneen
-//   CSS-pikseleihin: offset -= scale * (uusi leveys - vanha leveys) / 2. Selainzoom muuttaa viewportin CSS-kokoa, joten huone liukuu nurkkaan (zoom out) tai ulos
-//   (zoom in). Pelin oma zoom taas pitää viewportin keskipisteessä olevan huonepisteen keskellä. Keskitys = ankkurointi + (uusi - vanha leveys) / 2 per akseli.
-//   MITATTU oikealla Chrome-sivuzoomilla (WM_COMMAND, robo :9223, scale 2): 100 % -> 67 % huone -308/-325 CSS-px pois keskeltä, 150 %: +213/+226; tämän kanssa 0.
-// MILLOIN: vain kun devicePixelRatio on vaihtunut (selainzoom) ja pelin zoom != 1. Pelkkä ikkunan koonmuutos jää #197:n käyttäytymiseen.
-// ITSESAMMUTUS: client asettaa window.__kuplaZoomKeskitys = true kun natiivi korjaus (PR robo/browser-zoom-room-center) on livessä -> tämä ei tee mitään.
+// ---- Selainzoom erillään pelin zoomista (0.9.1, kp 6.11. 15:35 "haluun erottaa pelin zoomin ja selain zoomin"; korvaa 0.7.x:n keskityslohkon) ----
+// MIKSI: renderöijän resoluutio = devicePixelRatio (DprRenderingMode.ts GetDesiredResolution, useRoom.ts renderer.resize(w, h, dpr), autoDensity), joten
+//   huonepikseli on fyysisesti moottorin taso * dpr ja selainzoom (joka muuttaa dpr:ää) kasvattaa huonetta UI:n mukana. Lisäksi clientin resize-käsittelijä
+//   (useRoom.ts, #197) ankkuroi offsetin CSS-pikseleihin: huone liukuu (100 % -> 67 % pelitasolla 2: -308/-325 CSS-px, mitattu 0.7.x:ssä).
+// MITEN: moottorin taso = pelitaso * kerroin, kerroin = dprPohja / dpr, joten fyysinen koko = pelitaso * dprPohja kuten 100 %:ssa ja näytteistys samassa
+//   suhteessa (nearest) -> yhtä terävä. Moottori piirtää murtotasot (mitattu robolla: taso 2.4 -> näyttö 2.4, hahmon laatikko 216x367 = 2.4/3 * 270x459).
+//   Geometria (klikit, kuplat, MessengerPoint, pokemon-merkit) lukee canvas.scale:a suoraan, joten se pysyy johdonmukaisena; tason LUKU palauttaa
+//   pelitason ja clientin tason ASETUS kerrotaan kertoimella (kamera-lohkon kaariS/kaariG).
+//   Keskitys: purskeen ensimmäisessä resize-tapahtumassa (capture, ennen clientin käsittelijää) keskipisteen HUONEPISTE muistiin (fokus: liukuluku omasta
+//   ankkurista, joten askeleet eivät kerää Math.trunc-virhettä; 0.9.0 WIP ajelehti ~2 fyys. px per askel). Uusi taso ja keskitys asetetaan canvaksen OMASSA
+//   render()-kutsussa ennen piirtoa (sama kehys kuin clientin ankkuroima tila olisi piirretty -> ei välikehystä), vara 500 ms jos render() ei aja.
+// POHJA (dprPohja): kerran asennushetkellä. Selainzoom = outerWidth/innerWidth pyöristettynä Chromen zoom-portaisiin, hyväksytään vain jos ikkunan kehys
+//   (outerWidth - innerWidth * zoom) on 0-24 DIP (mitattu robolla 16 kaikilla 80-125 %: 1256 - 1240) ja dpr / zoom on tavallinen käyttöjärjestelmäskaala;
+//   muuten zoom = 1 (pohja = dpr). Sen jälkeen VAIN dpr:n muutos muuttaa kerrointa, joten sivuun telakoitu DevTools ei sotke myöhemmin.
+// RAJA: (1) pelitasolla 1 moottori pysyy 1:ssä (kamera seuraa hahmoa vain skaalalla tasan 1), joten tasolla 1 huone skaalautuu selainzoomin mukana kuten
+//   ennen. (2) Ikkunan siirto toiselle näytölle jolla eri käyttöjärjestelmäskaala luetaan selainzoomiksi. (3) DevTools sivulla auki asennushetkellä voi antaa
+//   väärän pohjan, jos kehysehto ja OS-skaalaehto osuvat sattumalta. (4) Pelkkä ikkunan koonmuutos (dpr sama) jää clientin #197-ankkuroinnille kuten ennen.
 let selainPoistu = () => {};
 {
-    let viimeW = null, viimeH = null, viimeDpr = VW.devicePixelRatio || 1, odottaaZoom = false, odotusAika = 0;
     const kanvas = () => { const re = RE(); if (!re || typeof re.getRoomInstanceRenderingCanvas !== 'function') return null;
-        const rid = re.activeRoomId; if (rid == null || rid === -1) return null; return re.getRoomInstanceRenderingCanvas(rid, 1) || null; };
-    const korjaa = () => {
-        const c = kanvas(); if (!c) return;
-        const s = c.scale || 1, w = c.width / s, h = c.height / s;
-        const dpr = VW.devicePixelRatio || 1;
-        if (Math.abs(dpr - viimeDpr) > 1e-6) { odottaaZoom = true; odotusAika = performance.now(); viimeDpr = dpr; }
-        if (viimeW === null || (w === viimeW && h === viimeH)) { viimeW = w; viimeH = h; return; }   // ensimmäinen havainto tai clientin käsittelijä ei ole vielä ehtinyt
-        if (odottaaZoom && performance.now() - odotusAika > 1000) odottaaZoom = false;
-        if (odottaaZoom) {
-            odottaaZoom = false;
-            if (VW.__kuplaZoomKeskitys) { if (!tila.natiiviKeskitys) { tila.natiiviKeskitys = true; loki('natiivi selainzoom-keskitys havaittu, tämä ei tee mitään'); } }
-            else if (s !== 1) {
-                const dx = (w - viimeW) / 2, dy = (h - viimeH) / 2;
-                c.screenOffsetX = Math.trunc(c.screenOffsetX + dx); c.screenOffsetY = Math.trunc(c.screenOffsetY + dy);
-                tila.keskityksia = (tila.keskityksia || 0) + 1; tila.viimeKeskitys = { dx, dy, s };
-            }
-        }
-        viimeW = w; viimeH = h;
+        const rid = re.activeRoomId; if (rid == null || rid === -1) return null; try { return re.getRoomInstanceRenderingCanvas(rid, 1) || null; } catch (e) { return null; } };
+    const ZOOMIT = [0.25, 1 / 3, 0.5, 2 / 3, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5], OS = [1, 1.25, 1.5, 1.75, 2, 2.25, 2.5, 3, 3.5, 4];
+    const pohja = () => {
+        const dpr = VW.devicePixelRatio || 1, ow = VW.outerWidth || 0, iw = VW.innerWidth || 0;
+        let z = 1;
+        if (ow > 0 && iw > 0) { const r = ow / iw; let paras = 1; for (const v of ZOOMIT) if (Math.abs(v - r) < Math.abs(paras - r)) paras = v;
+            const kehys = ow - iw * paras; if (kehys >= 0 && kehys <= 24) z = paras; }
+        const p = dpr / z, os = OS.find(o => Math.abs(o - p) / o < 0.02); return os !== undefined ? os : dpr;
     };
-    // heti (jos clientin käsittelijä ehti ensin) ja uudestaan ennen piirtoa (jos ei ehtinyt tai se rekisteröityi uudelleen meidän jälkeemme)
-    const onResize = () => { korjaa(); requestAnimationFrame(korjaa); };
-    window.addEventListener('resize', onResize);
-    const vv = VW.visualViewport; if (vv) vv.addEventListener('resize', onResize);
-    setTimeout(korjaa, 0);   // alkutila muistiin
-    selainPoistu = () => { window.removeEventListener('resize', onResize); if (vv) vv.removeEventListener('resize', onResize); };
+    const kunnossa = c => c && c.scale > 0 && c._width > 0 && c._height > 0;
+    // ASETTUMINEN: livessä clientin ankkurointi tulee osin rAF:n JÄLKEEN (ResizeObserver / dpr-MQL-vahti; mitattu robolla 6.11. 16:2x: yksi asetus render()-kutsussa
+    //   jäi clientin ankkuroinnin alle, keskipiste liukui ~leveyden muutos / (2 * taso), 110 %: -18.6 huone-px). Siksi purske pysyy auki ASETTUU ms viimeisestä
+    //   resize-tapahtumasta tai asetuksesta, ja asetus tehdään uudelleen AINA kun canvaksen koko tai dpr on muuttunut siitä mihin viimeksi asetettiin.
+    //   Pelkkä offsetin muutos (raahaus) ei laukaise uudelleenasetusta.
+    const ASETTUU = 700;
+    let purske = null;   // { rid, c, R, k, G, E, jatetty, loppu, ajastin, kaari, omaR, alkuR }
+    const irrota = p => { clearInterval(p.ajastin); if (p.kaari && p.c.render === p.kaari) { if (p.omaR) p.c.render = p.alkuR; else delete p.c.render; } };
+    const lopetaP = () => { const p = purske; if (!p) return; purske = null; irrota(p); };
+    const tarkista = syy => {
+        const p = purske; if (!p) return;
+        const re = RE(), c = kanvas(); if (!re || re.activeRoomId !== p.rid || c !== p.c || !kunnossa(c)) { lopetaP(); return; }
+        const dpr = VW.devicePixelRatio || 1, kUusi = dprPohja / dpr;   // ei pyöristystä: moottoriTaso pyöristää tuloksen (2 * 1.5 / 2.25 = 1.333333, ei 1.333334)
+        const muuttui = p.jatetty ? (p.jatetty.w !== c._width || p.jatetty.h !== c._height || p.jatetty.dpr !== dpr) : Math.abs(kUusi - p.k) > 1e-6;
+        if (muuttui) {
+            if (p.E !== null && c.scale !== p.E) p.G = peliTaso(c.scale);   // joku muutti tasoa purskeen aikana (rulla, :zoom): sen taso pitää
+            kerroin = kUusi; const E = moottoriTaso(p.G);
+            if (!(p.G === 1 && c.scale === 1)) zoomaaNyt(re, p.rid, E, p.R);   // pelitaso 1: moottori pysyy 1:ssä, kamera hoitaa kuten ennen
+            p.E = c.scale; p.jatetty = { w: c._width, h: c._height, dpr }; p.loppu = performance.now() + ASETTUU;
+            tila.erotus = { syy, dprPohja, dpr, kerroin, peli: p.G, moottori: c.scale, n: ((tila.erotus && tila.erotus.n) || 0) + 1 };
+        }
+        if (performance.now() > p.loppu) lopetaP();
+    };
+    const alku = () => {   // resize capture: purskeen ensimmäinen tapahtuma, ennen clientin käsittelijää
+        if (dprPohja == null) return;
+        if (purske) { purske.loppu = performance.now() + ASETTUU; return; }   // kesken: sama huonepiste, ei clientin ankkuroimasta tilasta
+        const re = RE(), c = kanvas(); if (!re || !kunnossa(c)) return;
+        const rid = re.activeRoomId;
+        const p = purske = { rid, c, R: fokus(c, rid), k: kerroin, G: peliTaso(c.scale), E: null, jatetty: null, loppu: performance.now() + ASETTUU, ajastin: 0, kaari: null, omaR: false, alkuR: null };
+        if (typeof c.render === 'function') {
+            p.omaR = Object.prototype.hasOwnProperty.call(c, 'render'); p.alkuR = c.render;
+            p.kaari = function () { if (purske === p) tarkista('render'); return p.alkuR.apply(this, arguments); };
+            c.render = p.kaari;
+        }
+        p.ajastin = setInterval(() => { if (purske === p) tarkista('vara'); }, 250);   // render() ei aja piilotetulla välilehdellä
+    };
+    // PURSKEEN ALKU = clientin canvaksen koonmuutos (InitializeRoomInstanceRenderingCanvas -> roomEngine.initializeRoomInstanceRenderingCanvas), ENNEN alkuperäistä:
+    //   client laskee ankkuroidun offsetin ennen sitä ja asettaa sen vasta sen jälkeen (useRoom.ts resize), joten tässä tila on vielä ankkuroimaton.
+    //   Mitattu robolla 6.11. (opus/jarj.js, 100 -> 110 %): clientin ensimmäinen init 4.7 ms ENNEN window resize -tapahtumaa (offset jo -1368 -> -1198 resizessa),
+    //   joten pelkkä resize-capture otti huonepisteen clientin ankkuroimasta tilasta. Resize-capture jää varalle (jos tapahtuma tulee ensin).
+    const reI = RE(); let kaariI = null; const omatI = !!reI && Object.prototype.hasOwnProperty.call(reI, 'initializeRoomInstanceRenderingCanvas'), alkuI = reI && reI.initializeRoomInstanceRenderingCanvas;
+    if (typeof alkuI === 'function') {
+        kaariI = function (rid, cid, ww, hh) {
+            try { if (cid === 1 && rid === this.activeRoomId) { const c = kanvas(); if (kunnossa(c) && (ww !== c._width || hh !== c._height)) alku(); } } catch (e) {}
+            return alkuI.apply(this, arguments);
+        };
+        reI.initializeRoomInstanceRenderingCanvas = kaariI;
+    }
+    window.addEventListener('resize', alku, true);
+    const vv = VW.visualViewport; if (vv) vv.addEventListener('resize', alku, true);
+    dprPohja = pohja(); tila.dprPohja = dprPohja;
+    // ladattiin jo zoomattuna: sama polku heti (taso tähän asti ilman kerrointa)
+    if (Math.abs(dprPohja / (VW.devicePixelRatio || 1) - 1) > 1e-6) { alku(); tarkista('asennus'); }
+    selainPoistu = () => {
+        window.removeEventListener('resize', alku, true); if (vv) vv.removeEventListener('resize', alku, true);
+        if (kaariI && reI.initializeRoomInstanceRenderingCanvas === kaariI) { if (omatI) reI.initializeRoomInstanceRenderingCanvas = alkuI; else delete reI.initializeRoomInstanceRenderingCanvas; }
+        lopetaP();
+        if (kerroin !== 1) { const re = RE(), c = kanvas(); const G = kunnossa(c) ? peliTaso(c.scale) : null; kerroin = 1;   // takaisin pelitasolle ilman kerrointa
+            if (re && G != null && G !== c.scale) zoomaaNyt(re, re.activeRoomId, G); }
+    };
 }
 loki('asennettu');
 
