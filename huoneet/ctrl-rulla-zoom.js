@@ -27,7 +27,8 @@ const ASKEL = 1;
 //   TASOT[k] = 2^(k/6), k = -18..12 (1/8 ... 4; 1, 2, 4, 1/2 ... tasan 2:n potensseja). Taso 1, 2 ja 4 menee suoraan moottorille. Muut ovat kutistustasoja
 //   (lohko "PIENI"): alle 1 moottori 1 ja G = taso; yli 1 moottori E = ceil(taso) ja G = taso / E (2.24 ... 2.83: E 3; 3.17, 3.56: E 4).
 //   Aiemmat taulukot (VALI 1 ... 2, PIENET alle 1, kokonaisluvut 2 -> 3 -> 4 ...) korvattu tällä yhdellä.
-const TASOT = []; for (let k = -18; k <= 12; k++) TASOT.push(Math.pow(2, k / 6));
+// 0.13.0 (kp 6.11. 22:21 "sisääpäi tyssää aika aikasee", 22:21 "kyl kestää"): yläraja 4 -> 8, alaraja 1/8 -> 1/4 (kp 22:23) (k = -12..18). Moottori E = ceil(taso) 5 ... 8.
+const TASOT = []; for (let k = -12; k <= 18; k++) TASOT.push(Math.pow(2, k / 6));
 const tasoAskel = (x, ylos) => {   // seuraava taso taulukossa; rajalla (yli 4 ylös, alle 1/8 alas) sama taso eli ei askelta
     if (ylos) { for (const v of TASOT) if (v > x + 1e-6) return v; return x; }
     for (let i = TASOT.length - 1; i >= 0; i--) if (TASOT[i] < x - 1e-6) return TASOT[i];
@@ -37,7 +38,7 @@ const onVali = u => PIENI.paalla && u > 1 + 1e-6 && Math.abs(u - Math.round(u)) 
 // LIUKU pois 0.10.1 (kp 6.11. 20:36 "otetaa se interpoloitu zoom efekti pois. siis se animaatio tasojen välis", Res: pikselien uudelleenasettuminen
 //   sattuu silmään nurmikkohuoneessa): joka askel on välitön. Lohko "PEHMEÄ ZOOM" jää koodiin (true palauttaa liu'un), RAE-vahti ja kamera ennallaan.
 const LIUKU = false;
-const ALIN = 0.125;   // pienin rullatessa (kp 15:16 musta ruutu: 1/128:ssa huone on 1 px ja paluumatkalla karkaa, ks. kasittele)
+const ALIN = 0.25;   // 0.13.0 kp 22:23 "max outward zoom vaik 0.25" (oli 0.125). pienin rullatessa (kp 15:16 musta ruutu: 1/128:ssa huone on 1 px ja paluumatkalla karkaa, ks. kasittele)
 let ankkuri = null;   // keskipisteen huonepiste (HUONEEN koordinaatit, ks. fokus) liukulukuna omien askelten yli
 // pelin zoom erillään selaimen zoomista (0.9.1): moottorin taso = pelitaso * kerroin, kerroin = dprPohja / devicePixelRatio (ks. lohko "Selainzoom erillään")
 let kerroin = 1, dprPohja = null;
@@ -91,7 +92,7 @@ const peliTaso = (E, k = kerroin, t = kokoTila) => {
     return Math.round(g0 * 1000) / 1000;
 };
 const RE = () => VW.NitroDevTools && VW.NitroDevTools.roomEngine;
-const tila = VW.__huoneCtrlZoom = { versio: 'huone-0.12.2', natiivi: false, loki: [], poistu() {}, aseta: null, tilaNyt: null };
+const tila = VW.__huoneCtrlZoom = { versio: 'huone-0.13.0', natiivi: false, loki: [], poistu() {}, aseta: null, tilaNyt: null };
 // B201 (kp 6.11. 16:42 "huone välil hypähtää vasemmalle paljon ... kun zoomaan ulospäin ... pelin zoomilla", 16:47 "ei silti toistu consistently"):
 //   huonekamera (RoomEngine.updateRoomCamera, ajaa VAIN skaalalla tasan 1) kirjoittaa offsetiksi -(kameran oma sijainti) aina kun hahmo liikkuu tai canvaksen
 //   koko muuttuu. Moottori päivittää kameran sijainnin raahauksen jälkeen (handleRoomDragging MOUSE_UP: camera.resetLocation(-offset)), mutta EI zoomin
