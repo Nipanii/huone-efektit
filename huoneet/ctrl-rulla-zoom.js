@@ -24,7 +24,7 @@ if (window.__huoneCtrlZoom) { try { window.__huoneCtrlZoom.poistu(); } catch (e)
 const VW = window;
 const ASKEL = 1;
 const RE = () => VW.NitroDevTools && VW.NitroDevTools.roomEngine;
-const tila = VW.__huoneCtrlZoom = { versio: 'huone-0.7.0', natiivi: false, loki: [], poistu() {}, aseta: null, tilaNyt: null };
+const tila = VW.__huoneCtrlZoom = { versio: 'huone-0.7.1', natiivi: false, loki: [], poistu() {}, aseta: null, tilaNyt: null };
 const loki = s => { tila.loki.push(new Date().toTimeString().slice(0, 8) + ' ' + s); if (tila.loki.length > 50) tila.loki.shift(); };
 let viime = 0, paalla = true, varaTimer = 0;
 try { paalla = localStorage.getItem('kupla.ctrlZoom') !== 'off'; } catch (e) {}
@@ -127,7 +127,8 @@ if (!VW.__kuplaBubbleZoomFix) {
 //   ensimmäisestä näkemästä, kaava RoomEngine.getRoomObjectScreenLocation: x*scale + width/2 + offsetX), sitten kameran nostot palautetaan ja koko pino
 //   tarkistetaan: vanhempi kupla aina kokonaan uudemman yläpuolelle samassa sarakkeessa. Raahauksessa sama tarkistus clientin oman rAF-korjauksen JÄLKEEN,
 //   ja myös reunan takia nostetut kuplat lasketaan kameran siirtämiksi. Nostot kirjataan edgeLiftiin, joten clientin oma palautus tuo ne takaisin alas.
-// ITSESAMMUTUS: natiivi korjaus (PR robo/zoom-bubbles-follow) laittaa .nitro-chat-widget[data-camera-follow] -> kääreet päästävät kaiken läpi.
+//   Selainzoomissa (resize-purske) sama sivusiirto 450 ms purskeen jälkeen. Lisäksi zoom-kääre hylkää ei-äärellisen tason (NaN -> musta huone, kp 14:48).
+// ITSESAMMUTUS: natiivi korjaus (PR robo/zoom-bubbles-follow) laittaa .nitro-chat-widget[data-camera-follow] -> kääreet päästävät kaiken läpi (NaN-vartija jää).
 // RAJA: kuplan vaakapaikka on puhujan paikka VIESTIN hetkellä (kuten raahauksessa), ei kävelevän hahmon nykyinen paikka. Ennen tätä skriptiä tulleiden
 //   kuplien huone-x lasketaan niiden nykyisestä paikasta, joten jos selainzoom on jo siirtänyt huonetta niiden alta, ne seuraavat sitä vanhaa paikkaa.
 let kameraPoistu = () => {};
@@ -194,16 +195,18 @@ let kameraPoistu = () => {};
     };
     const huoneX = new WeakMap();   // kupla -> puhujan x huoneen koordinaatteina
     const nakyma = (re, rid) => { const c = re.getRoomInstanceRenderingCanvas(rid, 1); return (c && c.scale > 0) ? { s: c.scale, w: c.width, ox: c.screenOffsetX } : null; };
-    const k = tila.kamera = { zoomeja: 0, siirtoja: 0, nostoja: 0, raahauksia: 0, virheita: 0 };
-    const seuraa = (rid, a, b) => {
+    const k = tila.kamera = { zoomeja: 0, selainzoomeja: 0, siirtoja: 0, nostoja: 0, raahauksia: 0, virheita: 0, hylattyjaZoomeja: 0 };
+    const muista = (rid, a, l) => { for (const c of l) if (c.elementRef && !huoneX.has(c) && (typeof c.roomId !== 'number' || c.roomId === rid)) huoneX.set(c, (c.left + c.width / 2 - a.w / 2 - a.ox) / a.s); };
+    // a = näkymä jossa kuplat nyt ovat (huone-x muistetaan siitä niille joilla sitä ei vielä ole), b = uusi näkymä
+    const seuraa = (rid, a, b, kartoitaPiirtamattomat = true) => {
         if (!a || !b || (a.s === b.s && a.w === b.w && a.ox === b.ox)) return;
         const l = lista(); if (!l || !l.length) return;
         const kartta = x => ((x - a.w / 2 - a.ox) / a.s) * b.s + b.w / 2 + b.ox;
+        muista(rid, a, l);
         let n = 0;
         for (const c of l) {
             if (typeof c.roomId === 'number' && c.roomId !== rid) continue;
-            if (!c.elementRef) { if (c.location && typeof c.location.x === 'number') c.location.x = Math.round(kartta(c.location.x)); continue; }   // ei vielä piirretty: paikka mountissa
-            if (!huoneX.has(c)) huoneX.set(c, (c.left + c.width / 2 - a.w / 2 - a.ox) / a.s);
+            if (!c.elementRef) { if (kartoitaPiirtamattomat && c.location && typeof c.location.x === 'number') c.location.x = Math.round(kartta(c.location.x)); continue; }   // ei vielä piirretty: paikka mountissa
             const uusi = Math.round(huoneX.get(c) * b.s + b.w / 2 + b.ox - c.width / 2);
             if (uusi !== c.left) { c.left = uusi; n++; }
         }
@@ -211,6 +214,22 @@ let kameraPoistu = () => {};
         if (!n) return;
         const m = l.filter(c => c.elementRef);
         palauta(m); k.nostoja += nosta(m, 'zoom');
+    };
+    // SELAINZOOM (mitattu e8: pelin zoom 2, selain 100 -> 80 %: kuplat 160 px sivussa puhujasta, koska huonetta siirretään suoraan offsetilla ilman
+    //   ROOM_DRAGia: clientin resize-ankkurointi useRoom.ts + yllä oleva keskitys). Purskeen alussa (capture, ennen clientin käsittelijöitä) huone-x muistiin,
+    //   450 ms viimeisen resizen jälkeen (B22-korjauksen 400 ms jälkeen, jotta sen top-korjaus ei kumoa nostoja) kuplat puhujan kohdalle ja pino tarkistetaan.
+    let purskeA = null, purskeRid = null, purskeAjastin = 0;
+    const resizeAlku = () => {
+        if (natiiviSeuraa() || !reK) return;
+        if (!purskeA) { try { purskeRid = reK.activeRoomId; purskeA = nakyma(reK, purskeRid); const l = lista(); if (purskeA && l) muista(purskeRid, purskeA, l); } catch (e) { purskeA = null; } }
+        clearTimeout(purskeAjastin);
+        purskeAjastin = setTimeout(() => {
+            const a = purskeA, rid = purskeRid; purskeA = null; if (!a || natiiviSeuraa() || rid !== reK.activeRoomId) return;
+            try { const b = nakyma(reK, rid); const l = lista(); if (!b || !l) return;
+                muista(rid, b, l);   // purskeen aikana tulleet: paikka on jo uudessa näkymässä, ne eivät liiku
+                seuraa(rid, a, b, false); k.selainzoomeja++;
+            } catch (e) { k.virheita++; loki('selainzoom-seuranta virhe: ' + e.message); }
+        }, 450);
     };
     const raahausKorjaus = () => {
         if (natiiviSeuraa()) return;
@@ -221,7 +240,10 @@ let kameraPoistu = () => {};
     if (reK && typeof reK.setRoomInstanceRenderingCanvasScale === 'function' && typeof reK.setRoomInstanceRenderingCanvasOffset === 'function') {
         const omatS = Object.prototype.hasOwnProperty.call(reK, 'setRoomInstanceRenderingCanvasScale'), omatO = Object.prototype.hasOwnProperty.call(reK, 'setRoomInstanceRenderingCanvasOffset');
         const alkuS = reK.setRoomInstanceRenderingCanvasScale, alkuO = reK.setRoomInstanceRenderingCanvasOffset;
-        const kaariS = function (rid, cid) {
+        const kaariS = function (rid, cid, level, point, offsetPoint, isFlipForced) {
+            // VARTIJA (kp 6.11. 14:48): `:zoom` ilman lukua lähettää parseFloat('') = NaN -> RoomEngine: level<1 ? 0.5 : Math.floor(NaN) = NaN -> musta huone.
+            //   Ei-äärellinen taso ei pääse moottoriin, paitsi isFlipForced (moottori käyttää silloin -1:tä eikä lue tasoa).
+            if (!isFlipForced && (typeof level !== 'number' || !Number.isFinite(level))) { k.hylattyjaZoomeja++; loki('hylätty zoom-taso ' + String(level)); return; }
             if (cid !== 1 || rid !== this.activeRoomId || natiiviSeuraa()) return alkuS.apply(this, arguments);
             let ennen = null; try { ennen = nakyma(this, rid); } catch (e) {}
             const r = alkuS.apply(this, arguments);
@@ -235,7 +257,9 @@ let kameraPoistu = () => {};
             return r;
         };
         reK.setRoomInstanceRenderingCanvasScale = kaariS; reK.setRoomInstanceRenderingCanvasOffset = kaariO;
+        window.addEventListener('resize', resizeAlku, true);
         kameraPoistu = () => {
+            window.removeEventListener('resize', resizeAlku, true); clearTimeout(purskeAjastin);
             if (reK.setRoomInstanceRenderingCanvasScale === kaariS) { if (omatS) reK.setRoomInstanceRenderingCanvasScale = alkuS; else delete reK.setRoomInstanceRenderingCanvasScale; }
             if (reK.setRoomInstanceRenderingCanvasOffset === kaariO) { if (omatO) reK.setRoomInstanceRenderingCanvasOffset = alkuO; else delete reK.setRoomInstanceRenderingCanvasOffset; }
         };
