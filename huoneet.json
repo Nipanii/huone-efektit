@@ -6,7 +6,8 @@
       "skriptit": [
         "huoneet/424.js",
         "huoneet/424-myrsky.js",
-        "huoneet/reply-hyppy.js"
+        "huoneet/reply-hyppy.js",
+        "huoneet/ctrl-rulla-zoom.js"
       ]
     },
     "650": {
