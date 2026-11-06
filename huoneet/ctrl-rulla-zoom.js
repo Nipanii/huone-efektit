@@ -33,7 +33,27 @@ const pyor = v => Math.round(v * 1e6) / 1e6;
 const peliTaso = (E, k = kerroin) => (k === 1 || E === 1) ? E : Math.round(E / k * 1000) / 1000;
 const moottoriTaso = (G, k = kerroin) => { if (k === 1 || G === 1) return G; const e = pyor(G * k); return e === 1 ? 1.000001 : e; };
 const RE = () => VW.NitroDevTools && VW.NitroDevTools.roomEngine;
-const tila = VW.__huoneCtrlZoom = { versio: 'huone-0.9.1', natiivi: false, loki: [], poistu() {}, aseta: null, tilaNyt: null };
+const tila = VW.__huoneCtrlZoom = { versio: 'huone-0.9.2', natiivi: false, loki: [], poistu() {}, aseta: null, tilaNyt: null };
+// B201 (kp 6.11. 16:42 "huone välil hypähtää vasemmalle paljon ... kun zoomaan ulospäin ... pelin zoomilla", 16:47 "ei silti toistu consistently"):
+//   huonekamera (RoomEngine.updateRoomCamera, ajaa VAIN skaalalla tasan 1) kirjoittaa offsetiksi -(kameran oma sijainti) aina kun hahmo liikkuu tai canvaksen
+//   koko muuttuu. Moottori päivittää kameran sijainnin raahauksen jälkeen (handleRoomDragging MOUSE_UP: camera.resetLocation(-offset)), mutta EI zoomin
+//   jälkeen. Zoom ulos tasolle 1 jättää kameraan vanhan sijainnin (esim. tasolla 2 raahattu: -offset tason 2 pikseleinä), ja seuraava hahmon askel napsauttaa
+//   huoneen sinne. Korjaus: kameraSynk tekee saman kuin moottorin raahauksen loppu jokaisen tasolle 1 päättyvän zoomin jälkeen.
+const kameraSynk = (re, rid, c) => {
+    try {
+        if (!re || !c || c.scale !== 1) return false;
+        const d = re._roomInstanceDatas && typeof re._roomInstanceDatas.get === 'function' ? re._roomInstanceDatas.get(rid) : null, k = d && d.roomCamera;
+        if (!k || typeof k.resetLocation !== 'function') return false;
+        const x = -c.screenOffsetX, y = -c.screenOffsetY, l = k.location;
+        if (l && l.x === x && l.y === y) return false;
+        if (!k.isMoving) { k.centeredLocX = false; k.centeredLocY = false; }   // kuten moottorin raahauksen loppu
+        k.resetLocation({ x, y, z: 0 }); vahti.synkkeja++;
+        return true;
+    } catch (e) { return false; }
+};
+// vahdin aikaleimat (performance.now): lokirivin konteksti, ks. lohko "Hyppyvahti"
+const vahti = { fokus: null, blur: null, nakyvyys: null, resize: null, init: null, rulla: null, rullaN: 0, zoom: null, synkkeja: 0, korjauksia: 0 };
+let vartija = () => {}, selainAuki = () => false;   // asetetaan lohkoissa "Hyppyvahti" ja "Selainzoom erillään"
 const loki = s => { tila.loki.push(new Date().toTimeString().slice(0, 8) + ' ' + s); if (tila.loki.length > 50) tila.loki.shift(); };
 let viime = 0, paalla = true, varaTimer = 0;
 try { paalla = localStorage.getItem('kupla.ctrlZoom') !== 'off'; } catch (e) {}
@@ -65,6 +85,7 @@ const kasittele = e => {
         : (tama > 1 ? Math.ceil(tama) - ASKEL : Math.max(ALIN, tama / 2));
     if (uusi === tama) return;
     const uusiE = moottoriTaso(uusi);
+    vartija(re, rid, uusi);
     if (pehmea(re, rid, uusiE, e.target)) return;
     zoomaaNyt(re, rid, uusiE);
 };
@@ -99,8 +120,10 @@ const huoneCanvas = (c, ehdokas) => {
 const vNyt = a => { const p = Math.min(1, (performance.now() - a.t0) / KESTO); return { p, v: a.v0 + (a.v1 - a.v0) * helpotus(p) }; };
 const sama = (x, y) => Math.abs(x - y) < 1e-9;
 const css = (a, r) => { a.cv.style.transform = 'scale(' + Math.max(1, r) + ')'; };
+const omaMuoto = v => /^scale\([\d.e+-]+\)$/.test(v || '');   // tämän skriptin kirjoittama transform-muoto
+let viimeCv = null;   // { cv, vanhaT, t } viimeisin canvas jolta transform pudotettiin (hyppyvahdin RAE-tarkistus)
 const pudota = (syy) => {
-    const a = anim; if (!a) return; anim = null;
+    const a = anim; if (!a) return; anim = null; viimeCv = { cv: a.cv, vanhaT: a.vanhaT, t: performance.now() };
     cancelAnimationFrame(a.raf); clearTimeout(a.ajastin);
     if (a.kaari && a.c.render === a.kaari) { if (a.omaR) a.c.render = a.alkuR; else delete a.c.render; }
     a.cv.style.transform = a.vanhaT; a.cv.style.transformOrigin = a.vanhaO;
@@ -135,7 +158,9 @@ const pehmea = (re, rid, uusi, ehdokas) => {
     let c = null; try { c = typeof re.getRoomInstanceRenderingCanvas === 'function' ? re.getRoomInstanceRenderingCanvas(rid, 1) : null; } catch (x) {}
     if (!c || !(c.scale > 0) || !(c._width > 0) || !(c._height > 0) || typeof c.render !== 'function') return false;
     const cv = huoneCanvas(c, ehdokas); if (!cv) { tila.pehmea.eiCanvasta++; return false; }
-    const a = anim = { rid, cv, c, v0: c.scale, v1: uusi, t0: performance.now(), raf: 0, ajastin: 0, vanhaT: cv.style.transform, vanhaO: cv.style.transformOrigin,
+    // RAE (kp 17:05-17:06 "se näkyy vaan tosi vähän aikaa se rakeisuus ... muutaman kerran se jumittu pidemmäks aikaa", pelizoomilla): jos canvakselle on jäänyt
+    //   tämän skriptin muotoinen transform (edellinen instanssi kesken moottorin uudelleenkäynnistyksen tms.), sitä EI oteta palautettavaksi arvoksi
+    const a = anim = { rid, cv, c, v0: c.scale, v1: uusi, t0: performance.now(), raf: 0, ajastin: 0, vanhaT: omaMuoto(cv.style.transform) ? '' : cv.style.transform, vanhaO: omaMuoto(cv.style.transform) ? '' : cv.style.transformOrigin,
         omaR: Object.prototype.hasOwnProperty.call(c, 'render'), alkuR: c.render };
     a.kaari = function () {
         if (anim === a) ennenPiirtoa(a);
@@ -173,12 +198,17 @@ const zoomaaNyt = (re, rid, uusi, R = null) => {   // R = keskelle jäävä huon
         O = { x: c._width / 2, y: c._height / 2 };
         const F = R || fokus(c, rid), L = { x: F.x + Math.trunc(c._width / 2), y: F.y + Math.trunc(c._height / 2) };
         P = { x: t.a * L.x + t.c * L.y + t.tx, y: t.b * L.x + t.d * L.y + t.ty };
+        const s0 = c.scale;
         re.setRoomInstanceRenderingCanvasScale(rid, 1, uusi, P, O, false, true);
         ankkuri = { rid, x: F.x, y: F.y, s: c.scale, ox: c.screenOffsetX, oy: c.screenOffsetY, w: c._width, h: c._height };
+        vahti.zoom = { t: performance.now(), s0, s1: c.scale, R: !!R };
+        kameraSynk(re, rid, c);
         return;
     }
     ankkuri = null;
     re.setRoomInstanceRenderingCanvasScale(rid, 1, uusi, null, null, false, true);   // keskipisteeseen kuten :zoom
+    vahti.zoom = { t: performance.now(), s0: null, s1: uusi, R: false };
+    try { kameraSynk(re, rid, re.getRoomInstanceRenderingCanvas(rid, 1)); } catch (x) {}
 };
 
 const enter = e => {
@@ -379,6 +409,7 @@ let kameraPoistu = () => {};
             let ennen = null; try { ennen = nakyma(this, rid); } catch (e) {}
             const r = alkuS.apply(this, arguments);
             try { seuraa(rid, ennen, nakyma(this, rid)); } catch (e) { k.virheita++; loki('zoom-seuranta virhe: ' + e.message); }
+            try { kameraSynk(this, rid, this.getRoomInstanceRenderingCanvas(rid, 1)); } catch (e) {}   // B201: clientin omat napit / :zoom tasolle 1
             return r;
         };
         const kaariO = function (rid, cid) {
@@ -440,6 +471,7 @@ let selainPoistu = () => {};
     //   Pelkkä offsetin muutos (raahaus) ei laukaise uudelleenasetusta.
     const ASETTUU = 700;
     let purske = null;   // { rid, c, R, k, G, E, jatetty, loppu, ajastin, kaari, omaR, alkuR }
+    selainAuki = () => !!purske;
     const irrota = p => { clearInterval(p.ajastin); if (p.kaari && p.c.render === p.kaari) { if (p.omaR) p.c.render = p.alkuR; else delete p.c.render; } };
     const lopetaP = () => { const p = purske; if (!p) return; purske = null; irrota(p); };
     const tarkista = syy => {
@@ -476,7 +508,7 @@ let selainPoistu = () => {};
     const reI = RE(); let kaariI = null; const omatI = !!reI && Object.prototype.hasOwnProperty.call(reI, 'initializeRoomInstanceRenderingCanvas'), alkuI = reI && reI.initializeRoomInstanceRenderingCanvas;
     if (typeof alkuI === 'function') {
         kaariI = function (rid, cid, ww, hh) {
-            try { if (cid === 1 && rid === this.activeRoomId) { const c = kanvas(); if (kunnossa(c) && (ww !== c._width || hh !== c._height)) alku(); } } catch (e) {}
+            try { if (cid === 1 && rid === this.activeRoomId) { vahti.init = performance.now(); const c = kanvas(); if (kunnossa(c) && (ww !== c._width || hh !== c._height)) alku(); } } catch (e) {}
             return alkuI.apply(this, arguments);
         };
         reI.initializeRoomInstanceRenderingCanvas = kaariI;
@@ -494,9 +526,112 @@ let selainPoistu = () => {};
             if (re && G != null && G !== c.scale) zoomaaNyt(re, re.activeRoomId, G); }
     };
 }
+// ---- Hyppyvahti + vartija (0.9.2, B201; kp 16:47 "ei silti toistu consistently", 16:48 "joku älykäs fix mikä ei vaadi et osataa toistaa rare bugi") ----
+// VAHTI (passiivinen, vain konsoli, ei paketteja): joka kehys keskipisteen huonepiste R; jos se siirtyy yhdessä kehyksessä yli 20 CSS-px (|ΔR| * taso) samassa
+//   huoneessa, konsoliin YKSI rivi "[huone-zoom HYPPY] {...}" kontekstin kanssa (offset ennen/jälkeen, pelitaso/moottorin taso, dpr, ikkuna ja canvas, ms
+//   viimeisestä fokuksesta / näkyvyydestä / resizesta / canvaksen initistä / rullasta / zoomista, siirtymä kesken, rullatikit purskeessa, kamera).
+//   Viimeiset 20 myös __huoneCtrlZoom.hypyt. Ei kirjaa: 3 s huoneeseen tulosta (kamera asettuu), hiiren raahausta (hiiri alhaalla JA moottori raahaa),
+//   kameran omaa liukua tasolla 1 (kamera synkassa kummassakin kehyksessä; B201-napsautuksessa se ei ole).
+// RAE (kp 17:05-17:07, vain todiste): siirtymä kesken > KESTO + 1500 ms -> pakotettu loppu; 500 ms siirtymän jälkeen canvakselle jäänyt scale() tai
+//   backing != CSS * dpr -> rivi "[huone-zoom RAE] {...}" (jäänyt scale() palautetaan).
+// VARTIJA (invariantti, ei vaadi toistoa): jokaisella rulla-askeleella aiottu keskipisteen huonepiste talteen syötehetkellä; KESTO + 150 ms jälkeen ja
+//   yhden rAF:n päästä (siirtymä ohi) luetaan todellinen. Jos poikkeama > 4 CSS-px, taso on se mihin askel vei, siirtymä ja selainzoom-purske eivät ole kesken,
+//   hiiri ei ole alhaalla eikä kamera liiku, offset korjataan YHDEN kerran ja kamera synkataan (kameraSynk). Uusi askel korvaa odottavan tarkistuksen.
+//   Korjaus kirjataan konsoliin samassa muodossa ("KORJAUS").
+// RAJA: vartija katsoo vain ctrl+rulla-askeleita (ei clientin nappeja / :zoom); kameran hyppy myöhemmin (hahmon askel) näkyy vain vahdissa, ja sen juurisyy
+//   korjataan kameraSynk:llä (zoomaaNyt, kaariS ja varapolkuna kehys jossa taso vaihtui 1:een mistä tahansa lähteestä).
+let vahtiPoistu = () => {};
+{
+    const HYPPY = 20, KORJAA = 4;
+    const nyt = () => performance.now();
+    const ok = c => c && c.scale > 0 && c._width > 0 && c._height > 0;
+    const Rraaka = c => ({ x: (c._width / 2 - c.screenOffsetX) / c.scale - Math.trunc(c._width / 2), y: (c._height / 2 - c.screenOffsetY) / c.scale - Math.trunc(c._height / 2) });
+    let hiiriAlas = false, edell = null, huoneAlku = 0, rafV = 0, viimeKonsoli = 0, odotus = null;
+    const kamera = (re, rid) => { try { const d = re._roomInstanceDatas && re._roomInstanceDatas.get(rid), k = d && d.roomCamera; const l = k && k.location;
+        return k ? { loc: l ? [l.x, l.y] : null, liikkuu: !!k.isMoving } : null; } catch (e) { return null; } };
+    const nakyma = n => n && { s: n.s, peli: peliTaso(n.s), off: [n.ox, n.oy], wh: [n.w, n.h] };
+    const kirjaa = (laji, re, rid, e, n, dx, dy, lisa) => {
+        const ms = v => v == null ? null : Math.round(nyt() - v);
+        const rivi = { v: tila.versio, laji, klo: new Date().toTimeString().slice(0, 8), rid, hyppy: [Math.round(dx), Math.round(dy)], ennen: nakyma(e), jalkeen: nakyma(n),
+            dt: e && n ? Math.round(n.t - e.t) : null, dpr: VW.devicePixelRatio, kerroin: pyor(kerroin), dprPohja, ikkuna: [VW.innerWidth, VW.innerHeight, VW.outerWidth, VW.outerHeight],
+            ms: { fokus: ms(vahti.fokus), blur: ms(vahti.blur), nakyvyys: ms(vahti.nakyvyys), resize: ms(vahti.resize), init: ms(vahti.init), rulla: ms(vahti.rulla), zoom: vahti.zoom ? ms(vahti.zoom.t) : null },
+            nakyvyys: document.visibilityState, fokusNyt: document.hasFocus(), siirtyma: anim ? { v0: pyor(anim.v0), v1: pyor(anim.v1) } : null, selainPurske: selainAuki(),
+            rullaTikit: vahti.rullaN, zoom: vahti.zoom ? { s0: vahti.zoom.s0, s1: vahti.zoom.s1 } : null, hiiri: hiiriAlas, raahaa: !!(re && re._activeRoomIsDragged), kamera: kamera(re, rid), ...lisa };
+        (tila.hypyt = tila.hypyt || []).push(rivi); if (tila.hypyt.length > 20) tila.hypyt.shift();
+        if (nyt() - viimeKonsoli > 1000 || laji === 'KORJAUS') { viimeKonsoli = nyt(); try { console.warn('[huone-zoom ' + laji + '] ' + JSON.stringify(rivi)); } catch (x) {} }
+    };
+    const kehys = () => {
+        rafV = requestAnimationFrame(kehys);
+        try {
+            const re = RE(), rid = re && re.activeRoomId; const c = (rid != null && rid !== -1) ? re.getRoomInstanceRenderingCanvas(rid, 1) : null;
+            if (!ok(c)) { edell = null; return; }
+            const R = Rraaka(c), n = { t: nyt(), rid, s: c.scale, ox: c.screenOffsetX, oy: c.screenOffsetY, w: c._width, h: c._height, Rx: R.x, Ry: R.y };
+            if (n.s === 1) { const k = kamera(re, rid); n.kl = k && k.loc; }
+            // RAE (kp 17:05-17:07, matala prioriteetti, vain todiste): siirtymä jumissa > KESTO + 1500 ms -> pakotetaan loppuun; pudotuksen jälkeen 500 ms
+            //   canvakselle jäänyt transform tai backing != CSS * dpr -> rivi "[huone-zoom RAE]" (transform palautetaan, backingiin ei kosketa)
+            if (anim && n.t - anim.t0 > KESTO + 1500) { kirjaa('RAE', re, rid, n, n, 0, 0, { syy: 'siirtymä jumissa', css: anim.cv.style.transform }); lopeta(anim, 'vahti'); }
+            else if (!anim && viimeCv && n.t - viimeCv.t > 500) { const v = viimeCv; viimeCv = null; const dpr = VW.devicePixelRatio || 1;
+                if (omaMuoto(v.cv.style.transform) && v.cv.style.transform !== 'scale(1)' && v.cv.style.transform !== v.vanhaT) { kirjaa('RAE', re, rid, n, n, 0, 0, { syy: 'transform jäi', css: v.cv.style.transform }); v.cv.style.transform = v.vanhaT; }
+                if (v.cv.isConnected && (Math.abs(v.cv.width - c._width * dpr) > 2 || Math.abs(v.cv.height - c._height * dpr) > 2)) kirjaa('RAE', re, rid, n, n, 0, 0, { syy: 'backing', backing: [v.cv.width, v.cv.height], odotettu: [c._width * dpr, c._height * dpr] }); }
+            const e = edell; edell = n;
+            if (!e || e.rid !== rid) { huoneAlku = n.t; return; }
+            // B201 varapolku: taso tuli 1:een MILLÄ TAHANSA (myös userscript-kopio tai muu skripti, joka ei kulje zoomaaNyt/kaariS:n kautta) -> kamera synkkaan
+            if (e.s !== 1 && n.s === 1) kameraSynk(re, rid, c);
+            if (n.t - huoneAlku < 3000) return;
+            const dx = (n.Rx - e.Rx) * n.s, dy = (n.Ry - e.Ry) * n.s;
+            if (!(Math.hypot(dx, dy) > HYPPY)) return;
+            if (hiiriAlas && re._activeRoomIsDragged) return;
+            // kameran oma liuku tasolla 1: kamera oli synkassa (offset = -sijainti) sekä ennen että jälkeen -> kameran siirto, ei hyppy.
+            //   B201-napsautus näkyy, koska ennen sitä kameran sijainti EI vastannut offsetia.
+            const synkassa = q => q.kl && Math.abs(q.kl[0] + q.ox) < 2 && Math.abs(q.kl[1] + q.oy) < 2;
+            if (e.s === 1 && n.s === 1 && synkassa(e) && synkassa(n)) return;
+            kirjaa('HYPPY', re, rid, e, n, dx, dy);
+        } catch (x) {}
+    };
+    const tarkasta = (o, yritys) => {
+        if (odotus !== o) return;
+        const re = RE(); if (!re || re.activeRoomId !== o.rid) { odotus = null; return; }
+        let c = null; try { c = re.getRoomInstanceRenderingCanvas(o.rid, 1); } catch (x) {}
+        if (!ok(c)) { odotus = null; return; }
+        if ((anim || selainAuki()) && yritys < 3) { o.ajastin = setTimeout(() => { o.raf = requestAnimationFrame(() => tarkasta(o, yritys + 1)); }, KESTO + 150); return; }
+        odotus = null;
+        if (anim || selainAuki() || Math.abs(c.scale - moottoriTaso(o.G)) > 1e-6 || hiiriAlas) return;   // joku muu muutti tilaa: ei korjata
+        const R = Rraaka(c), dx = (R.x - o.R.x) * c.scale, dy = (R.y - o.R.y) * c.scale;
+        if (!(Math.hypot(dx, dy) > KORJAA)) return;
+        const kam = kamera(re, o.rid), e = { t: o.t, s: c.scale, ox: c.screenOffsetX, oy: c.screenOffsetY, w: c._width, h: c._height };
+        if (c.scale === 1 && kam && kam.liikkuu) { kirjaa('POIKKEAMA', re, o.rid, e, e, dx, dy, { korjattu: false, syy: 'kamera liikkuu' }); return; }
+        const x = c._width / 2 - (o.R.x + Math.trunc(c._width / 2)) * c.scale, y = c._height / 2 - (o.R.y + Math.trunc(c._height / 2)) * c.scale;
+        re.setRoomInstanceRenderingCanvasOffset(o.rid, 1, { x, y });
+        ankkuri = { rid: o.rid, x: o.R.x, y: o.R.y, s: c.scale, ox: c.screenOffsetX, oy: c.screenOffsetY, w: c._width, h: c._height };
+        kameraSynk(re, o.rid, c); vahti.korjauksia++;
+        const n = { t: nyt(), s: c.scale, ox: c.screenOffsetX, oy: c.screenOffsetY, w: c._width, h: c._height };
+        edell = null;   // oma korjaus ei ole hyppy
+        kirjaa('KORJAUS', re, o.rid, e, n, dx, dy, { korjattu: true });
+    };
+    vartija = (re, rid, G) => {
+        let c = null; try { c = re.getRoomInstanceRenderingCanvas(rid, 1); } catch (x) {}
+        if (!ok(c)) return;
+        if (odotus) { clearTimeout(odotus.ajastin); cancelAnimationFrame(odotus.raf); }
+        const o = odotus = { rid, G, R: fokus(c, rid), t: nyt(), ajastin: 0, raf: 0 };
+        o.ajastin = setTimeout(() => { o.raf = requestAnimationFrame(() => tarkasta(o, 0)); }, KESTO + 150);
+    };
+    const kuuntelijat = [
+        [VW, 'focus', () => { vahti.fokus = nyt(); }], [VW, 'blur', () => { vahti.blur = nyt(); }], [document, 'visibilitychange', () => { vahti.nakyvyys = nyt(); }],
+        [VW, 'resize', () => { vahti.resize = nyt(); }],
+        [VW, 'wheel', e => { if (!e.ctrlKey) return; const t = nyt(); if (vahti.rulla == null || t - vahti.rulla > 300) vahti.rullaN = 0; vahti.rullaN++; vahti.rulla = t; }],
+        [VW, 'pointerdown', () => { hiiriAlas = true; }], [VW, 'pointerup', () => { hiiriAlas = false; }], [VW, 'pointercancel', () => { hiiriAlas = false; }]];
+    for (const [k, n, f] of kuuntelijat) k.addEventListener(n, f, { capture: true, passive: true });
+    rafV = requestAnimationFrame(kehys);
+    tila.vahti = vahti;
+    vahtiPoistu = () => {
+        cancelAnimationFrame(rafV); if (odotus) { clearTimeout(odotus.ajastin); cancelAnimationFrame(odotus.raf); odotus = null; } vartija = () => {};
+        for (const [k, n, f] of kuuntelijat) k.removeEventListener(n, f, { capture: true, passive: true });
+    };
+}
 loki('asennettu');
 
 tila.poistu = () => {
+    vahtiPoistu();
     clearTimeout(varaTimer); window.removeEventListener('wheel', kasittele, { passive: false });
     pudota('poistu'); window.removeEventListener('resize', resizePehmea, true);
     document.removeEventListener('keydown', enter, true); kuplaPoistu(); kameraPoistu(); selainPoistu();
