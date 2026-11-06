@@ -28,12 +28,50 @@ let ankkuri = null;   // keskipisteen huonepiste (HUONEEN koordinaatit, ks. foku
 // pelin zoom erillään selaimen zoomista (0.9.1): moottorin taso = pelitaso * kerroin, kerroin = dprPohja / devicePixelRatio (ks. lohko "Selainzoom erillään")
 let kerroin = 1, dprPohja = null;
 const pyor = v => Math.round(v * 1e6) / 1e6;
+// KOON TILAT (0.9.4, kp 6.11. 17:42 "en tykkää että peli rakeutuu", "haluun testailla eri ratkaisuja. kukaan ei tule käyttämään noita rakeisia"):
+//   miten pelitaso G muutetaan moottorin tasoksi kun selainzoom (dpr) poikkeaa pohjasta. Vaihto ajossa: __huoneCtrlZoom.tila('pikseli'), muistetaan
+//   localStorage 'kupla.ctrlZoomTila'. MITATTU robolla 6.11. 17:51 (backing rAF:ssa, tmp/zoom-kuplat/opus/px.js, px-v1.json): terävyys riippuu siitä onko
+//   MOOTTORIN taso kokonaisluku, ei fyysisestä koosta. pikseli 100 %:ssa: moottori 3.333 * 1.5 = tasan 5 fyys. px, silti juoksut 4/6/5 (22 % floor/ceil-
+//   juoksuja), kun kokonaislukutaso 3 (4.5 fyys. px) antaa 4/5 (78 %). Moottori siis pyöristää murtotason CSS-pikseleihin ennen dpr:ää (päätelty mittauksesta).
+//   Siksi OLETUS = taso.
+//   pikseli: moottori * dpr = lähin kokonaisluku tavoitteesta G * dprPohja. Alle 1: 1 / kokonaisluku. Rakeinen paitsi kun moottori sattuu lähes kokonaisluvuksi.
+//   taso:    moottori = lähin kokonaislukutaso (alle 1: puolitus) tavoitteesta G * kerroin: terävä, koko poikkeaa (125 %, taso 3: moottori 2, -16.7 %).
+//   vanha:   selainzoom skaalaa huoneen kuten ennen 0.9.x (kerroin 1, ei keskitystä selainzoomissa).
+//   tarkka:  moottori = G * kerroin tarkalleen (0.9.1-0.9.3): koko tarkka, murtotaso rakeutuu. Vain vertailuun.
+const TILAT = ['pikseli', 'taso', 'vanha', 'tarkka'], OLETUS = 'taso';
+let kokoTila = OLETUS;
+try { const s = localStorage.getItem('kupla.ctrlZoomTila'); if (TILAT.includes(s)) kokoTila = s; } catch (e) {}
+// muuttaako tila moottorin tasoa (kaariS / kaariG / poistu); pikseli voi muuttaa 100 %:ssakin (pohja 1.5: taso 3 = 4.5 fyys. px -> 5)
+const muuntaa = () => kokoTila === 'pikseli' || (kokoTila !== 'vanha' && kerroin !== 1);
 // pelitaso 1 pysyy moottorissa 1:nä (huonekamera seuraa hahmoa VAIN skaalalla tasan 1, RoomEngine.updateRoomCamera), ja muu taso ei saa osua tasan 1:een
 //   (esim. 200 %: 2 * 0.5) ettei kamera käynnisty pelitasolla 2
-const peliTaso = (E, k = kerroin) => (k === 1 || E === 1) ? E : Math.round(E / k * 1000) / 1000;
-const moottoriTaso = (G, k = kerroin) => { if (k === 1 || G === 1) return G; const e = pyor(G * k); return e === 1 ? 1.000001 : e; };
+const moottoriTaso = (G, k = kerroin, t = kokoTila) => {
+    if (G === 1) return 1;
+    let e;
+    if (t === 'pikseli') {   // d = dpr jolle kerroin laskettiin (k = dprPohja / dpr)
+        const d = (dprPohja || VW.devicePixelRatio || 1) / k, p = G * k * d;
+        e = p >= 1 ? Math.max(1, Math.round(p)) / d : 1 / (Math.max(1, Math.round(1 / p)) * d);
+    } else if (t === 'taso') {   // ei koskaan tasan 1 (se on pelitason 1 moottoritaso): yli 1 vähintään 2, alle 1 enintään 0.5
+        const p = G * k; return G > 1 ? Math.max(2, Math.round(p)) : Math.min(0.5, Math.pow(2, Math.round(Math.log2(p)))); }
+    else if (t === 'vanha' || k === 1) return G;
+    else e = G * k;
+    e = pyor(e); return e === 1 ? 1.000001 : e;
+};
+// käänteinen: pelitaso jonka moottoriTaso on E (lähin E / k:ta, jos usea pelitaso osuu samaan moottoritasoon: taso-tila suurella selainzoomilla); muuten E / k
+const peliTaso = (E, k = kerroin, t = kokoTila) => {
+    if (E === 1) return 1;
+    const g0 = E / k; if (t === 'vanha' || (t === 'tarkka' && k === 1)) return E;
+    if (t !== 'tarkka' && g0 > 0) {
+        const ehd = [], f = Math.floor(g0), l = Math.floor(Math.log2(g0));
+        for (let i = f - 1; i <= f + 2; i++) if (i >= 2) ehd.push(i);
+        for (let i = l - 1; i <= l + 2; i++) if (i <= -1) ehd.push(Math.pow(2, i));
+        let paras = null; for (const g of ehd) if (Math.abs(moottoriTaso(g, k, t) - E) < 1e-5 && (paras === null || Math.abs(Math.log(g / g0)) < Math.abs(Math.log(paras / g0)))) paras = g;
+        if (paras !== null) return paras;
+    }
+    return Math.round(g0 * 1000) / 1000;
+};
 const RE = () => VW.NitroDevTools && VW.NitroDevTools.roomEngine;
-const tila = VW.__huoneCtrlZoom = { versio: 'huone-0.9.3', natiivi: false, loki: [], poistu() {}, aseta: null, tilaNyt: null };
+const tila = VW.__huoneCtrlZoom = { versio: 'huone-0.9.4', natiivi: false, loki: [], poistu() {}, aseta: null, tilaNyt: null };
 // B201 (kp 6.11. 16:42 "huone välil hypähtää vasemmalle paljon ... kun zoomaan ulospäin ... pelin zoomilla", 16:47 "ei silti toistu consistently"):
 //   huonekamera (RoomEngine.updateRoomCamera, ajaa VAIN skaalalla tasan 1) kirjoittaa offsetiksi -(kameran oma sijainti) aina kun hahmo liikkuu tai canvaksen
 //   koko muuttuu. Moottori päivittää kameran sijainnin raahauksen jälkeen (handleRoomDragging MOUSE_UP: camera.resetLocation(-offset)), mutta EI zoomin
@@ -53,7 +91,8 @@ const kameraSynk = (re, rid, c) => {
 };
 // vahdin aikaleimat (performance.now): lokirivin konteksti, ks. lohko "Hyppyvahti"
 const vahti = { fokus: null, blur: null, nakyvyys: null, resize: null, init: null, rulla: null, rullaN: 0, zoom: null, synkkeja: 0, korjauksia: 0 };
-let vartija = () => {}, selainAuki = () => false;   // asetetaan lohkoissa "Hyppyvahti" ja "Selainzoom erillään"
+let vartija = () => {}, selainAuki = () => false, vaihdaTila = () => 'zoomtila: selainzoom-lohko ei asentunut';   // asetetaan lohkoissa "Hyppyvahti" ja "Selainzoom erillään"
+let paivitaNappi = () => {};   // lohko "Tilanappi"
 const loki = s => { tila.loki.push(new Date().toTimeString().slice(0, 8) + ' ' + s); if (tila.loki.length > 50) tila.loki.shift(); };
 let viime = 0, paalla = true, varaTimer = 0;
 try { paalla = localStorage.getItem('kupla.ctrlZoom') !== 'off'; } catch (e) {}
@@ -81,8 +120,11 @@ const kasittele = e => {
     // ei ylärajaa (kp 5.11. 01:10); 1:stä ylöspäin vain kokonaisluvut (kp 6.11. 13:44 "scroll zoom pitää poistaa murtoluvut, ei toimi":
     //   sipuli mittasi 1->1.5 ja 2->2.5 ei tee mitään). Alle 1 askel puolittaa (0.5, 0.25 ...) kuten ennen.
     const ylos = e.deltaY < 0;
-    const uusi = ylos ? (tama >= 1 ? Math.floor(tama) + ASKEL : Math.min(1, tama * 2))
-        : (tama > 1 ? Math.ceil(tama) - ASKEL : Math.max(ALIN, tama / 2));
+    const seur = x => ylos ? (x >= 1 ? Math.floor(x) + ASKEL : Math.min(1, x * 2)) : (x > 1 ? Math.ceil(x) - ASKEL : Math.max(ALIN, x / 2));
+    // 0.9.4 taso-tila: kaksi pelitasoa voi osua samaan moottoritasoon (125 %: 2 ja 3 -> 2), silloin askel jatkuu seuraavaan joka näkyy
+    let uusi = seur(tama), nytE = null;
+    try { nytE = anim ? anim.v1 : re.getRoomInstanceRenderingCanvas(rid, 1).scale; } catch (x) {}
+    for (let i = 0; i < 4 && nytE != null && sama(moottoriTaso(uusi), nytE); i++) { const s = seur(uusi); if (s === uusi) break; uusi = s; }
     if (uusi === tama) return;
     const uusiE = moottoriTaso(uusi);
     vartija(re, rid, uusi);
@@ -416,7 +458,7 @@ let kameraPoistu = () => {};
             if (!isFlipForced && (typeof level !== 'number' || !Number.isFinite(level))) { k.hylattyjaZoomeja++; loki('hylätty zoom-taso ' + String(level)); return; }
             // SELAINZOOM ERILLÄÄN: clientin omat kutsut (:zoom, RoomZoomEvent, zoomnapit) antavat PELITASON ilman flagia -> moottorin oma rajaus
             //   (alle 1 -> 0.5, muuten floor, RoomEngine.setRoomInstanceRenderingCanvasScale) ja sitten * kerroin, flag päälle ettei moottori floorita.
-            if (kerroin !== 1 && cid === 1 && rid === this.activeRoomId && !isFlipForced && !arguments[6]) {
+            if (muuntaa() && cid === 1 && rid === this.activeRoomId && !isFlipForced && !arguments[6]) {
                 k.erotusKutsuja = (k.erotusKutsuja || 0) + 1;
                 return kaariS.call(this, rid, cid, moottoriTaso(level < 1 ? 0.5 : Math.floor(level)), point, offsetPoint, false, true);
             }
@@ -439,7 +481,7 @@ let kameraPoistu = () => {};
         const omatG = Object.prototype.hasOwnProperty.call(reK, 'getRoomInstanceRenderingCanvasScale'), alkuG = reK.getRoomInstanceRenderingCanvasScale;
         const kaariG = typeof alkuG === 'function' ? function (rid, cid) { const v = alkuG.apply(this, arguments);
             const oma = (rid === undefined || rid === -1000 || rid === this.activeRoomId) && (cid === undefined || cid === -1 || cid === 1);
-            return (kerroin !== 1 && oma && v > 0) ? peliTaso(v) : v; } : null;
+            return (muuntaa() && oma && v > 0) ? peliTaso(v) : v; } : null;
         if (kaariG) reK.getRoomInstanceRenderingCanvasScale = kaariG;
         window.addEventListener('resize', resizeAlku, true);
         kameraPoistu = () => {
@@ -492,7 +534,7 @@ let selainPoistu = () => {};
     const tarkista = syy => {
         const p = purske; if (!p) return;
         const re = RE(), c = kanvas(); if (!re || re.activeRoomId !== p.rid || c !== p.c || !kunnossa(c)) { lopetaP(); return; }
-        const dpr = VW.devicePixelRatio || 1, kUusi = dprPohja / dpr;   // ei pyöristystä: moottoriTaso pyöristää tuloksen (2 * 1.5 / 2.25 = 1.333333, ei 1.333334)
+        const dpr = VW.devicePixelRatio || 1, kUusi = kokoTila === 'vanha' ? 1 : dprPohja / dpr;   // vanha: selainzoom skaalaa huoneen; ei pyöristystä: moottoriTaso pyöristää tuloksen (2 * 1.5 / 2.25 = 1.333333, ei 1.333334)
         const muuttui = p.jatetty ? (p.jatetty.w !== c._width || p.jatetty.h !== c._height || p.jatetty.dpr !== dpr) : Math.abs(kUusi - p.k) > 1e-6;
         if (muuttui) {
             if (p.E !== null && c.scale !== p.E) p.G = peliTaso(c.scale);   // joku muutti tasoa purskeen aikana (rulla, :zoom): sen taso pitää
@@ -532,15 +574,54 @@ let selainPoistu = () => {};
     const vv = VW.visualViewport; if (vv) vv.addEventListener('resize', alku, true);
     dprPohja = pohja(); tila.dprPohja = dprPohja;
     // ladattiin jo zoomattuna: sama polku heti (taso tähän asti ilman kerrointa)
-    if (Math.abs(dprPohja / (VW.devicePixelRatio || 1) - 1) > 1e-6) { alku(); tarkista('asennus'); }
+    //   0.9.4: vanha ei muuta mitään; pikseli 100 %:ssa (kerroin 1) asettaa tason suoraan (pohja 1.5: taso 3 -> 3.333333 = 5 fyys. px)
+    if (kokoTila !== 'vanha' && Math.abs(dprPohja / (VW.devicePixelRatio || 1) - 1) > 1e-6) { alku(); tarkista('asennus'); }
+    else if (muuntaa()) { const re = RE(), c = kanvas(); if (re && kunnossa(c) && c.scale !== 1) { const E = moottoriTaso(peliTaso(c.scale)); if (!sama(E, c.scale)) zoomaaNyt(re, re.activeRoomId, E); } }
+    // TILAN VAIHTO ajossa: pelitaso luetaan vanhalla tilalla, sitten sama pelitaso uudella (keskipiste pysyy, ks. zoomaaNyt)
+    vaihdaTila = (t, syy) => {
+        t = String(t || '').toLowerCase();
+        if (!TILAT.includes(t)) return 'zoomtila nyt: ' + kokoTila + ' (vaihtoehdot: ' + TILAT.join(', ') + ')';
+        const re = RE(), c = kanvas();
+        let G = null;
+        if (anim) { G = anim.G1; pudota('tila'); } else if (kunnossa(c)) G = peliTaso(c.scale);
+        lopetaP();
+        kokoTila = t; try { localStorage.setItem('kupla.ctrlZoomTila', t); } catch (e) {}
+        kerroin = t === 'vanha' ? 1 : dprPohja / (VW.devicePixelRatio || 1);
+        if (re && kunnossa(c) && G != null && !(G === 1 && c.scale === 1)) { const E = moottoriTaso(G); if (!sama(E, c.scale)) zoomaaNyt(re, re.activeRoomId, E); }
+        loki('tila ' + t + (syy ? ' (' + syy + ')' : '') + ': pelitaso ' + G + ' -> moottori ' + (c ? c.scale : null));
+        paivitaNappi();
+        return 'zoomtila: ' + t + ' (pelitaso ' + G + ', moottori ' + (c ? c.scale : '-') + ', fyys. ' + (c ? +(c.scale * (VW.devicePixelRatio || 1)).toFixed(3) : '-') + ' px)';
+    };
     selainPoistu = () => {
         window.removeEventListener('resize', alku, true); if (vv) vv.removeEventListener('resize', alku, true);
         if (kaariI && reI.initializeRoomInstanceRenderingCanvas === kaariI) { if (omatI) reI.initializeRoomInstanceRenderingCanvas = alkuI; else delete reI.initializeRoomInstanceRenderingCanvas; }
         lopetaP();
-        if (kerroin !== 1) { const re = RE(), c = kanvas(); const G = kunnossa(c) ? peliTaso(c.scale) : null; kerroin = 1;   // takaisin pelitasolle ilman kerrointa
+        if (muuntaa()) { const re = RE(), c = kanvas(); const G = kunnossa(c) ? peliTaso(c.scale) : null; kerroin = 1;   // takaisin pelitasolle ilman kerrointa
             if (re && G != null && G !== c.scale) zoomaaNyt(re, re.activeRoomId, G); }
     };
 }
+// ---- Tilanappi (0.9.4, kp 17:42 "pieni kytkin ruudulle jos helppo"): pois oletuksena, koska huoneskripti ajaa jokaisen kävijän clientissä.
+//   __huoneCtrlZoom.nappi(true) näyttää (muistetaan localStorage 'kupla.ctrlZoomNappi'), klikkaus kiertää tilat. Klikki ei mene canvakselle (oma elementti).
+let nappiPoistu = () => {};
+{
+    let el = null;
+    const nayta = () => {
+        if (el) return; el = document.createElement('button'); el.type = 'button'; el.title = 'ctrl+rulla zoomin kokotila (klikkaa vaihtaaksesi)';
+        el.style.cssText = 'position:fixed;right:8px;bottom:72px;z-index:2147483645;padding:2px 6px;font:11px/1.3 monospace;color:#fff;background:rgba(20,20,20,.75);border:1px solid #666;border-radius:4px;cursor:pointer';
+        const pysayta = e => e.stopPropagation();
+        for (const n of ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'wheel']) el.addEventListener(n, pysayta);
+        el.addEventListener('click', e => { e.stopPropagation(); const i = TILAT.indexOf(kokoTila); vaihdaTila(TILAT[(i + 1) % TILAT.length], 'nappi'); });
+        document.body.appendChild(el); paivitaNappi();
+    };
+    const piilota = () => { if (el) { el.remove(); el = null; } };
+    paivitaNappi = () => { if (el) el.textContent = 'zoom: ' + kokoTila; };
+    tila.nappi = v => { const p = v === undefined ? !el : !!v; try { localStorage.setItem('kupla.ctrlZoomNappi', p ? '1' : '0'); } catch (e) {} if (p) nayta(); else piilota(); return 'tilanappi ' + (p ? 'näkyvissä' : 'piilossa'); };
+    try { if (localStorage.getItem('kupla.ctrlZoomNappi') === '1') nayta(); } catch (e) {}
+    nappiPoistu = piilota;
+}
+tila.tila = t => vaihdaTila(t, 'konsoli'); tila.tilat = TILAT.slice();
+Object.defineProperty(tila, 'kokoTila', { get: () => kokoTila, enumerable: true });
+
 // ---- Hyppyvahti + vartija (0.9.2, B201; kp 16:47 "ei silti toistu consistently", 16:48 "joku älykäs fix mikä ei vaadi et osataa toistaa rare bugi") ----
 // VAHTI (passiivinen, vain konsoli, ei paketteja): joka kehys keskipisteen huonepiste R; jos se siirtyy yhdessä kehyksessä yli 20 CSS-px (|ΔR| * taso) samassa
 //   huoneessa, konsoliin YKSI rivi "[huone-zoom HYPPY] {...}" kontekstin kanssa (offset ennen/jälkeen, pelitaso/moottorin taso, dpr, ikkuna ja canvas, ms
@@ -650,7 +731,7 @@ tila.poistu = () => {
     vahtiPoistu();
     clearTimeout(varaTimer); window.removeEventListener('wheel', kasittele, { passive: false });
     pudota('poistu'); window.removeEventListener('resize', resizePehmea, true);
-    document.removeEventListener('keydown', enter, true); kuplaPoistu(); kameraPoistu(); selainPoistu();
+    document.removeEventListener('keydown', enter, true); kuplaPoistu(); kameraPoistu(); selainPoistu(); nappiPoistu();
     try { const j = VW.kuplaKomennotJono, i = j ? j.indexOf(jonoRivi) : -1; if (i >= 0) j.splice(i, 1); } catch (e) {}   // jos komentomoduuli ei ole vielä lukenut jonoa
     if (VW.__huoneCtrlZoom === tila) delete VW.__huoneCtrlZoom;
 };
