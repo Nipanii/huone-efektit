@@ -116,11 +116,48 @@ if (!VW.__kuplaBubbleZoomFix) {
     tila.kuplat = { chats, fixes };   // fixes: px each bubble had to be moved back (diagnostic)
     kuplaPoistu = () => { clearTimeout(timer); window.removeEventListener('resize', onResize, true); };
 } else loki('kortin kuplakorjaus ajossa, omaa ei asenneta');
+// ---- Selainzoom pitää huoneen keskellä (kp 6.11. 14:00 "selain zoom ei pidä huoneen sijaintia ruudulla samana ... pitää keskittää samanlail ku huone zoom") ----
+// MIKSI: kun pelin zoom != 1, huonekamera (RoomEngine.updateRoomCamera) on pois päältä ja clientin resize-käsittelijä (useRoom.ts, PR #197) ankkuroi huoneen
+//   CSS-pikseleihin: offset -= scale * (uusi leveys - vanha leveys) / 2. Selainzoom muuttaa viewportin CSS-kokoa, joten huone liukuu nurkkaan (zoom out) tai ulos
+//   (zoom in). Pelin oma zoom taas pitää viewportin keskipisteessä olevan huonepisteen keskellä. Keskitys = ankkurointi + (uusi - vanha leveys) / 2 per akseli.
+//   MITATTU oikealla Chrome-sivuzoomilla (WM_COMMAND, robo :9223, scale 2): 100 % -> 67 % huone -308/-325 CSS-px pois keskeltä, 150 %: +213/+226; tämän kanssa 0.
+// MILLOIN: vain kun devicePixelRatio on vaihtunut (selainzoom) ja pelin zoom != 1. Pelkkä ikkunan koonmuutos jää #197:n käyttäytymiseen.
+// ITSESAMMUTUS: client asettaa window.__kuplaZoomKeskitys = true kun natiivi korjaus (PR robo/browser-zoom-room-center) on livessä -> tämä ei tee mitään.
+let selainPoistu = () => {};
+{
+    let viimeW = null, viimeH = null, viimeDpr = VW.devicePixelRatio || 1, odottaaZoom = false, odotusAika = 0;
+    const kanvas = () => { const re = RE(); if (!re || typeof re.getRoomInstanceRenderingCanvas !== 'function') return null;
+        const rid = re.activeRoomId; if (rid == null || rid === -1) return null; return re.getRoomInstanceRenderingCanvas(rid, 1) || null; };
+    const korjaa = () => {
+        const c = kanvas(); if (!c) return;
+        const s = c.scale || 1, w = c.width / s, h = c.height / s;
+        const dpr = VW.devicePixelRatio || 1;
+        if (Math.abs(dpr - viimeDpr) > 1e-6) { odottaaZoom = true; odotusAika = performance.now(); viimeDpr = dpr; }
+        if (viimeW === null || (w === viimeW && h === viimeH)) { viimeW = w; viimeH = h; return; }   // ensimmäinen havainto tai clientin käsittelijä ei ole vielä ehtinyt
+        if (odottaaZoom && performance.now() - odotusAika > 1000) odottaaZoom = false;
+        if (odottaaZoom) {
+            odottaaZoom = false;
+            if (VW.__kuplaZoomKeskitys) { if (!tila.natiiviKeskitys) { tila.natiiviKeskitys = true; loki('natiivi selainzoom-keskitys havaittu, tämä ei tee mitään'); } }
+            else if (s !== 1) {
+                const dx = (w - viimeW) / 2, dy = (h - viimeH) / 2;
+                c.screenOffsetX = Math.trunc(c.screenOffsetX + dx); c.screenOffsetY = Math.trunc(c.screenOffsetY + dy);
+                tila.keskityksia = (tila.keskityksia || 0) + 1; tila.viimeKeskitys = { dx, dy, s };
+            }
+        }
+        viimeW = w; viimeH = h;
+    };
+    // heti (jos clientin käsittelijä ehti ensin) ja uudestaan ennen piirtoa (jos ei ehtinyt tai se rekisteröityi uudelleen meidän jälkeemme)
+    const onResize = () => { korjaa(); requestAnimationFrame(korjaa); };
+    window.addEventListener('resize', onResize);
+    const vv = VW.visualViewport; if (vv) vv.addEventListener('resize', onResize);
+    setTimeout(korjaa, 0);   // alkutila muistiin
+    selainPoistu = () => { window.removeEventListener('resize', onResize); if (vv) vv.removeEventListener('resize', onResize); };
+}
 loki('asennettu');
 
 tila.poistu = () => {
     clearTimeout(varaTimer); window.removeEventListener('wheel', kasittele, { passive: false });
-    document.removeEventListener('keydown', enter, true); kuplaPoistu();
+    document.removeEventListener('keydown', enter, true); kuplaPoistu(); selainPoistu();
     try { const j = VW.kuplaKomennotJono, i = j ? j.indexOf(jonoRivi) : -1; if (i >= 0) j.splice(i, 1); } catch (e) {}   // jos komentomoduuli ei ole vielä lukenut jonoa
     if (VW.__huoneCtrlZoom === tila) delete VW.__huoneCtrlZoom;
 };
