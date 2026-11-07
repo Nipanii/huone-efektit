@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Huoneskriptit (moottori)
-// @version      0.7.3
+// @version      0.7.4
 // @match        https://kupla.cc/*
 // @grant        none
 // ==/UserScript==
@@ -126,7 +126,8 @@
     el.style.opacity = '0'; setTimeout(() => el.remove(), 180); };
   const verhoPaalle = (r) => {
     verhoPois(null);
-    const polut = (((lista && lista.huoneet) || {})[String(r)] || {}).skriptit || []; if (!polut.length) return;
+    const h = ((lista && lista.huoneet) || {})[String(r)] || {};
+    const polut = h.skriptit || []; if (!polut.length || h.verho === false) return;   // 0.7.4 Res 7.11. 07:24 "voitko poistaa sen täältä zen denistä": huoneet.json "verho": false
     const cv = [...document.querySelectorAll('canvas')].sort((a, b) => b.width * b.height - a.width * a.height)[0]; if (!cv || !cv.parentNode) return;
     const el = document.createElement('div'); el._huone = r; el._t0 = performance.now();
     el.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:100vh;pointer-events:none;z-index:1;background:#000;opacity:1;transition:opacity .15s';

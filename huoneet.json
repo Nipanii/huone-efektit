@@ -3,6 +3,7 @@
   "huoneet": {
     "424": {
       "nimi": "zen den (tyynyt valtaistuimiksi)",
+      "verho": false,
       "skriptit": [
         "huoneet/424.js",
         "huoneet/424-myrsky.js",
