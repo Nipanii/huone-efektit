@@ -31,7 +31,7 @@
 //   NIMI:lle jonka moottori vastaanottajalla nielee ja toteuttaa, :showrooms = piilotetut huonealueet näkyviin (hs.naytaPiilot).
 // Konsolissa: huoneskriptit.ajossa (mitä ajetaan) · huoneskriptit.loki · huoneskriptit.paivita(true) (hae ja käynnistä uudelleen)
 (() => {
-  const hs = { versio: '0.7.3', huone: 0, ajossa: new Map(), loki: [], pysaytetty: false };   // versio: myös 0.4.x:n itsepäivitys lukee tämän
+  const hs = { versio: '0.7.4', huone: 0, ajossa: new Map(), loki: [], pysaytetty: false };   // versio: myös 0.4.x:n itsepäivitys lukee tämän
   const POHJA = 'https://nipanii.github.io/huone-efektit/';
   const uudempi = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number);
     for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); return false; };
