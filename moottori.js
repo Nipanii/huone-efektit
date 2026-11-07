@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Huoneskriptit (moottori)
-// @version      0.7.4
+// @version      0.7.5
 // @match        https://kupla.cc/*
 // @grant        none
 // ==/UserScript==
@@ -31,7 +31,7 @@
 //   NIMI:lle jonka moottori vastaanottajalla nielee ja toteuttaa, :showrooms = piilotetut huonealueet näkyviin (hs.naytaPiilot).
 // Konsolissa: huoneskriptit.ajossa (mitä ajetaan) · huoneskriptit.loki · huoneskriptit.paivita(true) (hae ja käynnistä uudelleen)
 (() => {
-  const hs = { versio: '0.7.4', huone: 0, ajossa: new Map(), loki: [], pysaytetty: false };   // versio: myös 0.4.x:n itsepäivitys lukee tämän
+  const hs = { versio: '0.7.5', huone: 0, ajossa: new Map(), loki: [], pysaytetty: false };   // versio: myös 0.4.x:n itsepäivitys lukee tämän
   const POHJA = 'https://nipanii.github.io/huone-efektit/';
   const uudempi = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number);
     for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); return false; };
@@ -127,7 +127,7 @@
   const verhoPaalle = (r) => {
     verhoPois(null);
     const h = ((lista && lista.huoneet) || {})[String(r)] || {};
-    const polut = h.skriptit || []; if (!polut.length || h.verho === false) return;   // 0.7.4 Res 7.11. 07:24 "voitko poistaa sen täältä zen denistä": huoneet.json "verho": false
+    const polut = h.skriptit || []; if (!polut.length || h.verho !== true) return;   // 0.7.5 kp 7.11. 11:11 "huoneverho tosiaan vaan halloween huoneisiin ellei eriksee sanota": vain huoneet.json "verho": true (0.7.4: Res 07:24 poisti zen denistä)
     const cv = [...document.querySelectorAll('canvas')].sort((a, b) => b.width * b.height - a.width * a.height)[0]; if (!cv || !cv.parentNode) return;
     const el = document.createElement('div'); el._huone = r; el._t0 = performance.now();
     el.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:100vh;pointer-events:none;z-index:1;background:#000;opacity:1;transition:opacity .15s';
