@@ -88,8 +88,7 @@
   "kaikki": {
     "nimi": "Kaikissa huoneissa (moottori 0.6.2+): käyttäjäkohtaiset skriptit, ks. kayttajat/kayttajat.json",
     "skriptit": [
-      "kayttajat/kayttajaskriptit.js",
-      "huoneet/historia-zoom.js"
+      "kayttajat/kayttajaskriptit.js"
     ]
   }
 }
