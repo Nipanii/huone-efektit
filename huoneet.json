@@ -5,9 +5,7 @@
       "nimi": "zen den (tyynyt valtaistuimiksi)",
       "skriptit": [
         "huoneet/424.js",
-        "huoneet/424-myrsky.js",
-        "huoneet/kupla-seuraa.js",
-        "huoneet/historia-zoom.js"
+        "huoneet/424-myrsky.js"
       ]
     },
     "650": {
@@ -90,7 +88,9 @@
   "kaikki": {
     "nimi": "Kaikissa huoneissa (moottori 0.6.2+): käyttäjäkohtaiset skriptit, ks. kayttajat/kayttajat.json",
     "skriptit": [
-      "kayttajat/kayttajaskriptit.js"
+      "kayttajat/kayttajaskriptit.js",
+      "huoneet/kupla-seuraa.js",
+      "huoneet/historia-zoom.js"
     ]
   }
 }
