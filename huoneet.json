@@ -6,10 +6,7 @@
       "verho": false,
       "skriptit": [
         "huoneet/424.js",
-        "huoneet/424-myrsky.js",
-        "huoneet/reply-hyppy.js",
-        "huoneet/ctrl-rulla-zoom.js",
-        "huoneet/ui-zoom.js"
+        "huoneet/424-myrsky.js"
       ]
     },
     "650": {
@@ -83,8 +80,7 @@
   "kaikki": {
     "nimi": "Kaikissa huoneissa (moottori 0.6.2+): käyttäjäkohtaiset skriptit, ks. kayttajat/kayttajat.json",
     "skriptit": [
-      "kayttajat/kayttajaskriptit.js",
-      "huoneet/tanssi67.js"
+      "kayttajat/kayttajaskriptit.js"
     ]
   }
 }
