@@ -1,5 +1,5 @@
 // Huoneskripti 424 zen den: reply-tabi testiin kaikille huoneessa (kp 8.11. 04:19 kuiskaus 'julkase zen deniin tuo uus reply testiin').
-// Kopio kayttajat/kp/reply-tabi.user.js 1.25.0:sta. Jos reply-tabi on jo käynnissä (kp:n käyttäjäskripti), ei tehdä mitään eikä pysäytetä sitä.
+// Kopio kayttajat/kp/reply-tabi.user.js 1.26.0:sta. Jos reply-tabi on jo käynnissä (kp:n käyttäjäskripti), ei tehdä mitään eikä pysäytetä sitä.
 if (window.__kuplaReplyTabi) return () => {};
 // ==UserScript==
 // @name         Reply-tabi kuplan reunaan (kp)
@@ -7,7 +7,7 @@ if (window.__kuplaReplyTabi) return () => {};
 // @match        https://kupla.cc/*
 // @run-at       document-idle
 // @grant        none
-// @version      1.25.0
+// @version      1.26.0
 // @description  Puhekuplan reply-nappi (.chat-reply-button) kuplan oikeaan reunaan kiinnittyväksi tabiksi, sama ↩-merkki. Hover leventää kuplaa (tabi kuplan SISÄLLÄ) ja siirtää päälle osuvat naapurikuplat sivuun. kp 8.11. 02:20-02:23
 // @author       re-lab
 // ==/UserScript==
@@ -26,7 +26,7 @@ if (window.__kuplaReplyTabi) return () => {};
   // aloitetaan (reply-target), ja luokka katosi: kupla jäi leveäksi ilman varjostusta (kp 03:06 'miks käy näin').
   // 1.7.0: tumma kupla -> vaalea nuoli ja vaalea varjostus (kp 03:08 'jos on tumma kupla niin toi reply icon hukkuu').
   // Kuplan väri luetaan sen omasta border-image-kuvasta (data:-PNG, sama origin) keskipikselistä canvasilla.
-  const VERSIO = '1.25.0';
+  const VERSIO = '1.26.0';
   const LEVEYS = 16;
   const VARJO = LEVEYS + 5; // varjostettu kaista kuplan ulkoreunasta: lisätty tila + osa kuplan 6 px oikeaa reunakuvaa
   // 1.10.0: jakoviiva mitataan kuplan LAATIKON reunasta, ei outsetilla kasvatetun ::after-laatikon reunasta (kp 03:54 'nuolella eri
@@ -70,7 +70,10 @@ if (window.__kuplaReplyTabi) return () => {};
     /* 1.15.0 (Res 04:27 'heilauttaa tekstii' · kp 04:35 'koko kupla värähtää kun hoveraa'): client keskittää live-kuplan puhujaan
        kontin leveydestä (left = clamp(0, x - leveys/2, …)), joten levennys siirsi kuplaa puolet levennyksestä. Lisätty padding
        kumotaan negatiivisella margin-rightilla: kontin leveys ei muutu, client ei laske leftiä uudelleen, kupla vain jatkuu oikealle. */
-    .bubble-container[data-kp-rt-auki][data-kp-rt-live] > .chat-bubble { margin-right: calc(-1 * var(--kp-rt-lisa, 0px)) !important; }
+    /* 1.26.0 (kp 06:39 'edelleen kuplan koko muuttuu' + kuva 'iha hyvä combo' kahdella rivillä): lukitun kontin leveys + lisa on tasan
+       kuplan uusi leveys, ja alipikselipyöristys rivitti tekstin (robo 06:42: 46 px kupla -> 76 px hoverissa). 4 px löysää; kupla on
+       shrink-to-fit, joten löysä ei näy */
+    .bubble-container[data-kp-rt-auki][data-kp-rt-live] > .chat-bubble { margin-right: calc(-1 * var(--kp-rt-lisa, 0px) - 4px) !important; }
     /* 1.17.0 (kp 05:18 'pieni nuoli kuplan alaosassa siirtyy kun hoveraa eli ei pysy hahmon kohdalla'): .pointer on kuplan sisällä
        left 50 %, joten oikealle levennetty kupla vei sitä puolet levennyksestä; siirretään takaisin */
     .bubble-container[data-kp-rt-auki][data-kp-rt-live]:not(.chat-pulldown-bubble) > .chat-bubble > .pointer { margin-left: calc(-0.5 * var(--kp-rt-lisa, 0px)) !important; }
