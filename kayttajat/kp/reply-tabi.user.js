@@ -4,8 +4,8 @@
 // @match        https://kupla.cc/*
 // @run-at       document-idle
 // @grant        none
-// @version      1.1.0
-// @description  Puhekuplan reply-nappi (.chat-reply-button) kuplan oikeaan reunaan kiinnittyväksi tabiksi, sama ↩-merkki. Hover leventää kuplaa ja siirtää päälle osuvat naapurikuplat sivuun. kp 8.11. 02:20-02:23
+// @version      1.2.0
+// @description  Puhekuplan reply-nappi (.chat-reply-button) kuplan oikeaan reunaan kiinnittyväksi tabiksi, sama ↩-merkki. Hover leventää kuplaa (tabi kuplan SISÄLLÄ) ja siirtää päälle osuvat naapurikuplat sivuun. kp 8.11. 02:20-02:23
 // @author       re-lab
 // ==/UserScript==
 
@@ -13,25 +13,29 @@
 //   · 02:22 "ei tarvii värei kopsaa. lähinnä tota muotoo" · "ton nuolen tilalla vois olla tollanen tai saman kaltanen nuoli siin väkäsessä"
 //   · 02:23 "kupla levenee vähän kun hoveraa ja väkänen tulee esiin -> tarvittaessa siirtää viereistä kuplaa ettei overlap".
 // Clientin oma nappi (ChatWidgetMessageView.tsx, .chat-reply-button, ChatWidgetView.scss:1219) on kuplan ulkopuolella
-// (right:-25px, 21x21). Tämä: hover lisää kuplaan LEVEYS px oikealle, nappi istuu siihen tilaan kuplan korkuisena tabina,
+// (right:-25px, 21x21). Tämä: hover kasvattaa .chat-content-paddingia LEVEYS px (kupla itse levenee), nappi istuu sen
+// tilaan kuplan sisälle reunasta 4 px kuplan korkuisena tabina (kp 02:35 'piti olla kuplan sisällä'),
 // ja oikealla puolella päälle osuvat kuplat siirtyvät CSS `translate`-ominaisuudella (ei kosketa clientin left/top-arvoja).
 // Näkyvyys (hover) ja klikkaus pysyvät clientin omina.
 (() => {
   'use strict';
-  const VERSIO = '1.1.0';
+  const VERSIO = '1.2.0';
   const LEVEYS = 16;
   if (window.__kuplaReplyTabi && typeof window.__kuplaReplyTabi.pois === 'function') { try { window.__kuplaReplyTabi.pois(); } catch (e) {} }
 
   const tyyli = document.createElement('style');
   tyyli.id = 'kp-reply-tabi';
   tyyli.textContent = `
-    .nitro-chat-widget .bubble-container.kp-rt-auki { padding-right: ${LEVEYS}px; }
+    .nitro-chat-widget .bubble-container.kp-rt-auki .chat-content { padding-right: ${6 + LEVEYS}px !important; }
     .nitro-chat-widget .bubble-container .chat-reply-button {
-      top: 2px !important; bottom: 2px !important; height: auto !important; transform: none !important;
-      right: 0 !important; width: ${LEVEYS + 1}px !important; min-width: 0 !important; max-width: none !important; padding: 0 !important; box-sizing: border-box !important;
-      border-radius: 0 8px 8px 0 !important; font-size: 11px !important;
+      top: 4px !important; bottom: 4px !important; height: auto !important; transform: none !important;
+      right: 4px !important; width: ${LEVEYS - 2}px !important; min-width: 0 !important; max-width: none !important;
+      padding: 0 !important; box-sizing: border-box !important;
+      border: 0 !important; border-left: 1px solid rgba(0,0,0,.35) !important; border-radius: 0 6px 6px 0 !important;
+      background: rgba(0,0,0,.18) !important; color: #111 !important; font-size: 12px !important; font-weight: bold !important;
     }
-    .nitro-chat-widget .bubble-container .chat-reply-button::before { top: -2px !important; bottom: -2px !important; left: -4px !important; right: -4px !important; }
+    .nitro-chat-widget .bubble-container .chat-reply-button:hover { background: rgba(0,0,0,.3) !important; }
+    .nitro-chat-widget .bubble-container .chat-reply-button::before { top: -4px !important; bottom: -4px !important; left: -2px !important; right: -4px !important; }
     .nitro-chat-widget .bubble-container.kp-rt-siirretty { transition: translate .08s ease-out; }
   `;
   document.head.appendChild(tyyli);
