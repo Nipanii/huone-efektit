@@ -4,7 +4,7 @@
 // @match        https://kupla.cc/*
 // @run-at       document-idle
 // @grant        none
-// @version      1.14.0
+// @version      1.15.0
 // @description  Puhekuplan reply-nappi (.chat-reply-button) kuplan oikeaan reunaan kiinnittyväksi tabiksi, sama ↩-merkki. Hover leventää kuplaa (tabi kuplan SISÄLLÄ) ja siirtää päälle osuvat naapurikuplat sivuun. kp 8.11. 02:20-02:23
 // @author       re-lab
 // ==/UserScript==
@@ -23,7 +23,7 @@
   // aloitetaan (reply-target), ja luokka katosi: kupla jäi leveäksi ilman varjostusta (kp 03:06 'miks käy näin').
   // 1.7.0: tumma kupla -> vaalea nuoli ja vaalea varjostus (kp 03:08 'jos on tumma kupla niin toi reply icon hukkuu').
   // Kuplan väri luetaan sen omasta border-image-kuvasta (data:-PNG, sama origin) keskipikselistä canvasilla.
-  const VERSIO = '1.14.0';
+  const VERSIO = '1.15.0';
   const LEVEYS = 16;
   const VARJO = LEVEYS + 5; // varjostettu kaista kuplan ulkoreunasta: lisätty tila + osa kuplan 6 px oikeaa reunakuvaa
   // 1.10.0: jakoviiva mitataan kuplan LAATIKON reunasta, ei outsetilla kasvatetun ::after-laatikon reunasta (kp 03:54 'nuolella eri
@@ -64,6 +64,11 @@
       padding: 0 3px 0 1px !important; /* 1.13.0 kp 04:16 '1-2 pikselii vasemmalle': nuoli 1,5 px keskeltä vasemmalle (variantti D) */ box-sizing: border-box !important; border: 0 !important; border-radius: 0 !important;
       background: transparent !important; color: #111 !important; font-size: 12px !important; font-weight: bold !important;
     }
+    /* 1.15.0 (Res 04:27 'heilauttaa tekstii' · kp 04:35 'koko kupla värähtää kun hoveraa'): client keskittää live-kuplan puhujaan
+       kontin leveydestä (left = clamp(0, x - leveys/2, …)), joten levennys siirsi kuplaa puolet levennyksestä. Lisätty padding
+       kumotaan negatiivisella margin-rightilla: kontin leveys ei muutu, client ei laske leftiä uudelleen, kupla vain jatkuu oikealle. */
+    .bubble-container[data-kp-rt-auki][data-kp-rt-live] > .chat-bubble { margin-right: calc(-1 * var(--kp-rt-lisa, 0px)) !important; }
+    .bubble-container[data-kp-rt-auki][data-kp-rt-live] > .chat-reply-button { right: calc(-1 * (var(--kp-rt-or, 0px) + var(--kp-rt-lisa, 0px))) !important; }
     .bubble-container .chat-reply-button:hover { background: transparent !important; }
     .bubble-container .chat-reply-button::before { inset: 0 !important; }
     .bubble-container[data-kp-rt-tumma] .chat-reply-button { color: #f4f4f4 !important; }
@@ -122,38 +127,14 @@
     for (const e of siirretyt) { e.style.translate = ''; e.removeAttribute('data-kp-rt-siirretty'); }
     siirretyt = [];
     if (leveys) { leveys[0].style.maxWidth = leveys[1]; leveys = null; }
-    if (auki) { auki.removeAttribute('data-kp-rt-auki'); auki.style.translate = ''; }
+    if (auki) auki.removeAttribute('data-kp-rt-auki');
     auki = null;
-  };
-
-  // 1.14.0 (Res 04:27 'heilauttaa tekstii ikävästi toi nappi' · kp 04:28 'tekstin ei ois pakko liikkuu' · 'robo korjaa'):
-  // client keskittää live-kuplan puhujaan (left = clamp(0, x - leveys/2, 100% - leveys)), joten levennys siirsi vasenta reunaa
-  // puolet levennyksestä ja teksti hyppäsi 12-15 px vasemmalle (mitattu robolla 424). Kupla siirretään translatella takaisin niin
-  // että teksti pysyy samassa kohdassa; client asettaa leftin vasta renderöinnissä, joten tarkistetaan ruutu kerrallaan 600 ms.
-  let vakaus = 0;
-  const pidaPaikka = (kupla, x0, live) => {
-    const oma = ++vakaus, alku = performance.now();
-    const kierros = () => {
-      if (oma !== vakaus || auki !== kupla) return;
-      const sis = kupla.querySelector('.chat-content');
-      let d = sis ? x0 - sis.getBoundingClientRect().left : 0;
-      if (Math.abs(d) > 0.5) {
-        const r = kupla.getBoundingClientRect(), pr = kupla.parentElement.getBoundingClientRect();
-        if (d > 0) d = Math.min(d, Math.max(0, pr.right - r.right)); // ei ruudun oikean reunan yli
-        if (Math.abs(d) > 0.5) {
-          kupla.style.translate = ((parseFloat(kupla.style.translate) || 0) + d) + 'px 0';
-          if (live) { for (const e of siirretyt) { e.style.translate = ''; e.removeAttribute('data-kp-rt-siirretty'); } siirretyt = []; tyonna(kupla); }
-        }
-      }
-      if (performance.now() - alku < 600) requestAnimationFrame(kierros);
-    };
-    requestAnimationFrame(kierros);
   };
 
   // 1.12.0 (kp 04:12 'dividerin ja viestin lopun väliin pitäs jäädä yht iso väli ku nimen … ":" ja viestin sisällön väliin'):
   // mitataan renderöity väli ':' -> viestin alku ja tekstin oikea reuna -> jakoviiva, ja korjataan .chat-content padding-right
   // erotuksella (kuplan reunakuvat ovat eri levyisiä, joten kiinteä padding ei anna samaa väliä).
-  const tasaaVali = (kupla, kpl) => {
+  const tasaaVali = (kupla, kpl, pr0) => {
     const sis = kupla.querySelector('.chat-content'), nimi = sis && sis.querySelector(':scope > .username'), viesti = sis && sis.querySelector(':scope > .message');
     if (!nimi || !viesti) return;
     const t = nimi.lastChild, i = t && t.nodeType === 3 ? t.data.lastIndexOf(':') : -1;
@@ -168,13 +149,14 @@
     const nyt = parseFloat(getComputedStyle(sis).paddingRight) || 0;
     const pr = Math.max(VARJO, nyt + (tavoite - (jako - oikea)) / zs);
     kupla.style.setProperty('--kp-rt-pr', pr + 'px');
+    kupla.style.setProperty('--kp-rt-lisa', Math.max(0, pr - pr0) + 'px');
     if (leveys) kpl.style.maxWidth = (parseFloat(leveys[1]) + pr - 6) + 'px';
   };
 
   // Siirrä oikealla puolella pystysuunnassa päällekkäin osuvat kuplat. Ketjuttaa: siirretty kupla voi työntää seuraavaa.
   const tyonna = kupla => {
     const kaikki = [...kupla.parentElement.querySelectorAll(':scope > .bubble-container')].filter(e => e !== kupla);
-    const esteet = [kupla.getBoundingClientRect()];
+    const esteet = [(kupla.querySelector(':scope > .chat-bubble') || kupla).getBoundingClientRect()];
     const ehdokkaat = kaikki.map(e => ({ e, r: e.getBoundingClientRect() })).sort((a, b) => a.r.left - b.r.left);
     for (const { e, r } of ehdokkaat) {
       let dx = 0;
@@ -215,14 +197,14 @@
       merkitseTumma(kupla, c.borderImageSource, c.borderImageSlice);
     }
     // historiaikkunan maxWidth on '100%': sitä ei kasvateta (vain px-arvot)
-    const sis0 = kupla.querySelector('.chat-content'), x0 = sis0 ? sis0.getBoundingClientRect().left : null;
+    const sis0 = kupla.querySelector('.chat-content'), pr0 = sis0 ? parseFloat(getComputedStyle(sis0).paddingRight) || 0 : 0;
+    const live = !!(kupla.parentElement && kupla.parentElement.matches('.nitro-chat-widget') && !kupla.matches('.chat-pulldown-bubble'));
+    if (live) kupla.setAttribute('data-kp-rt-live', ''); else kupla.removeAttribute('data-kp-rt-live');
     if (kpl && /px$/.test(kpl.style.maxWidth)) { leveys = [kpl, kpl.style.maxWidth]; kpl.style.maxWidth = (parseFloat(kpl.style.maxWidth) + LEVEYS) + 'px'; }
     kupla.setAttribute('data-kp-rt-auki', '');
-    if (kpl) tasaaVali(kupla, kpl);
+    if (kpl) tasaaVali(kupla, kpl, pr0);
     // naapurien siirto vain live chatissa: historioissa kuplat ovat omilla riveillään / omalla asettelullaan
-    const live = !!(kupla.parentElement && kupla.parentElement.matches('.nitro-chat-widget') && !kupla.matches('.chat-pulldown-bubble'));
     if (live) tyonna(kupla);
-    if (x0 != null) pidaPaikka(kupla, x0, live);
   };
   const ulos = ev => { if (auki && !(ev.relatedTarget && auki.contains(ev.relatedTarget))) palauta(); };
 
