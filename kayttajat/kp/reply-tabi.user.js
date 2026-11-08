@@ -4,7 +4,7 @@
 // @match        https://kupla.cc/*
 // @run-at       document-idle
 // @grant        none
-// @version      1.8.0
+// @version      1.9.0
 // @description  Puhekuplan reply-nappi (.chat-reply-button) kuplan oikeaan reunaan kiinnittyväksi tabiksi, sama ↩-merkki. Hover leventää kuplaa (tabi kuplan SISÄLLÄ) ja siirtää päälle osuvat naapurikuplat sivuun. kp 8.11. 02:20-02:23
 // @author       re-lab
 // ==/UserScript==
@@ -23,7 +23,7 @@
   // aloitetaan (reply-target), ja luokka katosi: kupla jäi leveäksi ilman varjostusta (kp 03:06 'miks käy näin').
   // 1.7.0: tumma kupla -> vaalea nuoli ja vaalea varjostus (kp 03:08 'jos on tumma kupla niin toi reply icon hukkuu').
   // Kuplan väri luetaan sen omasta border-image-kuvasta (data:-PNG, sama origin) keskipikselistä canvasilla.
-  const VERSIO = '1.8.0';
+  const VERSIO = '1.9.0';
   const LEVEYS = 16;
   const VARJO = LEVEYS + 5; // varjostettu kaista kuplan ulkoreunasta: lisätty tila + osa kuplan 6 px oikeaa reunakuvaa
   if (window.__kuplaReplyTabi && typeof window.__kuplaReplyTabi.pois === 'function') { try { window.__kuplaReplyTabi.pois(); } catch (e) {} }
@@ -31,11 +31,11 @@
   const tyyli = document.createElement('style');
   tyyli.id = 'kp-reply-tabi';
   tyyli.textContent = `
-    .nitro-chat-widget .bubble-container[data-kp-rt-auki] .chat-content { padding-right: ${6 + LEVEYS}px !important; }
+    .bubble-container[data-kp-rt-auki] .chat-content { padding-right: ${6 + LEVEYS}px !important; }
     /* kp 02:56 + 02:59: ei omaa muotoa ("boxy"). Varjostus piirretään kuplan päälle maskilla, joka on kuplan OMA
        border-image (sama kuva, slice, width, outset), joten se seuraa kuplan reunaa ja pyöristyksiä ylhäältä alas.
        Divider = gradientin 1 px kova raja. Nappi itse on läpinäkyvä klikkialue + nuoli. */
-    .nitro-chat-widget .bubble-container[data-kp-rt-auki] .chat-bubble::after {
+    .bubble-container[data-kp-rt-auki] .chat-bubble::after {
       content: ''; position: absolute; pointer-events: none; z-index: 1;
       /* kp 03:19 'muutaman pikselin gap' ylhäällä: kuplan kuva ulottuu border-image-outsetin verran laatikon yli
          (useimmissa 2px 0 0), ja gradientti piirtyy vain omaan laatikkoonsa -> laatikko itse kasvatetaan outsetilla */
@@ -47,29 +47,29 @@
       -webkit-mask-box-image-width: var(--kp-rt-w); -webkit-mask-box-image-outset: 0;
       -webkit-mask-box-image-repeat: stretch;
     }
-    .nitro-chat-widget .bubble-container[data-kp-rt-auki] .chat-bubble:has(~ .chat-reply-button:hover)::after,
-    .nitro-chat-widget .bubble-container[data-kp-rt-auki]:has(.chat-reply-button:hover) .chat-bubble::after {
+    .bubble-container[data-kp-rt-auki] .chat-bubble:has(~ .chat-reply-button:hover)::after,
+    .bubble-container[data-kp-rt-auki]:has(.chat-reply-button:hover) .chat-bubble::after {
       background: linear-gradient(to right, transparent calc(100% - ${VARJO}px), rgba(0,0,0,.45) calc(100% - ${VARJO}px),
         rgba(0,0,0,.45) calc(100% - ${VARJO - 1}px), rgba(0,0,0,.25) calc(100% - ${VARJO - 1}px));
     }
-    .nitro-chat-widget .bubble-container .chat-reply-button {
-      top: 0 !important; bottom: 0 !important; height: auto !important; transform: none !important;
+    .bubble-container .chat-reply-button {
+      position: absolute !important; top: 0 !important; bottom: 0 !important; height: auto !important; transform: none !important;
       right: 0 !important; width: ${VARJO}px !important; min-width: 0 !important; max-width: none !important;
       padding: 0 3px 0 0 !important; box-sizing: border-box !important; border: 0 !important; border-radius: 0 !important;
       background: transparent !important; color: #111 !important; font-size: 12px !important; font-weight: bold !important;
     }
-    .nitro-chat-widget .bubble-container .chat-reply-button:hover { background: transparent !important; }
-    .nitro-chat-widget .bubble-container .chat-reply-button::before { inset: 0 !important; }
-    .nitro-chat-widget .bubble-container[data-kp-rt-tumma] .chat-reply-button { color: #f4f4f4 !important; }
-    .nitro-chat-widget .bubble-container[data-kp-rt-auki][data-kp-rt-tumma] .chat-bubble::after {
+    .bubble-container .chat-reply-button:hover { background: transparent !important; }
+    .bubble-container .chat-reply-button::before { inset: 0 !important; }
+    .bubble-container[data-kp-rt-tumma] .chat-reply-button { color: #f4f4f4 !important; }
+    .bubble-container[data-kp-rt-auki][data-kp-rt-tumma] .chat-bubble::after {
       background: linear-gradient(to right, transparent calc(100% - ${VARJO}px), rgba(255,255,255,.5) calc(100% - ${VARJO}px),
         rgba(255,255,255,.5) calc(100% - ${VARJO - 1}px), rgba(255,255,255,.16) calc(100% - ${VARJO - 1}px));
     }
-    .nitro-chat-widget .bubble-container[data-kp-rt-auki][data-kp-rt-tumma]:has(.chat-reply-button:hover) .chat-bubble::after {
+    .bubble-container[data-kp-rt-auki][data-kp-rt-tumma]:has(.chat-reply-button:hover) .chat-bubble::after {
       background: linear-gradient(to right, transparent calc(100% - ${VARJO}px), rgba(255,255,255,.55) calc(100% - ${VARJO}px),
         rgba(255,255,255,.55) calc(100% - ${VARJO - 1}px), rgba(255,255,255,.28) calc(100% - ${VARJO - 1}px));
     }
-    .nitro-chat-widget .bubble-container[data-kp-rt-siirretty] { transition: translate .08s ease-out; }
+    .bubble-container[data-kp-rt-siirretty] { transition: translate .08s ease-out; }
   `;
   document.head.appendChild(tyyli);
 
@@ -142,7 +142,9 @@
   };
 
   const yli = ev => {
-    const kupla = ev.target.closest && ev.target.closest('.nitro-chat-widget > .bubble-container');
+    // 1.9.0 (kp 03:28 'molempiin historioihin'): live chat, yläveto (.chat-pulldown-bubble) ja historiaikkuna käyttävät
+    // samaa rakennetta .bubble-container > .chat-bubble + .chat-reply-button (ChatHistoryPulldownView.tsx:161, ChatHistoryView.tsx:184)
+    const kupla = ev.target.closest && ev.target.closest('.bubble-container');
     if (kupla === auki) return;
     palauta();
     if (!kupla || !kupla.querySelector(':scope > .chat-reply-button')) return;
@@ -160,9 +162,11 @@
       }
       merkitseTumma(kupla, c.borderImageSource, c.borderImageSlice);
     }
-    if (kpl && kpl.style.maxWidth) { leveys = [kpl, kpl.style.maxWidth]; kpl.style.maxWidth = (parseFloat(kpl.style.maxWidth) + LEVEYS) + 'px'; }
+    // historiaikkunan maxWidth on '100%': sitä ei kasvateta (vain px-arvot)
+    if (kpl && /px$/.test(kpl.style.maxWidth)) { leveys = [kpl, kpl.style.maxWidth]; kpl.style.maxWidth = (parseFloat(kpl.style.maxWidth) + LEVEYS) + 'px'; }
     kupla.setAttribute('data-kp-rt-auki', '');
-    tyonna(kupla);
+    // naapurien siirto vain live chatissa: historioissa kuplat ovat omilla riveillään / omalla asettelullaan
+    if (kupla.parentElement && kupla.parentElement.matches('.nitro-chat-widget') && !kupla.matches('.chat-pulldown-bubble')) tyonna(kupla);
   };
   const ulos = ev => { if (auki && !(ev.relatedTarget && auki.contains(ev.relatedTarget))) palauta(); };
 
