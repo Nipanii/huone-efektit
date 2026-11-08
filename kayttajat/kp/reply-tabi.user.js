@@ -4,7 +4,7 @@
 // @match        https://kupla.cc/*
 // @run-at       document-idle
 // @grant        none
-// @version      1.2.0
+// @version      1.3.0
 // @description  Puhekuplan reply-nappi (.chat-reply-button) kuplan oikeaan reunaan kiinnittyväksi tabiksi, sama ↩-merkki. Hover leventää kuplaa (tabi kuplan SISÄLLÄ) ja siirtää päälle osuvat naapurikuplat sivuun. kp 8.11. 02:20-02:23
 // @author       re-lab
 // ==/UserScript==
@@ -19,7 +19,7 @@
 // Näkyvyys (hover) ja klikkaus pysyvät clientin omina.
 (() => {
   'use strict';
-  const VERSIO = '1.2.0';
+  const VERSIO = '1.3.0';
   const LEVEYS = 16;
   if (window.__kuplaReplyTabi && typeof window.__kuplaReplyTabi.pois === 'function') { try { window.__kuplaReplyTabi.pois(); } catch (e) {} }
 
@@ -41,11 +41,13 @@
   document.head.appendChild(tyyli);
 
   let auki = null;
+  let leveys = null; // [chat-bubble, alkuperäinen inline max-width]
   let siirretyt = [];
 
   const palauta = () => {
     for (const e of siirretyt) { e.style.translate = ''; e.classList.remove('kp-rt-siirretty'); }
     siirretyt = [];
+    if (leveys) { leveys[0].style.maxWidth = leveys[1]; leveys = null; }
     if (auki) auki.classList.remove('kp-rt-auki');
     auki = null;
   };
@@ -77,6 +79,9 @@
     palauta();
     if (!kupla || !kupla.querySelector(':scope > .chat-reply-button')) return;
     auki = kupla;
+    // kp 02:52 'et saa viedä tilaa tekstiltä': max-width kasvaa saman verran kuin padding, joten teksti rivittyy kuten ennen
+    const kpl = kupla.querySelector(':scope > .chat-bubble');
+    if (kpl && kpl.style.maxWidth) { leveys = [kpl, kpl.style.maxWidth]; kpl.style.maxWidth = (parseFloat(kpl.style.maxWidth) + LEVEYS) + 'px'; }
     kupla.classList.add('kp-rt-auki');
     tyonna(kupla);
   };
