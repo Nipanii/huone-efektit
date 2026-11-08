@@ -103,18 +103,6 @@
           "globaali": "kuplaAA"
         }
       ]
-    },
-    {
-      "nimi": "kp-ominaisuudet",
-      "kayttajat": [
-        282
-      ],
-      "skriptit": [
-        {
-          "polku": "kayttajat/kp/ominaisuudet-piilo.user.js",
-          "globaali": "__kuplaOminaisuudetPiilo"
-        }
-      ]
     }
   ]
 }
