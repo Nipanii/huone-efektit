@@ -4,19 +4,20 @@
 // @match        https://kupla.cc/*
 // @run-at       document-idle
 // @grant        none
-// @version      1.0.0
-// @description  Oikean reunan Ominaisuudet-paneeli (section.hud-features): nappi kiertää auki -> kompakti (vain ikonit) -> piilossa. kp 8.11. 01:57
+// @version      1.1.0
+// @description  Oikean reunan Ominaisuudet-paneeli (section.hud-features): nappi paneelin sisällä, yksi klikkaus piilottaa/näyttää. kp 8.11. 01:57, 02:03-02:04
 // @author       re-lab
 // ==/UserScript==
 
 (() => {
   'use strict';
 
-  const VERSIO = '1.0.0';
+  const VERSIO = '1.1.0';
   const AVAIN = 'kupla.ominaisuudetPiilo';
-  const TILAT = ['auki', 'kompakti', 'piilossa'];
-  const MERKKI = { auki: '▾', kompakti: '▸', piilossa: '◂' };
-  const OTSIKKO = { auki: 'Ominaisuudet: pienennä', kompakti: 'Ominaisuudet: piilota', piilossa: 'Ominaisuudet: näytä' };
+  // kp 02:04 "joo haluun": yksi klikkaus piiloon suoraan; 02:03 "en tykkää et toi napuska on ton elementin ulkopuolella" -> nappi sisälle
+  const TILAT = ['auki', 'piilossa'];
+  const MERKKI = { auki: '–', piilossa: '+' };
+  const OTSIKKO = { auki: 'Piilota Ominaisuudet', piilossa: 'Näytä Ominaisuudet' };
 
   // Jos aiempi instanssi on käynnissä, puretaan se ensin
   if (window.__kuplaOminaisuudetPiilo && typeof window.__kuplaOminaisuudetPiilo.pois === 'function') {
@@ -29,12 +30,12 @@
 
   const tyyli = document.createElement('style');
   tyyli.textContent = `
-    .kp-ominaisuudet-nappi { align-self: flex-end; width: 22px; height: 16px; padding: 0; margin: 0 0 2px 0; line-height: 14px;
-      font-size: 12px; color: #fff; background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.35); border-radius: 4px;
-      cursor: pointer; pointer-events: auto; }
-    .kp-ominaisuudet-nappi:hover { background: rgba(0,0,0,.8); }
-    section.hud-features.kp-kompakti .hud-feature__text { display: none !important; }
-    section.hud-features.kp-piilossa { display: none !important; }
+    .kp-ominaisuudet-nappi { position: absolute; top: 3px; right: 4px; z-index: 2; width: 16px; height: 16px; padding: 0; margin: 0;
+      line-height: 14px; font-size: 13px; font-weight: bold; color: rgba(255,255,255,.7); background: transparent; border: 0;
+      border-radius: 4px; cursor: pointer; pointer-events: auto; }
+    .kp-ominaisuudet-nappi:hover { color: #fff; background: rgba(255,255,255,.12); }
+    section.hud-features.kp-piilossa { padding: 0 !important; width: 24px; height: 22px; min-height: 0; justify-self: end; align-self: end; }
+    section.hud-features.kp-piilossa > :not(.kp-ominaisuudet-nappi) { display: none !important; }
   `;
   document.head.appendChild(tyyli);
 
@@ -51,8 +52,7 @@
   function paivita() {
     const s = document.querySelector('section.hud-features');
     if (!s) return;
-    if (nappi.parentElement !== s.parentElement || nappi.nextElementSibling !== s) s.parentElement.insertBefore(nappi, s);
-    s.classList.toggle('kp-kompakti', tila === 'kompakti');
+    if (nappi.parentElement !== s) s.appendChild(nappi);
     s.classList.toggle('kp-piilossa', tila === 'piilossa');
     nappi.textContent = MERKKI[tila];
     nappi.title = OTSIKKO[tila];
@@ -75,7 +75,7 @@
       nappi.remove();
       tyyli.remove();
       const s = document.querySelector('section.hud-features');
-      if (s) s.classList.remove('kp-kompakti', 'kp-piilossa');
+      if (s) s.classList.remove('kp-piilossa');
       delete window.__kuplaOminaisuudetPiilo;
     },
   };
