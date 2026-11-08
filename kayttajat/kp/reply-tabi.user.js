@@ -4,7 +4,7 @@
 // @match        https://kupla.cc/*
 // @run-at       document-idle
 // @grant        none
-// @version      1.26.0
+// @version      1.28.0
 // @description  Puhekuplan reply-nappi (.chat-reply-button) kuplan oikeaan reunaan kiinnittyväksi tabiksi, sama ↩-merkki. Hover leventää kuplaa (tabi kuplan SISÄLLÄ) ja siirtää päälle osuvat naapurikuplat sivuun. kp 8.11. 02:20-02:23
 // @author       re-lab
 // ==/UserScript==
@@ -23,13 +23,18 @@
   // aloitetaan (reply-target), ja luokka katosi: kupla jäi leveäksi ilman varjostusta (kp 03:06 'miks käy näin').
   // 1.7.0: tumma kupla -> vaalea nuoli ja vaalea varjostus (kp 03:08 'jos on tumma kupla niin toi reply icon hukkuu').
   // Kuplan väri luetaan sen omasta border-image-kuvasta (data:-PNG, sama origin) keskipikselistä canvasilla.
-  const VERSIO = '1.26.0';
+  const VERSIO = '1.28.0';
   const LEVEYS = 16;
   const VARJO = LEVEYS + 5; // varjostettu kaista kuplan ulkoreunasta: lisätty tila + osa kuplan 6 px oikeaa reunakuvaa
   // 1.10.0: jakoviiva mitataan kuplan LAATIKON reunasta, ei outsetilla kasvatetun ::after-laatikon reunasta (kp 03:54 'nuolella eri
   // verran etäisyyttä divideriin riippuen kuplasta'): tyypeillä 9,10,18,21,22,25,26 oikea outset 1-10 px siirsi viivaa, nuoli pysyi.
   const J = 'calc(100% - ' + VARJO + 'px - var(--kp-rt-or, 0px))', J1 = 'calc(100% - ' + (VARJO - 1) + 'px - var(--kp-rt-or, 0px))';
   if (window.__kuplaReplyTabi && typeof window.__kuplaReplyTabi.pois === 'function') { try { window.__kuplaReplyTabi.pois(); } catch (e) {} }
+  // 1.27.0 (kp 07:33 'miks livessä nyt kuplat taas liikahtaa ku hover'): PR 863 tuo reply-tabin clienttiin (useChatReplyTabi.ts,
+  // samat data-kp-rt-*-merkit). Tämä skripti sen päällä = kaksi kuuntelijaa samoilla kuplilla. Natiivi tunnistetaan clientin omasta
+  // tyylisäännöstä (mitattu 07:34: kp:n PR-buildi -> index-*.css, robon live -> ei osumaa).
+  const natiivi = (() => { for (const s of document.styleSheets) { let r; try { r = s.cssRules; } catch (e) { continue; } for (const x of r) if (x.cssText && x.cssText.includes('data-kp-rt-live')) return true; } return false; })();
+  if (natiivi) { console.log('[reply-tabi ' + VERSIO + '] client hoitaa reply-tabin itse, skripti ei asennu'); return; }
 
   const tyyli = document.createElement('style');
   tyyli.id = 'kp-reply-tabi';
@@ -67,10 +72,16 @@
     /* 1.15.0 (Res 04:27 'heilauttaa tekstii' · kp 04:35 'koko kupla värähtää kun hoveraa'): client keskittää live-kuplan puhujaan
        kontin leveydestä (left = clamp(0, x - leveys/2, …)), joten levennys siirsi kuplaa puolet levennyksestä. Lisätty padding
        kumotaan negatiivisella margin-rightilla: kontin leveys ei muutu, client ei laske leftiä uudelleen, kupla vain jatkuu oikealle. */
-    /* 1.26.0 (kp 06:39 'edelleen kuplan koko muuttuu' + kuva 'iha hyvä combo' kahdella rivillä): lukitun kontin leveys + lisa on tasan
+    /* 1.27.0 (kp 06:39 'edelleen kuplan koko muuttuu' + kuva 'iha hyvä combo' kahdella rivillä): lukitun kontin leveys + lisa on tasan
        kuplan uusi leveys, ja alipikselipyöristys rivitti tekstin (robo 06:42: 46 px kupla -> 76 px hoverissa). 4 px löysää; kupla on
        shrink-to-fit, joten löysä ei näy */
-    .bubble-container[data-kp-rt-auki][data-kp-rt-live] > .chat-bubble { margin-right: calc(-1 * var(--kp-rt-lisa, 0px) - 4px) !important; }
+    /* 1.28.0 (robo mittasi 08:10: hoverissa nuoli +3,19 px oikealle ja tabin oikea reuna 6,39 px kuplan reunan sisäpuolella): .chat-bubble on
+       block ja täytti myös 4 px:n löysän, joten kupla leveni lisa + 4 eikä lisa. Leveys on nyt hoveria edeltävä leveys (--kp-rt-lev0, mitattu
+       ennen lukkoa) + lisa: tekstin tila on täsmälleen sama kuin ennen, joten rivitys ei muutu, ja nuoli palaa tasan paikalleen.
+       Layout pyöristää 1/64 LAITE-px:iin, eli kuplan px kertaa zoom (1,6) kertaa devicePixelRatio (robolla 1,125): lev0 ja lisa lasketaan
+       siinä yksikössä (robo 09:0x: 1/64 kuplan omissa px:issä jätti nuoleen 1/72 px = yhden layout-yksikön eron kolmessa kuplassa 12:sta).
+       Jos --kp-rt-lev0 puuttuu, calc on virheellinen ja leveys on oletus. */
+    .bubble-container[data-kp-rt-auki][data-kp-rt-live] > .chat-bubble { margin-right: calc(-1 * var(--kp-rt-lisa, 0px) - 4px) !important; width: calc(var(--kp-rt-lev0) + var(--kp-rt-lisa, 0px)) !important; }
     /* 1.17.0 (kp 05:18 'pieni nuoli kuplan alaosassa siirtyy kun hoveraa eli ei pysy hahmon kohdalla'): .pointer on kuplan sisällä
        left 50 %, joten oikealle levennetty kupla vei sitä puolet levennyksestä; siirretään takaisin */
     .bubble-container[data-kp-rt-auki][data-kp-rt-live]:not(.chat-pulldown-bubble) > .chat-bubble > .pointer { margin-left: calc(-0.5 * var(--kp-rt-lisa, 0px)) !important; }
@@ -138,7 +149,8 @@
     const v = lueTummuus(src, slice);
     const sl = (String(slice).match(/[\d.]+/g) || ['0']).map(Number), w = (String(bw).match(/[\d.]+/g) || ['0']).map(Number);
     const sr = sl[1] ?? sl[0], wr = w[1] ?? w[0];
-    const aseta = o => { if (o.tumma) kupla.setAttribute('data-kp-rt-tumma', ''); else kupla.removeAttribute('data-kp-rt-tumma');
+    // 1.28.0: kuva luetaan asynkronisesti; jos hiiri ehti jo pois, merkkiä ei enää aseteta (muuten se jäisi kuplaan hoverin jälkeen)
+    const aseta = o => { if (kupla !== auki) return; if (o.tumma) kupla.setAttribute('data-kp-rt-tumma', ''); else kupla.removeAttribute('data-kp-rt-tumma');
       kupla.style.setProperty('--kp-rt-ir', (sr > 0 ? o.ir * wr / sr : 0) + 'px'); };
     if (v instanceof Promise) v.then(aseta); else aseta(v);
   };
@@ -153,11 +165,19 @@
   const vapautaLukot = () => { for (const k of document.querySelectorAll('.bubble-container[data-kp-rt-lukko]')) {
     k.style.removeProperty('width'); k.style.removeProperty('height'); k.style.removeProperty('box-sizing'); k.removeAttribute('data-kp-rt-lukko'); } };
 
+  // 1.28.0 (kp 07:48: hoverin jälkeen jokaisen mitatun arvon pitää olla sama kuin ennen hoveria): hover jätti kuplaan data-kp-rt-live/-tumma-merkit ja
+  // --kp-rt-*-muuttujat (kontti + .chat-bubble). Ne poistetaan, joten poistuttaessa kupla on täsmälleen hoveria edeltävässä tilassa.
+  const siivoa = k => {
+    for (const a of ['data-kp-rt-auki', 'data-kp-rt-live', 'data-kp-rt-tumma']) k.removeAttribute(a);
+    for (const el of [k, k.querySelector(':scope > .chat-bubble')]) { if (!el) continue;
+      for (const n of [...el.style].filter(n => n.startsWith('--kp-rt-'))) el.style.removeProperty(n); }
+  };
+
   const palauta = () => {
     for (const e of siirretyt) { e.style.translate = ''; e.removeAttribute('data-kp-rt-siirretty'); }
     siirretyt = [];
     if (leveys) { leveys[0].style.maxWidth = leveys[1]; leveys = null; }
-    if (auki) auki.removeAttribute('data-kp-rt-auki');
+    if (auki) siivoa(auki);
     vapautaLukot();
     auki = null;
   };
@@ -165,23 +185,36 @@
   // 1.12.0 (kp 04:12 'dividerin ja viestin lopun väliin pitäs jäädä yht iso väli ku nimen … ":" ja viestin sisällön väliin'):
   // mitataan renderöity väli ':' -> viestin alku ja tekstin oikea reuna -> jakoviiva, ja korjataan .chat-content padding-right
   // erotuksella (kuplan reunakuvat ovat eri levyisiä, joten kiinteä padding ei anna samaa väliä).
-  const tasaaVali = (kupla, kpl, pr0) => {
+  // 1.28.0 (robo 09:2x: jakoviiva osui tasan tekstin loppuun, väli 0 eikä ':'-väli 5,4 px): mitattiin hoverin tilassa, jossa padding on jo
+  // 6 + LEVEYS mutta leveys vielä hoveria edeltävä, joten teksti rivittyi mittauksen ajaksi ja tulos leikkautui VARJO-minimiin. Nyt mitataan
+  // ENNEN mitään muutosta: tekstin tila pysyy hoverissa samana, joten teksti on lopussakin tasan samassa kohdassa.
+  const mittaaVali = (kupla, kpl) => {
     const sis = kupla.querySelector('.chat-content'), nimi = sis && sis.querySelector(':scope > .username'), viesti = sis && sis.querySelector(':scope > .message');
-    if (!nimi || !viesti) return;
+    if (!kpl || !nimi || !viesti) return null;
     const t = nimi.lastChild, i = t && t.nodeType === 3 ? t.data.lastIndexOf(':') : -1;
-    if (i < 0) return;
+    if (i < 0) return null;
     const r = document.createRange(); r.setStart(t, i); r.setEnd(t, i + 1);
-    const vRects = viesti.getClientRects(); if (!vRects.length) return;
+    const vRects = viesti.getClientRects(); if (!vRects.length) return null;
     const tavoite = vRects[0].left - r.getBoundingClientRect().right; // ':' -> viestin ensimmäinen merkki, ruudun px
     let oikea = 0;
     for (const e of sis.querySelectorAll(':scope > .username, :scope > .message, :scope > .duplicate-count')) for (const q of e.getClientRects()) oikea = Math.max(oikea, q.right);
-    const z = kpl.getBoundingClientRect().width / (kpl.offsetWidth || 1), zs = sis.getBoundingClientRect().width / (sis.offsetWidth || 1);
-    const jako = kpl.getBoundingClientRect().right - VARJO * z;
-    const nyt = parseFloat(getComputedStyle(sis).paddingRight) || 0;
-    const pr = Math.max(VARJO, nyt + (tavoite - (jako - oikea)) / zs);
-    kupla.style.setProperty('--kp-rt-pr', pr + 'px');
-    kupla.style.setProperty('--kp-rt-lisa', Math.max(0, pr - pr0) + 'px');
-    if (leveys) kpl.style.maxWidth = (parseFloat(leveys[1]) + pr - 6) + 'px';
+    return { tavoite, oikea, reuna: kpl.getBoundingClientRect().right, zb: kpl.currentCSSZoom || parseFloat(getComputedStyle(kpl).zoom) || 1 };
+  };
+  const tasaaVali = (kupla, kpl, pr0, v0) => {
+    // lopussa kupla on lisa leveämpi (oikea reuna + lisa * zb) ja teksti paikallaan, ja jakoviiva on VARJO kuplan reunasta:
+    // (reuna + lisa * zb - VARJO * zb) - oikea = tavoite. Ei alle 0: kupla ei kapene eikä tekstin tila kasva (se voisi purkaa rivityksen).
+    // Ilman nimeä/':'/viestiä (v0 null) padding on CSS:n oletus 6 + LEVEYS; lisa kasvattaa leveyden saman verran, ettei teksti rivity.
+    const pr = v0 ? pr0 + Math.max(0, (v0.tavoite + v0.oikea - v0.reuna) / v0.zb + VARJO) : Math.max(pr0, 6 + LEVEYS);
+    // 1.28.0: lisa on laite-px:inä (kuplan px * zoom * devicePixelRatio, layoutin oma yksikkö 1/64) 1/32:n monikerta -> puolikas (nuolen
+    // margin-left) on tasan yksi 1/64 eikä pyöristy eri suuntaan kuin kuplan 50 %. + 1/1024 laite-px: float-virhe ei pudota arvoa
+    // pyöristettäessä alemmalle 1/64:lle (katkaisu ja pyöristys antavat saman). pr = pr0 + lisa, joten padding ja leveys kasvavat täsmälleen
+    // saman verran. max-width kasvaa lisa eikä pr - 6: sky-kuplan (1010) oma padding-right on 12 px, ja -6 antoi tekstille 6 px lisää,
+    // jolloin pitkä kupla rivittyi hoverissa uudelleen
+    const Z = (kpl.currentCSSZoom || parseFloat(getComputedStyle(kpl).zoom) || 1) * (window.devicePixelRatio || 1);
+    const m = Math.max(0, Math.round((pr - pr0) * Z * 32)), lisa = m > 0 ? (m / 32 + 1 / 1024) / Z : 0, prq = pr0 + lisa;
+    kupla.style.setProperty('--kp-rt-pr', prq + 'px');
+    kupla.style.setProperty('--kp-rt-lisa', lisa + 'px');
+    if (leveys) kpl.style.maxWidth = (parseFloat(leveys[1]) + prq - pr0) + 'px';
   };
 
   // Siirrä oikealla puolella pystysuunnassa päällekkäin osuvat kuplat. Ketjuttaa: siirretty kupla voi työntää seuraavaa.
@@ -213,6 +246,11 @@
     palauta();
     if (!kupla || !kupla.querySelector(':scope > .chat-reply-button')) return;
     auki = kupla;
+    // 1.28.0: kuplan leveys ennen mitään muutosta (ennen lukkoa): laite-px:inä 1/64:n tarkkuudella (layoutin oma arvo), + 1/1024 laite-px
+    // ettei float-virhe pyöristä alemmalle 1/64:lle, ja takaisin kuplan omiin px:eihin (zoom * devicePixelRatio, ks. tasaaVali)
+    { const b0 = kupla.querySelector(':scope > .chat-bubble'); if (b0) { const dpr = window.devicePixelRatio || 1, Z0 = (b0.currentCSSZoom || parseFloat(getComputedStyle(b0).zoom) || 1) * dpr;
+      b0.style.setProperty('--kp-rt-lev0', ((Math.round(b0.getBoundingClientRect().width * dpr * 64) / 64 + 1 / 1024) / Z0) + 'px'); } }
+    const vali0 = mittaaVali(kupla, kupla.querySelector(':scope > .chat-bubble')); // ks. mittaaVali: ennen mitään muutosta
     // 1.19.0 (kp 05:45 'kuplat nyt pari kertaa pompannu oudosti hoveratessa · liittyy replyyn'): live-kuplan kontilla on clientin
     // ResizeObserver (ChatWidgetMessageView.tsx:98-120), joka keskittää kuplan uudelleen ja nostaa sitä aina kun kontin offsetWidth
     // tai offsetHeight kasvaa, eikä palauta. Hoverin levennys/korostus ei siis saa muuttaa kontin mitattua kokoa: lukitaan se
@@ -221,7 +259,10 @@
     // leveys mitataan layoutissa (ChatHistoryPulldownView.tsx:430), joten sekin lukitaan ja levenee negatiivisella marginilla kuten live
     if (kupla.parentElement && (kupla.parentElement.matches('.nitro-chat-widget') || kupla.matches('.chat-pulldown-bubble'))) {
       // tarkka (murto-osainen) laskettu koko, ei pyöristettyä offsetWidthia: pyöristys alaspäin kavensi kuplaa ja rivitti tekstin
-      const cs = getComputedStyle(kupla), w = cs.width, h = cs.height, b = cs.boxSizing;
+      // 1.28.0 (robo 09:5x: lukittu kontti oli 1/72 px matalampi kuin vapaana): laskettu arvo on merkkijono muutaman desimaalin tarkkuudella,
+      // ja layout katkaisi sen alemmalle 1/64 laite-px:lle. Pyöristetään laite-px:inä (zoom * devicePixelRatio) lähimpään 1/64:aan + 1/1024.
+      const cs = getComputedStyle(kupla), b = cs.boxSizing, Zk = (kupla.currentCSSZoom || 1) * (window.devicePixelRatio || 1);
+      const tarkka = v => ((Math.round(parseFloat(v) * Zk * 64) / 64 + 1 / 1024) / Zk) + 'px', w = tarkka(cs.width), h = tarkka(cs.height);
       kupla.style.boxSizing = b; kupla.style.width = w; kupla.style.height = h; kupla.setAttribute('data-kp-rt-lukko', '');
     }
     // kp 02:52 'et saa viedä tilaa tekstiltä': max-width kasvaa saman verran kuin padding, joten teksti rivittyy kuten ennen
@@ -242,9 +283,10 @@
     const sis0 = kupla.querySelector('.chat-content'), pr0 = sis0 ? parseFloat(getComputedStyle(sis0).paddingRight) || 0 : 0;
     const live = !!(kupla.parentElement && kupla.parentElement.matches('.nitro-chat-widget') && !kupla.matches('.chat-pulldown-bubble'));
     if (live || kupla.matches('.chat-pulldown-bubble')) kupla.setAttribute('data-kp-rt-live', ''); else kupla.removeAttribute('data-kp-rt-live');
-    if (kpl && /px$/.test(kpl.style.maxWidth)) { leveys = [kpl, kpl.style.maxWidth]; kpl.style.maxWidth = (parseFloat(kpl.style.maxWidth) + LEVEYS) + 'px'; }
+    // 1.28.0: oletuspadding on 6 + LEVEYS, joten max-width kasvaa sen verran kuin padding oikeasti kasvaa (pr0 ei ole aina 6)
+    if (kpl && /px$/.test(kpl.style.maxWidth)) { leveys = [kpl, kpl.style.maxWidth]; kpl.style.maxWidth = (parseFloat(kpl.style.maxWidth) + 6 + LEVEYS - pr0) + 'px'; }
     kupla.setAttribute('data-kp-rt-auki', '');
-    if (kpl) tasaaVali(kupla, kpl, pr0);
+    if (kpl) tasaaVali(kupla, kpl, pr0, vali0);
     // tekstialueen keskikohta - kuplalaatikon keskikohta (css px): nuoli tekstirivin korkeudelle
     if (kpl && sis0) { const cs = getComputedStyle(sis0), a = sis0.getBoundingClientRect(), b = kpl.getBoundingClientRect(), z = b.height / (kpl.offsetHeight || 1);
       const tk = (a.top + a.bottom) / 2 + (parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)) * z / 2;
