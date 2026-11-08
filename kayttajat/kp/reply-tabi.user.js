@@ -4,7 +4,7 @@
 // @match        https://kupla.cc/*
 // @run-at       document-idle
 // @grant        none
-// @version      1.20.0
+// @version      1.21.0
 // @description  Puhekuplan reply-nappi (.chat-reply-button) kuplan oikeaan reunaan kiinnittyväksi tabiksi, sama ↩-merkki. Hover leventää kuplaa (tabi kuplan SISÄLLÄ) ja siirtää päälle osuvat naapurikuplat sivuun. kp 8.11. 02:20-02:23
 // @author       re-lab
 // ==/UserScript==
@@ -23,7 +23,7 @@
   // aloitetaan (reply-target), ja luokka katosi: kupla jäi leveäksi ilman varjostusta (kp 03:06 'miks käy näin').
   // 1.7.0: tumma kupla -> vaalea nuoli ja vaalea varjostus (kp 03:08 'jos on tumma kupla niin toi reply icon hukkuu').
   // Kuplan väri luetaan sen omasta border-image-kuvasta (data:-PNG, sama origin) keskipikselistä canvasilla.
-  const VERSIO = '1.20.0';
+  const VERSIO = '1.21.0';
   const LEVEYS = 16;
   const VARJO = LEVEYS + 5; // varjostettu kaista kuplan ulkoreunasta: lisätty tila + osa kuplan 6 px oikeaa reunakuvaa
   // 1.10.0: jakoviiva mitataan kuplan LAATIKON reunasta, ei outsetilla kasvatetun ::after-laatikon reunasta (kp 03:54 'nuolella eri
@@ -168,7 +168,7 @@
     const pr = Math.max(VARJO, nyt + (tavoite - (jako - oikea)) / zs);
     kupla.style.setProperty('--kp-rt-pr', pr + 'px');
     kupla.style.setProperty('--kp-rt-lisa', Math.max(0, pr - pr0) + 'px');
-    if (leveys) kpl.style.maxWidth = (parseFloat(leveys[1]) + pr - 6) + 'px';
+    if (leveys) kpl.style.maxWidth = /px$/.test(leveys[1]) ? (parseFloat(leveys[1]) + pr - 6) + 'px' : `calc(${leveys[1]} + ${Math.max(0, pr - pr0)}px)`;
   };
 
   // Siirrä oikealla puolella pystysuunnassa päällekkäin osuvat kuplat. Ketjuttaa: siirretty kupla voi työntää seuraavaa.
@@ -226,8 +226,13 @@
     // historiaikkunan maxWidth on '100%': sitä ei kasvateta (vain px-arvot)
     const sis0 = kupla.querySelector('.chat-content'), pr0 = sis0 ? parseFloat(getComputedStyle(sis0).paddingRight) || 0 : 0;
     const live = !!(kupla.parentElement && kupla.parentElement.matches('.nitro-chat-widget') && !kupla.matches('.chat-pulldown-bubble'));
-    if (live) kupla.setAttribute('data-kp-rt-live', ''); else kupla.removeAttribute('data-kp-rt-live');
+    // 1.21.0 (kp 06:11 'historianapista aukeevassa historiassa rivit pomppii hoveratessa' · 06:12 'reply nappi vaatii lisätilaa mitä
+    // laatikko ei anna ja teksti pakottuu seuraavalle riville ja kupla kasvaa'): historiaikkunan max-width on '100%', jota ei kasvateta,
+    // joten sielläkin kupla levenee negatiivisella marginilla kuten live-kupla eikä vie tilaa tekstiltä
+    const historia = !live && !kupla.matches('.chat-pulldown-bubble') && !!kpl && !/px$/.test(kpl.style.maxWidth);
+    if (live || historia) kupla.setAttribute('data-kp-rt-live', ''); else kupla.removeAttribute('data-kp-rt-live');
     if (kpl && /px$/.test(kpl.style.maxWidth)) { leveys = [kpl, kpl.style.maxWidth]; kpl.style.maxWidth = (parseFloat(kpl.style.maxWidth) + LEVEYS) + 'px'; }
+    else if (historia) { leveys = [kpl, kpl.style.maxWidth]; kpl.style.maxWidth = `calc(${kpl.style.maxWidth || '100%'} + ${LEVEYS}px)`; }
     kupla.setAttribute('data-kp-rt-auki', '');
     if (kpl) tasaaVali(kupla, kpl, pr0);
     // tekstialueen keskikohta - kuplalaatikon keskikohta (css px): nuoli tekstirivin korkeudelle
