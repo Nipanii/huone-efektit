@@ -4,7 +4,7 @@
 // @match        https://kupla.cc/*
 // @run-at       document-idle
 // @grant        none
-// @version      1.3.0
+// @version      1.4.0
 // @description  Puhekuplan reply-nappi (.chat-reply-button) kuplan oikeaan reunaan kiinnittyväksi tabiksi, sama ↩-merkki. Hover leventää kuplaa (tabi kuplan SISÄLLÄ) ja siirtää päälle osuvat naapurikuplat sivuun. kp 8.11. 02:20-02:23
 // @author       re-lab
 // ==/UserScript==
@@ -19,7 +19,7 @@
 // Näkyvyys (hover) ja klikkaus pysyvät clientin omina.
 (() => {
   'use strict';
-  const VERSIO = '1.3.0';
+  const VERSIO = '1.4.0';
   const LEVEYS = 16;
   if (window.__kuplaReplyTabi && typeof window.__kuplaReplyTabi.pois === 'function') { try { window.__kuplaReplyTabi.pois(); } catch (e) {} }
 
@@ -27,15 +27,16 @@
   tyyli.id = 'kp-reply-tabi';
   tyyli.textContent = `
     .nitro-chat-widget .bubble-container.kp-rt-auki .chat-content { padding-right: ${6 + LEVEYS}px !important; }
+    /* kp 02:56: ei pyöristettyä muotoa; vain vasen divider kuplan koko korkeudelta ja varjostus dividerista kuplan oikeaan reunaan */
     .nitro-chat-widget .bubble-container .chat-reply-button {
-      top: 4px !important; bottom: 4px !important; height: auto !important; transform: none !important;
-      right: 4px !important; width: ${LEVEYS - 2}px !important; min-width: 0 !important; max-width: none !important;
+      top: 2px !important; bottom: 2px !important; height: auto !important; transform: none !important;
+      right: 2px !important; width: ${LEVEYS + 2}px !important; min-width: 0 !important; max-width: none !important;
       padding: 0 !important; box-sizing: border-box !important;
-      border: 0 !important; border-left: 1px solid rgba(0,0,0,.35) !important; border-radius: 0 6px 6px 0 !important;
-      background: rgba(0,0,0,.18) !important; color: #111 !important; font-size: 12px !important; font-weight: bold !important;
+      border: 0 !important; border-left: 1px solid rgba(0,0,0,.35) !important; border-radius: 0 !important;
+      background: rgba(0,0,0,.12) !important; color: #111 !important; font-size: 12px !important; font-weight: bold !important;
     }
-    .nitro-chat-widget .bubble-container .chat-reply-button:hover { background: rgba(0,0,0,.3) !important; }
-    .nitro-chat-widget .bubble-container .chat-reply-button::before { top: -4px !important; bottom: -4px !important; left: -2px !important; right: -4px !important; }
+    .nitro-chat-widget .bubble-container .chat-reply-button:hover { background: rgba(0,0,0,.24) !important; }
+    .nitro-chat-widget .bubble-container .chat-reply-button::before { top: -2px !important; bottom: -2px !important; left: -2px !important; right: -2px !important; }
     .nitro-chat-widget .bubble-container.kp-rt-siirretty { transition: translate .08s ease-out; }
   `;
   document.head.appendChild(tyyli);
