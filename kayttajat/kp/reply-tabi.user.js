@@ -4,7 +4,7 @@
 // @match        https://kupla.cc/*
 // @run-at       document-idle
 // @grant        none
-// @version      1.4.0
+// @version      1.5.0
 // @description  Puhekuplan reply-nappi (.chat-reply-button) kuplan oikeaan reunaan kiinnittyväksi tabiksi, sama ↩-merkki. Hover leventää kuplaa (tabi kuplan SISÄLLÄ) ja siirtää päälle osuvat naapurikuplat sivuun. kp 8.11. 02:20-02:23
 // @author       re-lab
 // ==/UserScript==
@@ -19,24 +19,39 @@
 // Näkyvyys (hover) ja klikkaus pysyvät clientin omina.
 (() => {
   'use strict';
-  const VERSIO = '1.4.0';
+  const VERSIO = '1.5.0';
   const LEVEYS = 16;
+  const VARJO = LEVEYS + 5; // varjostettu kaista kuplan ulkoreunasta: lisätty tila + osa kuplan 6 px oikeaa reunakuvaa
   if (window.__kuplaReplyTabi && typeof window.__kuplaReplyTabi.pois === 'function') { try { window.__kuplaReplyTabi.pois(); } catch (e) {} }
 
   const tyyli = document.createElement('style');
   tyyli.id = 'kp-reply-tabi';
   tyyli.textContent = `
     .nitro-chat-widget .bubble-container.kp-rt-auki .chat-content { padding-right: ${6 + LEVEYS}px !important; }
-    /* kp 02:56: ei pyöristettyä muotoa; vain vasen divider kuplan koko korkeudelta ja varjostus dividerista kuplan oikeaan reunaan */
-    .nitro-chat-widget .bubble-container .chat-reply-button {
-      top: 2px !important; bottom: 2px !important; height: auto !important; transform: none !important;
-      right: 2px !important; width: ${LEVEYS + 2}px !important; min-width: 0 !important; max-width: none !important;
-      padding: 0 !important; box-sizing: border-box !important;
-      border: 0 !important; border-left: 1px solid rgba(0,0,0,.35) !important; border-radius: 0 !important;
-      background: rgba(0,0,0,.12) !important; color: #111 !important; font-size: 12px !important; font-weight: bold !important;
+    /* kp 02:56 + 02:59: ei omaa muotoa ("boxy"). Varjostus piirretään kuplan päälle maskilla, joka on kuplan OMA
+       border-image (sama kuva, slice, width, outset), joten se seuraa kuplan reunaa ja pyöristyksiä ylhäältä alas.
+       Divider = gradientin 1 px kova raja. Nappi itse on läpinäkyvä klikkialue + nuoli. */
+    .nitro-chat-widget .bubble-container.kp-rt-auki .chat-bubble::after {
+      content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 1;
+      background: linear-gradient(to right, transparent calc(100% - ${VARJO}px), rgba(0,0,0,.4) calc(100% - ${VARJO}px),
+        rgba(0,0,0,.4) calc(100% - ${VARJO - 1}px), rgba(0,0,0,.13) calc(100% - ${VARJO - 1}px));
+      -webkit-mask-box-image-source: var(--kp-rt-src); -webkit-mask-box-image-slice: var(--kp-rt-slice);
+      -webkit-mask-box-image-width: var(--kp-rt-w); -webkit-mask-box-image-outset: var(--kp-rt-out);
+      -webkit-mask-box-image-repeat: stretch;
     }
-    .nitro-chat-widget .bubble-container .chat-reply-button:hover { background: rgba(0,0,0,.24) !important; }
-    .nitro-chat-widget .bubble-container .chat-reply-button::before { top: -2px !important; bottom: -2px !important; left: -2px !important; right: -2px !important; }
+    .nitro-chat-widget .bubble-container.kp-rt-auki .chat-bubble:has(~ .chat-reply-button:hover)::after,
+    .nitro-chat-widget .bubble-container.kp-rt-auki:has(.chat-reply-button:hover) .chat-bubble::after {
+      background: linear-gradient(to right, transparent calc(100% - ${VARJO}px), rgba(0,0,0,.45) calc(100% - ${VARJO}px),
+        rgba(0,0,0,.45) calc(100% - ${VARJO - 1}px), rgba(0,0,0,.25) calc(100% - ${VARJO - 1}px));
+    }
+    .nitro-chat-widget .bubble-container .chat-reply-button {
+      top: 0 !important; bottom: 0 !important; height: auto !important; transform: none !important;
+      right: 0 !important; width: ${VARJO}px !important; min-width: 0 !important; max-width: none !important;
+      padding: 0 3px 0 0 !important; box-sizing: border-box !important; border: 0 !important; border-radius: 0 !important;
+      background: transparent !important; color: #111 !important; font-size: 12px !important; font-weight: bold !important;
+    }
+    .nitro-chat-widget .bubble-container .chat-reply-button:hover { background: transparent !important; }
+    .nitro-chat-widget .bubble-container .chat-reply-button::before { inset: 0 !important; }
     .nitro-chat-widget .bubble-container.kp-rt-siirretty { transition: translate .08s ease-out; }
   `;
   document.head.appendChild(tyyli);
@@ -82,6 +97,11 @@
     auki = kupla;
     // kp 02:52 'et saa viedä tilaa tekstiltä': max-width kasvaa saman verran kuin padding, joten teksti rivittyy kuten ennen
     const kpl = kupla.querySelector(':scope > .chat-bubble');
+    if (kpl) {
+      const c = getComputedStyle(kpl);
+      kpl.style.setProperty('--kp-rt-src', c.borderImageSource); kpl.style.setProperty('--kp-rt-slice', c.borderImageSlice);
+      kpl.style.setProperty('--kp-rt-w', c.borderImageWidth); kpl.style.setProperty('--kp-rt-out', c.borderImageOutset);
+    }
     if (kpl && kpl.style.maxWidth) { leveys = [kpl, kpl.style.maxWidth]; kpl.style.maxWidth = (parseFloat(kpl.style.maxWidth) + LEVEYS) + 'px'; }
     kupla.classList.add('kp-rt-auki');
     tyonna(kupla);
