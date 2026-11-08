@@ -4,7 +4,7 @@
 // @match        https://kupla.cc/*
 // @run-at       document-idle
 // @grant        none
-// @version      1.31.0
+// @version      1.32.0
 // @description  Puhekuplan reply-nappi (.chat-reply-button) kuplan oikeaan reunaan kiinnittyväksi tabiksi, sama ↩-merkki. Hover leventää kuplaa (tabi kuplan SISÄLLÄ) ja siirtää päälle osuvat naapurikuplat sivuun. kp 8.11. 02:20-02:23
 // @author       re-lab
 // ==/UserScript==
@@ -23,7 +23,7 @@
   // aloitetaan (reply-target), ja luokka katosi: kupla jäi leveäksi ilman varjostusta (kp 03:06 'miks käy näin').
   // 1.7.0: tumma kupla -> vaalea nuoli ja vaalea varjostus (kp 03:08 'jos on tumma kupla niin toi reply icon hukkuu').
   // Kuplan väri luetaan sen omasta border-image-kuvasta (data:-PNG, sama origin) keskipikselistä canvasilla.
-  const VERSIO = '1.31.0';
+  const VERSIO = '1.32.0';
   const LEVEYS = 16;
   const VARJO = LEVEYS + 5; // varjostettu kaista kuplan ulkoreunasta: lisätty tila + osa kuplan 6 px oikeaa reunakuvaa
   // 1.10.0: jakoviiva mitataan kuplan LAATIKON reunasta, ei outsetilla kasvatetun ::after-laatikon reunasta (kp 03:54 'nuolella eri
@@ -108,6 +108,7 @@
         rgba(255,255,255,.55) ${J1}, rgba(255,255,255,.28) ${J1});
     }
     .bubble-container[data-kp-rt-siirretty] { transition: top .2s, translate .08s ease-out; }
+    .bubble-container[data-kp-rt-siirretty] > .chat-bubble > .pointer { transition: translate .08s ease-out; }
   `;
   document.head.appendChild(tyyli);
 
@@ -176,6 +177,8 @@
   const vapautaSiirretyt = () => {
     for (const e of [...siirretyt, ...document.querySelectorAll('.bubble-container[data-kp-rt-siirretty]')]) {
       e.style.translate = ''; e.removeAttribute('data-kp-rt-siirretty');
+      const p = e.querySelector('.pointer');
+      if (p) p.style.translate = '';
     }
     siirretyt = [];
     if (topVahti) { try { topVahti.takeRecords(); } catch (e) {} }
@@ -270,8 +273,25 @@
         if (pysty && vaaka && r.left >= s.left) dx = Math.max(dx, s.right - r.left + 1);
       }
       if (dx > 0) {
+        const dxCeil = Math.ceil(dx);
+        // 1.32.0 (B44, kp 22:50 'pieni nuoli viereisen työnnetyn kuplan alalaidassa ei päivity...'):
+        // Pidä työnnetyn naapurin .pointer puhujan kohdalla (ruutu-x sama kuin ennen työntöä).
+        // Jos kuplalla on avatar-kuva (.user-image / .user-container), rajoitetaan nuolen vasen reuna
+        // avatar-kuvan oikeaan reunaan (kp 22:53 'kunhan ei siirry tohon avatar kuvan alueelle').
+        const ptr = e.querySelector(':scope > .chat-bubble > .pointer') || e.querySelector('.pointer');
+        if (ptr) {
+          const kpl = e.querySelector(':scope > .chat-bubble') || e;
+          const zb = kpl.currentCSSZoom || parseFloat(getComputedStyle(kpl).zoom) || 1;
+          const p0Left = ptr.getBoundingClientRect().left;
+          const ui = e.querySelector('.user-image') || e.querySelector('.user-container');
+          const uiR = (ui && ui.getBoundingClientRect().width > 0) ? ui.getBoundingClientRect().right : null;
+          const minLeft = uiR !== null ? (uiR + dxCeil) : (kpl.getBoundingClientRect().left + dxCeil + 3 * zb);
+          const targetLeft = Math.max(p0Left, minLeft);
+          const screenShift = targetLeft - (p0Left + dxCeil);
+          ptr.style.translate = `${screenShift / zb}px 0`;
+        }
         e.setAttribute('data-kp-rt-siirretty', '');
-        e.style.translate = `${Math.ceil(dx)}px 0`;
+        e.style.translate = `${dxCeil}px 0`;
         siirretyt.push(e);
         esteet.push({ left: r.left + dx, right: r.right + dx, top: r.top, bottom: r.bottom });
       }
