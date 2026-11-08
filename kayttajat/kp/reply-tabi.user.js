@@ -4,7 +4,7 @@
 // @match        https://kupla.cc/*
 // @run-at       document-idle
 // @grant        none
-// @version      1.5.0
+// @version      1.6.0
 // @description  Puhekuplan reply-nappi (.chat-reply-button) kuplan oikeaan reunaan kiinnittyväksi tabiksi, sama ↩-merkki. Hover leventää kuplaa (tabi kuplan SISÄLLÄ) ja siirtää päälle osuvat naapurikuplat sivuun. kp 8.11. 02:20-02:23
 // @author       re-lab
 // ==/UserScript==
@@ -19,7 +19,9 @@
 // Näkyvyys (hover) ja klikkaus pysyvät clientin omina.
 (() => {
   'use strict';
-  const VERSIO = '1.5.0';
+  // 1.6.0: merkit data-attribuutteina, ei luokkina — React kirjoittaa bubble-containerin className:n uudelleen kun reply
+  // aloitetaan (reply-target), ja luokka katosi: kupla jäi leveäksi ilman varjostusta (kp 03:06 'miks käy näin').
+  const VERSIO = '1.6.0';
   const LEVEYS = 16;
   const VARJO = LEVEYS + 5; // varjostettu kaista kuplan ulkoreunasta: lisätty tila + osa kuplan 6 px oikeaa reunakuvaa
   if (window.__kuplaReplyTabi && typeof window.__kuplaReplyTabi.pois === 'function') { try { window.__kuplaReplyTabi.pois(); } catch (e) {} }
@@ -27,11 +29,11 @@
   const tyyli = document.createElement('style');
   tyyli.id = 'kp-reply-tabi';
   tyyli.textContent = `
-    .nitro-chat-widget .bubble-container.kp-rt-auki .chat-content { padding-right: ${6 + LEVEYS}px !important; }
+    .nitro-chat-widget .bubble-container[data-kp-rt-auki] .chat-content { padding-right: ${6 + LEVEYS}px !important; }
     /* kp 02:56 + 02:59: ei omaa muotoa ("boxy"). Varjostus piirretään kuplan päälle maskilla, joka on kuplan OMA
        border-image (sama kuva, slice, width, outset), joten se seuraa kuplan reunaa ja pyöristyksiä ylhäältä alas.
        Divider = gradientin 1 px kova raja. Nappi itse on läpinäkyvä klikkialue + nuoli. */
-    .nitro-chat-widget .bubble-container.kp-rt-auki .chat-bubble::after {
+    .nitro-chat-widget .bubble-container[data-kp-rt-auki] .chat-bubble::after {
       content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 1;
       background: linear-gradient(to right, transparent calc(100% - ${VARJO}px), rgba(0,0,0,.4) calc(100% - ${VARJO}px),
         rgba(0,0,0,.4) calc(100% - ${VARJO - 1}px), rgba(0,0,0,.13) calc(100% - ${VARJO - 1}px));
@@ -39,8 +41,8 @@
       -webkit-mask-box-image-width: var(--kp-rt-w); -webkit-mask-box-image-outset: var(--kp-rt-out);
       -webkit-mask-box-image-repeat: stretch;
     }
-    .nitro-chat-widget .bubble-container.kp-rt-auki .chat-bubble:has(~ .chat-reply-button:hover)::after,
-    .nitro-chat-widget .bubble-container.kp-rt-auki:has(.chat-reply-button:hover) .chat-bubble::after {
+    .nitro-chat-widget .bubble-container[data-kp-rt-auki] .chat-bubble:has(~ .chat-reply-button:hover)::after,
+    .nitro-chat-widget .bubble-container[data-kp-rt-auki]:has(.chat-reply-button:hover) .chat-bubble::after {
       background: linear-gradient(to right, transparent calc(100% - ${VARJO}px), rgba(0,0,0,.45) calc(100% - ${VARJO}px),
         rgba(0,0,0,.45) calc(100% - ${VARJO - 1}px), rgba(0,0,0,.25) calc(100% - ${VARJO - 1}px));
     }
@@ -52,7 +54,7 @@
     }
     .nitro-chat-widget .bubble-container .chat-reply-button:hover { background: transparent !important; }
     .nitro-chat-widget .bubble-container .chat-reply-button::before { inset: 0 !important; }
-    .nitro-chat-widget .bubble-container.kp-rt-siirretty { transition: translate .08s ease-out; }
+    .nitro-chat-widget .bubble-container[data-kp-rt-siirretty] { transition: translate .08s ease-out; }
   `;
   document.head.appendChild(tyyli);
 
@@ -61,10 +63,10 @@
   let siirretyt = [];
 
   const palauta = () => {
-    for (const e of siirretyt) { e.style.translate = ''; e.classList.remove('kp-rt-siirretty'); }
+    for (const e of siirretyt) { e.style.translate = ''; e.removeAttribute('data-kp-rt-siirretty'); }
     siirretyt = [];
     if (leveys) { leveys[0].style.maxWidth = leveys[1]; leveys = null; }
-    if (auki) auki.classList.remove('kp-rt-auki');
+    if (auki) auki.removeAttribute('data-kp-rt-auki');
     auki = null;
   };
 
@@ -81,7 +83,7 @@
         if (pysty && vaaka && r.left >= s.left) dx = Math.max(dx, s.right - r.left + 1);
       }
       if (dx > 0) {
-        e.classList.add('kp-rt-siirretty');
+        e.setAttribute('data-kp-rt-siirretty', '');
         e.style.translate = `${Math.ceil(dx)}px 0`;
         siirretyt.push(e);
         esteet.push({ left: r.left + dx, right: r.right + dx, top: r.top, bottom: r.bottom });
@@ -103,7 +105,7 @@
       kpl.style.setProperty('--kp-rt-w', c.borderImageWidth); kpl.style.setProperty('--kp-rt-out', c.borderImageOutset);
     }
     if (kpl && kpl.style.maxWidth) { leveys = [kpl, kpl.style.maxWidth]; kpl.style.maxWidth = (parseFloat(kpl.style.maxWidth) + LEVEYS) + 'px'; }
-    kupla.classList.add('kp-rt-auki');
+    kupla.setAttribute('data-kp-rt-auki', '');
     tyonna(kupla);
   };
   const ulos = ev => { if (auki && !(ev.relatedTarget && auki.contains(ev.relatedTarget))) palauta(); };
