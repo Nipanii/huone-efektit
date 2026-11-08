@@ -1,6 +1,6 @@
-// Huoneskripti 424 zen den: reply-tabi testiin kaikille huoneessa (kp 8.11. 04:19 kuiskaus 'julkase zen deniin tuo uus reply testiin').
+// Huoneskripti 424 zen den: reply-tabi vain kurkkupomolle (kp 8.11. 06:51 'laita huonescript tästä reply jutusta näkymään vaan mulla kunnes tää on maturempi'; aiemmin 04:19 kaikille testiin).
 // Kopio kayttajat/kp/reply-tabi.user.js 1.26.0:sta. Jos reply-tabi on jo käynnissä (kp:n käyttäjäskripti), ei tehdä mitään eikä pysäytetä sitä.
-if (window.__kuplaReplyTabi) return () => {};
+const kpId = (() => { try { const e = window.NitroDevTools && window.NitroDevTools.roomEngine, d = (o, k) => { const x = o && Object.getOwnPropertyDescriptor(o, k); return x && !x.get ? x.value : undefined; }; return d(d(e, '_sessionDataManager'), '_userId') || 0; } catch (x) { return 0; } })(); if (window.__kuplaReplyTabi || kpId !== 282) return () => {};
 // ==UserScript==
 // @name         Reply-tabi kuplan reunaan (kp)
 // @namespace    https://re-lab.local/kupla
