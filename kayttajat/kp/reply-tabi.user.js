@@ -4,7 +4,7 @@
 // @match        https://kupla.cc/*
 // @run-at       document-idle
 // @grant        none
-// @version      1.23.0
+// @version      1.24.0
 // @description  Puhekuplan reply-nappi (.chat-reply-button) kuplan oikeaan reunaan kiinnittyväksi tabiksi, sama ↩-merkki. Hover leventää kuplaa (tabi kuplan SISÄLLÄ) ja siirtää päälle osuvat naapurikuplat sivuun. kp 8.11. 02:20-02:23
 // @author       re-lab
 // ==/UserScript==
@@ -23,7 +23,7 @@
   // aloitetaan (reply-target), ja luokka katosi: kupla jäi leveäksi ilman varjostusta (kp 03:06 'miks käy näin').
   // 1.7.0: tumma kupla -> vaalea nuoli ja vaalea varjostus (kp 03:08 'jos on tumma kupla niin toi reply icon hukkuu').
   // Kuplan väri luetaan sen omasta border-image-kuvasta (data:-PNG, sama origin) keskipikselistä canvasilla.
-  const VERSIO = '1.23.0';
+  const VERSIO = '1.24.0';
   const LEVEYS = 16;
   const VARJO = LEVEYS + 5; // varjostettu kaista kuplan ulkoreunasta: lisätty tila + osa kuplan 6 px oikeaa reunakuvaa
   // 1.10.0: jakoviiva mitataan kuplan LAATIKON reunasta, ei outsetilla kasvatetun ::after-laatikon reunasta (kp 03:54 'nuolella eri
@@ -79,7 +79,9 @@
        et se antaa jo valmiiks tilaa replylle'): 1.22:n lisäleveys ylitti listan ja toi vaakavierityspalkin. Nyt tila varataan valmiiksi:
        teksti rivittyy aina napin verran kapeammaksi, ja hoverissa kontti saa sen takaisin, joten mikään ei liiku eikä ylitä listaa. */
     .chat-history-entry .bubble-container { max-width: calc(100% - 3rem - ${VARJO + 10}px) !important; }
-    .chat-history-entry .bubble-container[data-kp-rt-auki] { max-width: calc(100% - 3rem) !important; }
+    /* 1.24.0 (kp 06:27 'edellee jotkut rivit yhdel rivil tai kahdel riippuen hoveraako vai ei'): hoverissa kontti saa takaisin vain
+       sen mitä padding kasvoi (--kp-rt-lisa), ei koko varausta, joten tekstin leveys pysyy täsmälleen samana */
+    .chat-history-entry .bubble-container[data-kp-rt-auki] { max-width: calc(100% - 3rem - ${VARJO + 10}px + var(--kp-rt-lisa, 0px)) !important; }
     .bubble-container .chat-reply-button:hover { background: transparent !important; }
     .bubble-container .chat-reply-button::before { inset: 0 !important; }
     .bubble-container[data-kp-rt-tumma] .chat-reply-button { color: #f4f4f4 !important; }
