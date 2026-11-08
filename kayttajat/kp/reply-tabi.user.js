@@ -4,7 +4,7 @@
 // @match        https://kupla.cc/*
 // @run-at       document-idle
 // @grant        none
-// @version      1.19.0
+// @version      1.20.0
 // @description  Puhekuplan reply-nappi (.chat-reply-button) kuplan oikeaan reunaan kiinnittyväksi tabiksi, sama ↩-merkki. Hover leventää kuplaa (tabi kuplan SISÄLLÄ) ja siirtää päälle osuvat naapurikuplat sivuun. kp 8.11. 02:20-02:23
 // @author       re-lab
 // ==/UserScript==
@@ -23,7 +23,7 @@
   // aloitetaan (reply-target), ja luokka katosi: kupla jäi leveäksi ilman varjostusta (kp 03:06 'miks käy näin').
   // 1.7.0: tumma kupla -> vaalea nuoli ja vaalea varjostus (kp 03:08 'jos on tumma kupla niin toi reply icon hukkuu').
   // Kuplan väri luetaan sen omasta border-image-kuvasta (data:-PNG, sama origin) keskipikselistä canvasilla.
-  const VERSIO = '1.19.0';
+  const VERSIO = '1.20.0';
   const LEVEYS = 16;
   const VARJO = LEVEYS + 5; // varjostettu kaista kuplan ulkoreunasta: lisätty tila + osa kuplan 6 px oikeaa reunakuvaa
   // 1.10.0: jakoviiva mitataan kuplan LAATIKON reunasta, ei outsetilla kasvatetun ::after-laatikon reunasta (kp 03:54 'nuolella eri
@@ -133,14 +133,19 @@
   let auki = null;
   let leveys = null; // [chat-bubble, alkuperäinen inline max-width]
   let siirretyt = [];
-  let lukko = null; // [bubble-container, width, height, boxSizing] alkuperäiset inline-arvot
+  // 1.20.0 (kp 06:07 'jos vetää hiirel nopee viestien yli niin kuplan korkeus lasketaan edeltävästä kuplasta … eikä päivity'):
+  // lukko ei tallenna "alkuperäisiä" inline-arvoja (toinen instanssi tai väliin jäänyt palautus tallentaisi edellisen lukon koon
+  // alkuperäiseksi ja jättäisi sen pysyväksi); client ei aseta kontille inline-kokoa, joten lukko vain poistetaan, ja jokainen
+  // data-kp-rt-lukko-kontti vapautetaan ennen uutta.
+  const vapautaLukot = () => { for (const k of document.querySelectorAll('.bubble-container[data-kp-rt-lukko]')) {
+    k.style.removeProperty('width'); k.style.removeProperty('height'); k.style.removeProperty('box-sizing'); k.removeAttribute('data-kp-rt-lukko'); } };
 
   const palauta = () => {
     for (const e of siirretyt) { e.style.translate = ''; e.removeAttribute('data-kp-rt-siirretty'); }
     siirretyt = [];
     if (leveys) { leveys[0].style.maxWidth = leveys[1]; leveys = null; }
     if (auki) auki.removeAttribute('data-kp-rt-auki');
-    if (lukko) { const [k, w, h, b] = lukko; k.style.width = w; k.style.height = h; k.style.boxSizing = b; lukko = null; }
+    vapautaLukot();
     auki = null;
   };
 
@@ -200,10 +205,9 @@
     // tai offsetHeight kasvaa, eikä palauta. Hoverin levennys/korostus ei siis saa muuttaa kontin mitattua kokoa: lukitaan se
     // hoverin ajaksi (näkyvä kupla saa yhä levitä kontin yli).
     if (kupla.parentElement && kupla.parentElement.matches('.nitro-chat-widget') && !kupla.matches('.chat-pulldown-bubble')) {
-      lukko = [kupla, kupla.style.width, kupla.style.height, kupla.style.boxSizing];
       // tarkka (murto-osainen) laskettu koko, ei pyöristettyä offsetWidthia: pyöristys alaspäin kavensi kuplaa ja rivitti tekstin
       const cs = getComputedStyle(kupla), w = cs.width, h = cs.height, b = cs.boxSizing;
-      kupla.style.boxSizing = b; kupla.style.width = w; kupla.style.height = h;
+      kupla.style.boxSizing = b; kupla.style.width = w; kupla.style.height = h; kupla.setAttribute('data-kp-rt-lukko', '');
     }
     // kp 02:52 'et saa viedä tilaa tekstiltä': max-width kasvaa saman verran kuin padding, joten teksti rivittyy kuten ennen
     const kpl = kupla.querySelector(':scope > .chat-bubble');
