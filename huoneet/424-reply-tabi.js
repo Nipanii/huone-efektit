@@ -1,5 +1,5 @@
 // Huoneskripti 424 zen den: reply-tabi vain kurkkupomolle (kp 8.11. 06:51 'laita huonescript tästä reply jutusta näkymään vaan mulla kunnes tää on maturempi'; aiemmin 04:19 kaikille testiin).
-// Kopio kayttajat/kp/reply-tabi.user.js 1.29.0:sta. Jos reply-tabi on jo käynnissä (kp:n käyttäjäskripti), ei tehdä mitään eikä pysäytetä sitä.
+// Kopio kayttajat/kp/reply-tabi.user.js 1.31.0:sta. Jos reply-tabi on jo käynnissä (kp:n käyttäjäskripti), ei tehdä mitään eikä pysäytetä sitä.
 const kpId = (() => { try { const e = window.NitroDevTools && window.NitroDevTools.roomEngine, d = (o, k) => { const x = o && Object.getOwnPropertyDescriptor(o, k); return x && !x.get ? x.value : undefined; }; return d(d(e, '_sessionDataManager'), '_userId') || 0; } catch (x) { return 0; } })(); if (window.__kuplaReplyTabi || kpId !== 282) return () => {};
 // ==UserScript==
 // @name         Reply-tabi kuplan reunaan (kp)
@@ -7,7 +7,7 @@ const kpId = (() => { try { const e = window.NitroDevTools && window.NitroDevToo
 // @match        https://kupla.cc/*
 // @run-at       document-idle
 // @grant        none
-// @version      1.29.0
+// @version      1.31.0
 // @description  Puhekuplan reply-nappi (.chat-reply-button) kuplan oikeaan reunaan kiinnittyväksi tabiksi, sama ↩-merkki. Hover leventää kuplaa (tabi kuplan SISÄLLÄ) ja siirtää päälle osuvat naapurikuplat sivuun. kp 8.11. 02:20-02:23
 // @author       re-lab
 // ==/UserScript==
@@ -26,7 +26,7 @@ const kpId = (() => { try { const e = window.NitroDevTools && window.NitroDevToo
   // aloitetaan (reply-target), ja luokka katosi: kupla jäi leveäksi ilman varjostusta (kp 03:06 'miks käy näin').
   // 1.7.0: tumma kupla -> vaalea nuoli ja vaalea varjostus (kp 03:08 'jos on tumma kupla niin toi reply icon hukkuu').
   // Kuplan väri luetaan sen omasta border-image-kuvasta (data:-PNG, sama origin) keskipikselistä canvasilla.
-  const VERSIO = '1.29.0';
+  const VERSIO = '1.31.0';
   const LEVEYS = 16;
   const VARJO = LEVEYS + 5; // varjostettu kaista kuplan ulkoreunasta: lisätty tila + osa kuplan 6 px oikeaa reunakuvaa
   // 1.10.0: jakoviiva mitataan kuplan LAATIKON reunasta, ei outsetilla kasvatetun ::after-laatikon reunasta (kp 03:54 'nuolella eri
@@ -110,7 +110,7 @@ const kpId = (() => { try { const e = window.NitroDevTools && window.NitroDevToo
       background: linear-gradient(to right, transparent ${J}, rgba(255,255,255,.55) ${J},
         rgba(255,255,255,.55) ${J1}, rgba(255,255,255,.28) ${J1});
     }
-    .bubble-container[data-kp-rt-siirretty] { transition: translate .08s ease-out; }
+    .bubble-container[data-kp-rt-siirretty] { transition: top .2s, translate .08s ease-out; }
   `;
   document.head.appendChild(tyyli);
 
@@ -176,9 +176,16 @@ const kpId = (() => { try { const e = window.NitroDevTools && window.NitroDevToo
       for (const n of [...el.style].filter(n => n.startsWith('--kp-rt-'))) el.style.removeProperty(n); }
   };
 
-  const palauta = () => {
-    for (const e of siirretyt) { e.style.translate = ''; e.removeAttribute('data-kp-rt-siirretty'); }
+  const vapautaSiirretyt = () => {
+    for (const e of [...siirretyt, ...document.querySelectorAll('.bubble-container[data-kp-rt-siirretty]')]) {
+      e.style.translate = ''; e.removeAttribute('data-kp-rt-siirretty');
+    }
     siirretyt = [];
+    if (topVahti) { try { topVahti.takeRecords(); } catch (e) {} }
+  };
+
+  const palauta = () => {
+    vapautaSiirretyt();
     if (leveys) { leveys[0].style.maxWidth = leveys[1]; leveys = null; }
     if (auki) siivoa(auki);
     vapautaLukot();
@@ -199,15 +206,23 @@ const kpId = (() => { try { const e = window.NitroDevTools && window.NitroDevToo
     const r = document.createRange(); r.setStart(t, i); r.setEnd(t, i + 1);
     const rRect = r.getBoundingClientRect(), zb = kpl.currentCSSZoom || parseFloat(getComputedStyle(kpl).zoom) || 1;
     const vRects = viesti.getClientRects();
-    // 1.29.0 (B40): jos viestin 1. sana rivittyy toiselle riville nimen alle (vRects[0].left < rRect.right tai vRects[0].top >= rRect.bottom - 1)
-    // tai viesti on pelkkä välilyönti, vRects[0].left - rRect.right oli negatiivinen (~-77 px) -> lisa leikkautui 0:ksi ja tabi peitti tekstin.
-    // Silloin väli mitataan ':'-merkistä nimen loppuun + margin-rightiin (sama ~5,4 px väli kuin samalla rivillä).
-    const samaRivi = vRects.length > 0 && vRects[0].left >= rRect.right - 0.5 && vRects[0].top < rRect.bottom - 1;
-    const mr = (parseFloat(getComputedStyle(nimi).marginRight) || 0) * zb;
-    const tavoite = samaRivi ? (vRects[0].left - rRect.right) : Math.max(mr, nimi.getBoundingClientRect().right - rRect.right + mr);
     let oikea = 0;
     for (const e of sis.querySelectorAll(':scope > .username, :scope > .message, :scope > .duplicate-count')) for (const q of e.getClientRects()) oikea = Math.max(oikea, q.right);
-    return { tavoite, oikea, reuna: kpl.getBoundingClientRect().right, zb };
+    const reuna = kpl.getBoundingClientRect().right;
+    // 1.29.0 (B40) + 1.30.0 (B42): jos viestin 1. sana rivittyy toiselle riville nimen alle (vRects[0].left <= rRect.right + 0.5 tai
+    // vRects[0].top >= rRect.bottom - 1) tai viesti on tyhjä / pelkkiä välilyöntejä (vRects.length === 0 tai vRects[0].width === 0),
+    // CSS white-space:normal kutistaa nimen perässä olevan välilyönnin rivin lopussa 0-levyiseksi. Mitataan silloin nimen perässä
+    // olevan välilyönnin leveys white-space:pre -tilassa (antaa täsmälleen saman ~5,375 px välin kuin yksirivisessä viestissä).
+    const samaRivi = vRects.length > 0 && vRects[0].width > 0 && vRects[0].left > rRect.right + 0.5 && vRects[0].top < rRect.bottom - 1;
+    let tavoite = samaRivi ? (vRects[0].left - rRect.right) : 0;
+    if (!(tavoite > 0)) {
+      const ws0 = nimi.style.whiteSpace;
+      nimi.style.whiteSpace = 'pre';
+      const mr = (parseFloat(getComputedStyle(nimi).marginRight) || 0) * zb;
+      tavoite = Math.max(mr, nimi.getBoundingClientRect().right - r.getBoundingClientRect().right + mr);
+      if (ws0) nimi.style.whiteSpace = ws0; else nimi.style.removeProperty('white-space');
+    }
+    return { tavoite, oikea, reuna, zb };
   };
   const tasaaVali = (kupla, kpl, pr0, v0) => {
     // lopussa kupla on lisa leveämpi (oikea reuna + lisa * zb) ja teksti paikallaan, ja jakoviiva on VARJO kuplan reunasta:
@@ -227,11 +242,29 @@ const kpId = (() => { try { const e = window.NitroDevTools && window.NitroDevToo
     if (leveys) kpl.style.maxWidth = (Math.max(parseFloat(leveys[1]), lev0) + prq - pr0 + 1 / (Z * 64)) + 'px';
   };
 
+  // 1.30.0 (B43, kp 19:30 'kun tulee uusia kuplia eli kupla liikkuu, hoverin aikana kupla siirtyy oikealle'):
   // Siirrä oikealla puolella pystysuunnassa päällekkäin osuvat kuplat. Ketjuttaa: siirretty kupla voi työntää seuraavaa.
+  // Huomioi live-kuplien transition: top 0.2s: getBoundingClientRect() antaa animaation aikana
+  // väliaikaisen sijainnin, joka leikkaisi ylempää/alempaa kuplaa vaikka lopulliset rivit eivät
+  // leikkaa (aiheutti B43:ssa kuplan siirtymisen oikealle uusien kuplien saapuessa).
+  // Käytetään pystykoordinaateissa tavoiteasemaa (style.top), jolloin siirto arvioidaan aina
+  // vakaan asettelun mukaan. Lisäksi ohitetaan vielä asemoimattomat (.invisible) kuplat.
   const tyonna = kupla => {
-    const kaikki = [...kupla.parentElement.querySelectorAll(':scope > .bubble-container')].filter(e => e !== kupla);
-    const esteet = [(kupla.querySelector(':scope > .chat-bubble') || kupla).getBoundingClientRect()];
-    const ehdokkaat = kaikki.map(e => ({ e, r: e.getBoundingClientRect() })).sort((a, b) => a.r.left - b.r.left);
+    vapautaSiirretyt();
+    if (!kupla || !kupla.parentElement || kupla.classList.contains('invisible')) return;
+    const pTop = kupla.parentElement.getBoundingClientRect().top;
+    const laatikko = el => {
+      const b = el.querySelector(':scope > .chat-bubble') || el, r = b.getBoundingClientRect();
+      const st = parseFloat(el.style.top);
+      if (!Number.isFinite(st)) return r;
+      const dy = (pTop + st) - el.getBoundingClientRect().top;
+      return { left: r.left, right: r.right, top: r.top + dy, bottom: r.bottom + dy };
+    };
+    const kaikki = [...kupla.parentElement.querySelectorAll(':scope > .bubble-container')].filter(
+      e => e !== kupla && !e.classList.contains('invisible') && !e.classList.contains('chat-pulldown-measure') && Number.isFinite(parseFloat(e.style.top))
+    );
+    const esteet = [laatikko(kupla)];
+    const ehdokkaat = kaikki.map(e => ({ e, r: laatikko(e) })).sort((a, b) => a.r.left - b.r.left);
     for (const { e, r } of ehdokkaat) {
       let dx = 0;
       for (const s of esteet) {
@@ -246,6 +279,7 @@ const kpId = (() => { try { const e = window.NitroDevTools && window.NitroDevToo
         esteet.push({ left: r.left + dx, right: r.right + dx, top: r.top, bottom: r.bottom });
       }
     }
+    if (topVahti) { try { topVahti.takeRecords(); } catch (e) {} }
   };
 
   const yli = ev => {
@@ -254,7 +288,7 @@ const kpId = (() => { try { const e = window.NitroDevTools && window.NitroDevToo
     const kupla = ev.target.closest && ev.target.closest('.bubble-container');
     if (kupla === auki) return;
     palauta();
-    if (!kupla || kupla.classList.contains('chat-pulldown-measure') || !kupla.querySelector(':scope > .chat-reply-button')) return;
+    if (!kupla || kupla.classList.contains('invisible') || kupla.classList.contains('chat-pulldown-measure') || !kupla.querySelector(':scope > .chat-reply-button')) return;
     auki = kupla;
     // 1.28.0: kuplan leveys ennen mitään muutosta (ennen lukkoa): laite-px:inä 1/64:n tarkkuudella (layoutin oma arvo), + 1/1024 laite-px
     // ettei float-virhe pyöristä alemmalle 1/64:lle, ja takaisin kuplan omiin px:eihin (zoom * devicePixelRatio, ks. tasaaVali)
@@ -431,11 +465,46 @@ const kpId = (() => { try { const e = window.NitroDevTools && window.NitroDevToo
     if (e.activeRoomId > 0) synkkaaYlaveto(e.activeRoomId);
     return true;
   };
+  // 1.31.0 (R1, orkesteri 8.11. ~21:30): Seuraa live-kuplien siirtymistä uusien kuplien saapuessa.
+  // Jos hoveroitu kupla on auki ja jonkin live-kuplan style.top päivittyy, ajetaan tyonna(auki)
+  // uudelleen, jotta siirretyt naapurit vapautuvat tai pysyvät siirrettyinä.
+  // R1-KORJAUS: Seurataan vain style.top -muutoksia (attributeOldValue: true). tyonna(auki) asettaa
+  // naapurille style.translate ja data-kp-rt-siirretty: jos observer reagoi kaikkiin style-muutoksiin,
+  // tyonna(auki) kutsuu itseään loputtomassa mikrotehtäväsilmukassa (freeze).
+  const extractTop = str => {
+    if (!str) return null;
+    const m = /(?:^|;\s*)top:\s*([^;]+)/.exec(str);
+    return m ? m[1].trim() : null;
+  };
+  let topVahti = null;
+  const asennaTopVahti = () => {
+    const w = document.querySelector('.nitro-chat-widget');
+    if (!w || topVahti) return;
+    topVahti = new MutationObserver(muts => {
+      if (!auki || !auki.parentElement || !auki.parentElement.matches('.nitro-chat-widget') || auki.matches('.chat-pulldown-bubble')) return;
+      let muuttui = false;
+      for (const m of muts) {
+        if (m.type === 'attributes' && m.attributeName === 'style' && m.target && m.target.matches && m.target.matches('.bubble-container')) {
+          const vTop = parseFloat(extractTop(m.oldValue));
+          const uTop = parseFloat(m.target.style.top);
+          if (Number.isFinite(uTop) && (!Number.isFinite(vTop) || Math.abs(uTop - vTop) > 0.05)) {
+            muuttui = true;
+            break;
+          }
+        }
+      }
+      if (muuttui) tyonna(auki);
+    });
+    topVahti.observe(w, { attributes: true, subtree: true, attributeFilter: ['style'], attributeOldValue: true });
+  };
+  asennaTopVahti();
+
   if (!asennaYlavetoB41()) asennusAjastin = setInterval(() => { if (asennaYlavetoB41()) { clearInterval(asennusAjastin); asennusAjastin = 0; } }, 250);
 
   window.__kuplaReplyTabi = { versio: VERSIO, pois() {
     document.removeEventListener('mouseover', yli, true);
     document.removeEventListener('mouseout', ulos, true);
+    if (topVahti) { topVahti.disconnect(); topVahti = null; }
     if (asennusAjastin) { clearInterval(asennusAjastin); asennusAjastin = 0; }
     clearTimeout(zoomAjastin);
     if (paikkaEngine) {
