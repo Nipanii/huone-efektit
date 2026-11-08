@@ -1,5 +1,5 @@
 // Huoneskripti 424 zen den: reply-tabi vain kurkkupomolle (kp 8.11. 06:51 'laita huonescript tästä reply jutusta näkymään vaan mulla kunnes tää on maturempi'; aiemmin 04:19 kaikille testiin).
-// Kopio kayttajat/kp/reply-tabi.user.js 1.28.0:sta. Jos reply-tabi on jo käynnissä (kp:n käyttäjäskripti), ei tehdä mitään eikä pysäytetä sitä.
+// Kopio kayttajat/kp/reply-tabi.user.js 1.29.0:sta. Jos reply-tabi on jo käynnissä (kp:n käyttäjäskripti), ei tehdä mitään eikä pysäytetä sitä.
 const kpId = (() => { try { const e = window.NitroDevTools && window.NitroDevTools.roomEngine, d = (o, k) => { const x = o && Object.getOwnPropertyDescriptor(o, k); return x && !x.get ? x.value : undefined; }; return d(d(e, '_sessionDataManager'), '_userId') || 0; } catch (x) { return 0; } })(); if (window.__kuplaReplyTabi || kpId !== 282) return () => {};
 // ==UserScript==
 // @name         Reply-tabi kuplan reunaan (kp)
@@ -7,7 +7,7 @@ const kpId = (() => { try { const e = window.NitroDevTools && window.NitroDevToo
 // @match        https://kupla.cc/*
 // @run-at       document-idle
 // @grant        none
-// @version      1.28.0
+// @version      1.29.0
 // @description  Puhekuplan reply-nappi (.chat-reply-button) kuplan oikeaan reunaan kiinnittyväksi tabiksi, sama ↩-merkki. Hover leventää kuplaa (tabi kuplan SISÄLLÄ) ja siirtää päälle osuvat naapurikuplat sivuun. kp 8.11. 02:20-02:23
 // @author       re-lab
 // ==/UserScript==
@@ -26,7 +26,7 @@ const kpId = (() => { try { const e = window.NitroDevTools && window.NitroDevToo
   // aloitetaan (reply-target), ja luokka katosi: kupla jäi leveäksi ilman varjostusta (kp 03:06 'miks käy näin').
   // 1.7.0: tumma kupla -> vaalea nuoli ja vaalea varjostus (kp 03:08 'jos on tumma kupla niin toi reply icon hukkuu').
   // Kuplan väri luetaan sen omasta border-image-kuvasta (data:-PNG, sama origin) keskipikselistä canvasilla.
-  const VERSIO = '1.28.0';
+  const VERSIO = '1.29.0';
   const LEVEYS = 16;
   const VARJO = LEVEYS + 5; // varjostettu kaista kuplan ulkoreunasta: lisätty tila + osa kuplan 6 px oikeaa reunakuvaa
   // 1.10.0: jakoviiva mitataan kuplan LAATIKON reunasta, ei outsetilla kasvatetun ::after-laatikon reunasta (kp 03:54 'nuolella eri
@@ -84,7 +84,7 @@ const kpId = (() => { try { const e = window.NitroDevTools && window.NitroDevToo
        Layout pyöristää 1/64 LAITE-px:iin, eli kuplan px kertaa zoom (1,6) kertaa devicePixelRatio (robolla 1,125): lev0 ja lisa lasketaan
        siinä yksikössä (robo 09:0x: 1/64 kuplan omissa px:issä jätti nuoleen 1/72 px = yhden layout-yksikön eron kolmessa kuplassa 12:sta).
        Jos --kp-rt-lev0 puuttuu, calc on virheellinen ja leveys on oletus. */
-    .bubble-container[data-kp-rt-auki][data-kp-rt-live] > .chat-bubble { margin-right: calc(-1 * var(--kp-rt-lisa, 0px) - 4px) !important; width: calc(var(--kp-rt-lev0) + var(--kp-rt-lisa, 0px)) !important; }
+    .bubble-container[data-kp-rt-auki][data-kp-rt-live] > .chat-bubble { margin-right: calc(-1 * var(--kp-rt-lisa, 0px) - 4px) !important; width: calc(var(--kp-rt-lev0) + var(--kp-rt-lisa, 0px)) !important; max-width: calc(var(--kp-rt-lev0) + var(--kp-rt-lisa, 0px)) !important; }
     /* 1.17.0 (kp 05:18 'pieni nuoli kuplan alaosassa siirtyy kun hoveraa eli ei pysy hahmon kohdalla'): .pointer on kuplan sisällä
        left 50 %, joten oikealle levennetty kupla vei sitä puolet levennyksestä; siirretään takaisin */
     .bubble-container[data-kp-rt-auki][data-kp-rt-live]:not(.chat-pulldown-bubble) > .chat-bubble > .pointer { margin-left: calc(-0.5 * var(--kp-rt-lisa, 0px)) !important; }
@@ -197,11 +197,17 @@ const kpId = (() => { try { const e = window.NitroDevTools && window.NitroDevToo
     const t = nimi.lastChild, i = t && t.nodeType === 3 ? t.data.lastIndexOf(':') : -1;
     if (i < 0) return null;
     const r = document.createRange(); r.setStart(t, i); r.setEnd(t, i + 1);
-    const vRects = viesti.getClientRects(); if (!vRects.length) return null;
-    const tavoite = vRects[0].left - r.getBoundingClientRect().right; // ':' -> viestin ensimmäinen merkki, ruudun px
+    const rRect = r.getBoundingClientRect(), zb = kpl.currentCSSZoom || parseFloat(getComputedStyle(kpl).zoom) || 1;
+    const vRects = viesti.getClientRects();
+    // 1.29.0 (B40): jos viestin 1. sana rivittyy toiselle riville nimen alle (vRects[0].left < rRect.right tai vRects[0].top >= rRect.bottom - 1)
+    // tai viesti on pelkkä välilyönti, vRects[0].left - rRect.right oli negatiivinen (~-77 px) -> lisa leikkautui 0:ksi ja tabi peitti tekstin.
+    // Silloin väli mitataan ':'-merkistä nimen loppuun + margin-rightiin (sama ~5,4 px väli kuin samalla rivillä).
+    const samaRivi = vRects.length > 0 && vRects[0].left >= rRect.right - 0.5 && vRects[0].top < rRect.bottom - 1;
+    const mr = (parseFloat(getComputedStyle(nimi).marginRight) || 0) * zb;
+    const tavoite = samaRivi ? (vRects[0].left - rRect.right) : Math.max(mr, nimi.getBoundingClientRect().right - rRect.right + mr);
     let oikea = 0;
     for (const e of sis.querySelectorAll(':scope > .username, :scope > .message, :scope > .duplicate-count')) for (const q of e.getClientRects()) oikea = Math.max(oikea, q.right);
-    return { tavoite, oikea, reuna: kpl.getBoundingClientRect().right, zb: kpl.currentCSSZoom || parseFloat(getComputedStyle(kpl).zoom) || 1 };
+    return { tavoite, oikea, reuna: kpl.getBoundingClientRect().right, zb };
   };
   const tasaaVali = (kupla, kpl, pr0, v0) => {
     // lopussa kupla on lisa leveämpi (oikea reuna + lisa * zb) ja teksti paikallaan, ja jakoviiva on VARJO kuplan reunasta:
@@ -217,7 +223,8 @@ const kpId = (() => { try { const e = window.NitroDevTools && window.NitroDevToo
     const m = Math.max(0, Math.round((pr - pr0) * Z * 32)), lisa = m > 0 ? (m / 32 + 1 / 1024) / Z : 0, prq = pr0 + lisa;
     kupla.style.setProperty('--kp-rt-pr', prq + 'px');
     kupla.style.setProperty('--kp-rt-lisa', lisa + 'px');
-    if (leveys) kpl.style.maxWidth = (parseFloat(leveys[1]) + prq - pr0) + 'px';
+    const lev0 = parseFloat(kpl.style.getPropertyValue('--kp-rt-lev0')) || 0;
+    if (leveys) kpl.style.maxWidth = (Math.max(parseFloat(leveys[1]), lev0) + prq - pr0 + 1 / (Z * 64)) + 'px';
   };
 
   // Siirrä oikealla puolella pystysuunnassa päällekkäin osuvat kuplat. Ketjuttaa: siirretty kupla voi työntää seuraavaa.
@@ -247,7 +254,7 @@ const kpId = (() => { try { const e = window.NitroDevTools && window.NitroDevToo
     const kupla = ev.target.closest && ev.target.closest('.bubble-container');
     if (kupla === auki) return;
     palauta();
-    if (!kupla || !kupla.querySelector(':scope > .chat-reply-button')) return;
+    if (!kupla || kupla.classList.contains('chat-pulldown-measure') || !kupla.querySelector(':scope > .chat-reply-button')) return;
     auki = kupla;
     // 1.28.0: kuplan leveys ennen mitään muutosta (ennen lukkoa): laite-px:inä 1/64:n tarkkuudella (layoutin oma arvo), + 1/1024 laite-px
     // ettei float-virhe pyöristä alemmalle 1/64:lle, ja takaisin kuplan omiin px:eihin (zoom * devicePixelRatio, ks. tasaaVali)
@@ -302,9 +309,150 @@ const kpId = (() => { try { const e = window.NitroDevTools && window.NitroDevToo
   document.addEventListener('mouseover', yli, true);
   document.addEventListener('mouseout', ulos, true);
 
+  // 1.29.0 (B41, kp 15:58 'positio pomppii ku zoomaa ja sit drag huonet tos ylävetopaneelis'): live-clientistä puuttuu PR 863:n
+  // (2b791ac2) ylävedon ruutu-px- ja ROOM_ZOOMED-korjaus: GetRoomCanvasPanX lukee getRoomInstanceRenderingCanvasOffsetin (jota
+  // RoomZoomController ei skaalaa shrink-kertoimella G), x0e ei skaalaa puhujan huone-x:ää (bubbleRoomX) zoomin mukaan, eikä
+  // ChatHistoryPulldownView kuuntele RME_ROOM_ZOOMED-tapahtumaa (layoutPanXRef jää vanhaan paniin ja pomppaa vedon alussa).
+  const muokatutRivit = new Set();
+  let paikkaEngine = null, alkuOffset = null, omaOffset = false, zoomKuuntelija = null, zoomAjastin = 0, asennusAjastin = 0;
+  const haeNakyma = (e, r) => {
+    const c = e && typeof e.getRoomInstanceRenderingCanvas === 'function' ? e.getRoomInstanceRenderingCanvas(r, 1) : null;
+    if (!c || !(c.scale > 0) || !Number.isFinite(c.width) || !Number.isFinite(c.screenOffsetX)) return null;
+    const gs = typeof e.getRoomInstanceRenderingCanvasScale === 'function' ? e.getRoomInstanceRenderingCanvasScale(r, 1) : c.scale;
+    const n = gs / c.scale, G = Number.isFinite(n) && n > 0 && n <= 1.000001 ? n : 1;
+    return { c, G, scale: c.scale * G, width: c.width * G, offsetX: c.screenOffsetX * G };
+  };
+  const synkkaaYlaveto = r => {
+    try {
+      const e = window.NitroDevTools && window.NitroDevTools.roomEngine;
+      if (!e || !(r > 0)) return;
+      const v = haeNakyma(e, r);
+      if (!v) return;
+      const w = document.querySelector('.nitro-chat-widget');
+      if (!w) return;
+      const fk = Object.keys(w).find(k => k.startsWith('__reactFiber'));
+      const wf = fk ? w[fk] : null;
+      if (!wf) return;
+      // Kopioi live-kuplien (bHe A.current) tarkka roomX niiden historyEntryyn
+      for (let p = wf.return; p; p = p.return) {
+        for (let s = p.memoizedState; s; s = s.next) {
+          const cur = s.memoizedState && s.memoizedState.current;
+          if (Array.isArray(cur) && cur.length && cur[0] && 'historyEntry' in cur[0]) {
+            for (const m of cur) if (m && m.historyEntry && Number.isFinite(m.roomX) && !Number.isFinite(m.historyEntry.bubbleRoomX)) {
+              m.historyEntry.bubbleRoomX = m.roomX;
+            }
+          }
+        }
+        if (p.sibling) break;
+      }
+      const fhe = wf.sibling;
+      if (!fhe) return;
+      const sess = e._roomSessionManager && e._roomSessionManager.getSession ? e._roomSessionManager.getSession(r) : null;
+      const udm = sess && sess.userDataManager;
+      for (let s = fhe.memoizedState; s; s = s.next) {
+        const cur = s.memoizedState && s.memoizedState.current;
+        if (!Array.isArray(cur) || !cur.length || !(cur[0] && typeof cur[0] === 'object' && 'roomId' in cur[0] && 'message' in cur[0])) continue;
+        for (const we of cur) {
+          if (!we || we.roomId !== r) continue;
+          if (!('_kpOrigBubbleX' in we)) { we._kpOrigBubbleX = we.bubbleX; we._kpOrigCanvasWidth = we.bubbleCanvasWidth; muokatutRivit.add(we); }
+          if (!Number.isFinite(we.bubbleRoomX)) {
+            const u = udm && typeof we.entityId === 'number' && we.entityId >= 0 ? udm.getUserDataByIndex(we.entityId) : null;
+            const loc = u && u.name === we.name && typeof e.getRoomObjectScreenLocation === 'function' ? e.getRoomObjectScreenLocation(r, we.entityId, 100) : null;
+            if (loc && Number.isFinite(loc.x)) we.bubbleRoomX = (loc.x - v.width / 2 - v.offsetX) / v.scale;
+            else if (Number.isFinite(we._kpOrigBubbleX)) {
+              const cw = Number.isFinite(we._kpOrigCanvasWidth) && we._kpOrigCanvasWidth > 0 ? we._kpOrigCanvasWidth : v.width;
+              we.bubbleRoomX = we._kpOrigBubbleX - cw / 2;
+            }
+          }
+          if (Number.isFinite(we.bubbleRoomX)) {
+            we.bubbleCanvasWidth = v.c.width;
+            we.bubbleX = we.bubbleRoomX * v.scale + v.width / 2;
+          }
+        }
+        break;
+      }
+    } catch (err) {}
+  };
+  const laukaiseYlavetoLayout = () => {
+    const r = window.NitroDevTools && window.NitroDevTools.roomEngine && window.NitroDevTools.roomEngine.activeRoomId;
+    if (r > 0) synkkaaYlaveto(r);
+    // ÄLÄ laukaise window 'resize'-tapahtumaa: RoomZoomControllerin reapplyShrink kuuntelee sitä ja shrink-tilassa (G < 1)
+    // kasvattaa c._widthin moninkertaiseksi. Kutsutaan fHe:n omaa setDragTick(v => v + 1) (sama kuin PR 863:n ROOM_ZOOMED).
+    const w = document.querySelector('.nitro-chat-widget');
+    if (w) {
+      const fk = Object.keys(w).find(k => k.startsWith('__reactFiber'));
+      const fhe = fk && w[fk] ? w[fk].sibling : null;
+      if (fhe) {
+        for (let s = fhe.memoizedState; s; s = s.next) {
+          if (typeof s.memoizedState === 'boolean' && s.next && s.next.memoizedState === r && s.next.next && s.next.next.queue && typeof s.next.next.queue.dispatch === 'function') {
+            try { s.next.next.queue.dispatch(v => v + 1); } catch (e) {}
+            break;
+          }
+        }
+      }
+    }
+    const cv = document.querySelector('.chat-pulldown-canvas');
+    if (cv) {
+      const img = document.createElement('img');
+      cv.appendChild(img);
+      img.dispatchEvent(new Event('load'));
+      img.remove();
+    }
+  };
+  const asennaYlavetoB41 = () => {
+    const e = window.NitroDevTools && window.NitroDevTools.roomEngine;
+    if (!e || typeof e.getRoomInstanceRenderingCanvasOffset !== 'function') return false;
+    if (paikkaEngine === e) return true;
+    paikkaEngine = e;
+    omaOffset = Object.prototype.hasOwnProperty.call(e, 'getRoomInstanceRenderingCanvasOffset');
+    alkuOffset = e.getRoomInstanceRenderingCanvasOffset;
+    e.getRoomInstanceRenderingCanvasOffset = function (roomId, canvasId = -1) {
+      const cid = canvasId === -1 ? this._activeRoomActiveCanvas : canvasId;
+      const oma = cid === 1 && (roomId === undefined || roomId === this.activeRoomId);
+      if (oma) synkkaaYlaveto(roomId ?? this.activeRoomId);
+      const pt = alkuOffset.call(this, roomId, canvasId);
+      if (pt && oma) {
+        const v = haeNakyma(this, roomId ?? this.activeRoomId);
+        if (v && v.G !== 1) { pt.x *= v.G; pt.y *= v.G; }
+      }
+      return pt;
+    };
+    if (e.events && typeof e.events.addEventListener === 'function') {
+      zoomKuuntelija = ev => {
+        if (!ev || (ev.roomId !== e.activeRoomId)) return;
+        synkkaaYlaveto(ev.roomId);
+        if (!document.querySelector('.nitro-chat-widget.chat-pulldown-open')) return;
+        laukaiseYlavetoLayout();
+        clearTimeout(zoomAjastin);
+        zoomAjastin = setTimeout(laukaiseYlavetoLayout, 180);
+      };
+      e.events.addEventListener('REE_ROOM_ZOOMED', zoomKuuntelija);
+    }
+    if (e.activeRoomId > 0) synkkaaYlaveto(e.activeRoomId);
+    return true;
+  };
+  if (!asennaYlavetoB41()) asennusAjastin = setInterval(() => { if (asennaYlavetoB41()) { clearInterval(asennusAjastin); asennusAjastin = 0; } }, 250);
+
   window.__kuplaReplyTabi = { versio: VERSIO, pois() {
     document.removeEventListener('mouseover', yli, true);
     document.removeEventListener('mouseout', ulos, true);
+    if (asennusAjastin) { clearInterval(asennusAjastin); asennusAjastin = 0; }
+    clearTimeout(zoomAjastin);
+    if (paikkaEngine) {
+      if (zoomKuuntelija && paikkaEngine.events && typeof paikkaEngine.events.removeEventListener === 'function') {
+        try { paikkaEngine.events.removeEventListener('REE_ROOM_ZOOMED', zoomKuuntelija); } catch (e) {}
+      }
+      if (alkuOffset) {
+        if (omaOffset) paikkaEngine.getRoomInstanceRenderingCanvasOffset = alkuOffset;
+        else delete paikkaEngine.getRoomInstanceRenderingCanvasOffset;
+      }
+      paikkaEngine = null; alkuOffset = null; zoomKuuntelija = null;
+    }
+    for (const we of muokatutRivit) {
+      if ('_kpOrigBubbleX' in we) { we.bubbleX = we._kpOrigBubbleX; delete we._kpOrigBubbleX; }
+      if ('_kpOrigCanvasWidth' in we) { we.bubbleCanvasWidth = we._kpOrigCanvasWidth; delete we._kpOrigCanvasWidth; }
+    }
+    muokatutRivit.clear();
     palauta(); tyyli.remove(); delete window.__kuplaReplyTabi;
   } };
 })();
