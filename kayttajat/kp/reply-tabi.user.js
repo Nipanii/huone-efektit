@@ -4,7 +4,7 @@
 // @match        https://kupla.cc/*
 // @run-at       document-idle
 // @grant        none
-// @version      1.10.0
+// @version      1.11.0
 // @description  Puhekuplan reply-nappi (.chat-reply-button) kuplan oikeaan reunaan kiinnittyväksi tabiksi, sama ↩-merkki. Hover leventää kuplaa (tabi kuplan SISÄLLÄ) ja siirtää päälle osuvat naapurikuplat sivuun. kp 8.11. 02:20-02:23
 // @author       re-lab
 // ==/UserScript==
@@ -23,7 +23,7 @@
   // aloitetaan (reply-target), ja luokka katosi: kupla jäi leveäksi ilman varjostusta (kp 03:06 'miks käy näin').
   // 1.7.0: tumma kupla -> vaalea nuoli ja vaalea varjostus (kp 03:08 'jos on tumma kupla niin toi reply icon hukkuu').
   // Kuplan väri luetaan sen omasta border-image-kuvasta (data:-PNG, sama origin) keskipikselistä canvasilla.
-  const VERSIO = '1.10.0';
+  const VERSIO = '1.11.0';
   const LEVEYS = 16;
   const VARJO = LEVEYS + 5; // varjostettu kaista kuplan ulkoreunasta: lisätty tila + osa kuplan 6 px oikeaa reunakuvaa
   // 1.10.0: jakoviiva mitataan kuplan LAATIKON reunasta, ei outsetilla kasvatetun ::after-laatikon reunasta (kp 03:54 'nuolella eri
@@ -57,8 +57,11 @@
     }
     .bubble-container .chat-reply-button {
       position: absolute !important; top: 0 !important; bottom: 0 !important; height: auto !important; transform: none !important;
-      right: 0 !important; width: ${VARJO}px !important; min-width: 0 !important; max-width: none !important;
-      padding: 0 3px 0 0 !important; box-sizing: border-box !important; border: 0 !important; border-radius: 0 !important;
+      /* 1.11.0 (kp 04:01 'nuoli … vähän liikaa vasemmalla'): nappi ulottuu kuplakuvan näkyvään oikeaan reunaan asti
+         (outset), ja nuoli keskitetään jakoviivan ja sen reunan väliin — ennen padding-right 3px + outset jätti sen vasemmalle */
+      right: calc(-1 * var(--kp-rt-or, 0px)) !important; width: calc(${VARJO}px + var(--kp-rt-or, 0px)) !important;
+      min-width: 0 !important; max-width: none !important;
+      padding: 0 0 0 1px !important; box-sizing: border-box !important; border: 0 !important; border-radius: 0 !important;
       background: transparent !important; color: #111 !important; font-size: 12px !important; font-weight: bold !important;
     }
     .bubble-container .chat-reply-button:hover { background: transparent !important; }
@@ -161,7 +164,8 @@
         const o = (c.borderImageOutset.match(/[\d.]+(px)?/g) || ['0']), bw = c.borderImageWidth.match(/[\d.]+/g) || ['0'];
         const px = (v, i) => v.endsWith('px') ? parseFloat(v) : parseFloat(v) * parseFloat(bw[i] ?? bw[i % 2] ?? bw[0]);
         const t = o[0], r = o[1] ?? t, b = o[2] ?? t, l = o[3] ?? r;
-        [['ot', t], ['or', r], ['ob', b], ['ol', l]].forEach(([k, v], i) => kpl.style.setProperty('--kp-rt-' + k, px(v, i) + 'px'));
+        [['ot', t], ['or', r], ['ob', b], ['ol', l]].forEach(([k, v], i) => kupla.style.setProperty('--kp-rt-' + k, px(v, i) + 'px')); // kontille: nappi (sisar) perii myös
+        ['ot', 'or', 'ob', 'ol'].forEach(k => kpl.style.removeProperty('--kp-rt-' + k)); // 1.10:n jäänteet kuplasta
       }
       merkitseTumma(kupla, c.borderImageSource, c.borderImageSlice);
     }
