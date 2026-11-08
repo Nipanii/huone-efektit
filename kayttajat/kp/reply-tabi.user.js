@@ -4,7 +4,7 @@
 // @match        https://kupla.cc/*
 // @run-at       document-idle
 // @grant        none
-// @version      1.22.0
+// @version      1.23.0
 // @description  Puhekuplan reply-nappi (.chat-reply-button) kuplan oikeaan reunaan kiinnittyväksi tabiksi, sama ↩-merkki. Hover leventää kuplaa (tabi kuplan SISÄLLÄ) ja siirtää päälle osuvat naapurikuplat sivuun. kp 8.11. 02:20-02:23
 // @author       re-lab
 // ==/UserScript==
@@ -23,7 +23,7 @@
   // aloitetaan (reply-target), ja luokka katosi: kupla jäi leveäksi ilman varjostusta (kp 03:06 'miks käy näin').
   // 1.7.0: tumma kupla -> vaalea nuoli ja vaalea varjostus (kp 03:08 'jos on tumma kupla niin toi reply icon hukkuu').
   // Kuplan väri luetaan sen omasta border-image-kuvasta (data:-PNG, sama origin) keskipikselistä canvasilla.
-  const VERSIO = '1.22.0';
+  const VERSIO = '1.23.0';
   const LEVEYS = 16;
   const VARJO = LEVEYS + 5; // varjostettu kaista kuplan ulkoreunasta: lisätty tila + osa kuplan 6 px oikeaa reunakuvaa
   // 1.10.0: jakoviiva mitataan kuplan LAATIKON reunasta, ei outsetilla kasvatetun ::after-laatikon reunasta (kp 03:54 'nuolella eri
@@ -75,7 +75,11 @@
     /* 1.22.0 (kp 06:12 'reply nappi vaatii lisätilaa mitä laatikko ei anna ja teksti pakottuu seuraavalle riville' · 06:18 1.21:n
        negatiivinen margin jätti napin kuplan ulkopuolelle): historiaikkunan kontti on fit-content ja max-width calc(100% - 3rem)
        (ChatHistoryView.scss), joten pitkässä viestissä lisätty padding rivitti tekstin. Hoverissa kontti saa napin verran lisää. */
-    .chat-history-entry .bubble-container[data-kp-rt-auki] { max-width: calc(100% - 3rem + ${VARJO + 10}px) !important; }
+    /* 1.23.0 (kp 06:24 'kuplat liikkuu silti … varmaan kun tulee toi sideways scroll bar' · 'voisko sen sijaa resize ikkunaa nii defaultisti
+       et se antaa jo valmiiks tilaa replylle'): 1.22:n lisäleveys ylitti listan ja toi vaakavierityspalkin. Nyt tila varataan valmiiksi:
+       teksti rivittyy aina napin verran kapeammaksi, ja hoverissa kontti saa sen takaisin, joten mikään ei liiku eikä ylitä listaa. */
+    .chat-history-entry .bubble-container { max-width: calc(100% - 3rem - ${VARJO + 10}px) !important; }
+    .chat-history-entry .bubble-container[data-kp-rt-auki] { max-width: calc(100% - 3rem) !important; }
     .bubble-container .chat-reply-button:hover { background: transparent !important; }
     .bubble-container .chat-reply-button::before { inset: 0 !important; }
     .bubble-container[data-kp-rt-tumma] .chat-reply-button { color: #f4f4f4 !important; }
