@@ -4,7 +4,7 @@
 // @match        https://kupla.cc/*
 // @run-at       document-idle
 // @grant        none
-// @version      1.6.0
+// @version      1.7.0
 // @description  Puhekuplan reply-nappi (.chat-reply-button) kuplan oikeaan reunaan kiinnittyväksi tabiksi, sama ↩-merkki. Hover leventää kuplaa (tabi kuplan SISÄLLÄ) ja siirtää päälle osuvat naapurikuplat sivuun. kp 8.11. 02:20-02:23
 // @author       re-lab
 // ==/UserScript==
@@ -21,7 +21,9 @@
   'use strict';
   // 1.6.0: merkit data-attribuutteina, ei luokkina — React kirjoittaa bubble-containerin className:n uudelleen kun reply
   // aloitetaan (reply-target), ja luokka katosi: kupla jäi leveäksi ilman varjostusta (kp 03:06 'miks käy näin').
-  const VERSIO = '1.6.0';
+  // 1.7.0: tumma kupla -> vaalea nuoli ja vaalea varjostus (kp 03:08 'jos on tumma kupla niin toi reply icon hukkuu').
+  // Kuplan väri luetaan sen omasta border-image-kuvasta (data:-PNG, sama origin) keskipikselistä canvasilla.
+  const VERSIO = '1.7.0';
   const LEVEYS = 16;
   const VARJO = LEVEYS + 5; // varjostettu kaista kuplan ulkoreunasta: lisätty tila + osa kuplan 6 px oikeaa reunakuvaa
   if (window.__kuplaReplyTabi && typeof window.__kuplaReplyTabi.pois === 'function') { try { window.__kuplaReplyTabi.pois(); } catch (e) {} }
@@ -54,9 +56,53 @@
     }
     .nitro-chat-widget .bubble-container .chat-reply-button:hover { background: transparent !important; }
     .nitro-chat-widget .bubble-container .chat-reply-button::before { inset: 0 !important; }
+    .nitro-chat-widget .bubble-container[data-kp-rt-tumma] .chat-reply-button { color: #f4f4f4 !important; }
+    .nitro-chat-widget .bubble-container[data-kp-rt-auki][data-kp-rt-tumma] .chat-bubble::after {
+      background: linear-gradient(to right, transparent calc(100% - ${VARJO}px), rgba(255,255,255,.5) calc(100% - ${VARJO}px),
+        rgba(255,255,255,.5) calc(100% - ${VARJO - 1}px), rgba(255,255,255,.16) calc(100% - ${VARJO - 1}px));
+    }
+    .nitro-chat-widget .bubble-container[data-kp-rt-auki][data-kp-rt-tumma]:has(.chat-reply-button:hover) .chat-bubble::after {
+      background: linear-gradient(to right, transparent calc(100% - ${VARJO}px), rgba(255,255,255,.55) calc(100% - ${VARJO}px),
+        rgba(255,255,255,.55) calc(100% - ${VARJO - 1}px), rgba(255,255,255,.28) calc(100% - ${VARJO - 1}px));
+    }
     .nitro-chat-widget .bubble-container[data-kp-rt-siirretty] { transition: translate .08s ease-out; }
   `;
   document.head.appendChild(tyyli);
+
+  // src -> true (tumma) / false (vaalea) / Promise (luetaan). Kuvia on muutama kymmenen kuplatyyppiä, joten välimuisti riittää.
+  const tummuus = new Map();
+  const lueTummuus = (src, slice) => {
+    if (tummuus.has(src)) return tummuus.get(src);
+    const m = /url\("?(data:[^")]+)"?\)/.exec(src || '');
+    if (!m) { tummuus.set(src, false); return false; }
+    const p = new Promise(ok => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          // CSS-lyhenne: 1-4 arvoa (ylä, oikea, ala, vasen)
+          const v = (String(slice).match(/[\d.]+/g) || ['0']).map(Number);
+          const t = v[0], r = v[1] ?? t, b = v[2] ?? t, l = v[3] ?? r;
+          const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+          const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(img, 0, 0);
+          // fill-alue = slicejen sisäpuoli; luetaan sen keskeltä 3x3 ja ohitetaan läpinäkyvät
+          const x = Math.round((l + img.width - r) / 2), y = Math.round((t + img.height - b) / 2);
+          const d = g.getImageData(Math.max(0, x - 1), Math.max(0, y - 1), 3, 3).data;
+          let sum = 0, n = 0;
+          for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 128) { sum += 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]; n++; }
+          const tumma = n > 0 && sum / n < 110;
+          tummuus.set(src, tumma); ok(tumma);
+        } catch (e) { console.warn('[reply-tabi] kuplan väriä ei voitu lukea', e); tummuus.set(src, false); ok(false); }
+      };
+      img.onerror = () => { tummuus.set(src, false); ok(false); };
+      img.src = m[1];
+    });
+    tummuus.set(src, p); return p;
+  };
+  const merkitseTumma = (kupla, src, slice) => {
+    const v = lueTummuus(src, slice);
+    const aseta = t => { if (t) kupla.setAttribute('data-kp-rt-tumma', ''); else kupla.removeAttribute('data-kp-rt-tumma'); };
+    if (v instanceof Promise) v.then(aseta); else aseta(v);
+  };
 
   let auki = null;
   let leveys = null; // [chat-bubble, alkuperäinen inline max-width]
@@ -103,6 +149,7 @@
       const c = getComputedStyle(kpl);
       kpl.style.setProperty('--kp-rt-src', c.borderImageSource); kpl.style.setProperty('--kp-rt-slice', c.borderImageSlice);
       kpl.style.setProperty('--kp-rt-w', c.borderImageWidth); kpl.style.setProperty('--kp-rt-out', c.borderImageOutset);
+      merkitseTumma(kupla, c.borderImageSource, c.borderImageSlice);
     }
     if (kpl && kpl.style.maxWidth) { leveys = [kpl, kpl.style.maxWidth]; kpl.style.maxWidth = (parseFloat(kpl.style.maxWidth) + LEVEYS) + 'px'; }
     kupla.setAttribute('data-kp-rt-auki', '');
