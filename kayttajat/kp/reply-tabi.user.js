@@ -4,7 +4,7 @@
 // @match        https://kupla.cc/*
 // @run-at       document-idle
 // @grant        none
-// @version      1.7.0
+// @version      1.8.0
 // @description  Puhekuplan reply-nappi (.chat-reply-button) kuplan oikeaan reunaan kiinnittyväksi tabiksi, sama ↩-merkki. Hover leventää kuplaa (tabi kuplan SISÄLLÄ) ja siirtää päälle osuvat naapurikuplat sivuun. kp 8.11. 02:20-02:23
 // @author       re-lab
 // ==/UserScript==
@@ -23,7 +23,7 @@
   // aloitetaan (reply-target), ja luokka katosi: kupla jäi leveäksi ilman varjostusta (kp 03:06 'miks käy näin').
   // 1.7.0: tumma kupla -> vaalea nuoli ja vaalea varjostus (kp 03:08 'jos on tumma kupla niin toi reply icon hukkuu').
   // Kuplan väri luetaan sen omasta border-image-kuvasta (data:-PNG, sama origin) keskipikselistä canvasilla.
-  const VERSIO = '1.7.0';
+  const VERSIO = '1.8.0';
   const LEVEYS = 16;
   const VARJO = LEVEYS + 5; // varjostettu kaista kuplan ulkoreunasta: lisätty tila + osa kuplan 6 px oikeaa reunakuvaa
   if (window.__kuplaReplyTabi && typeof window.__kuplaReplyTabi.pois === 'function') { try { window.__kuplaReplyTabi.pois(); } catch (e) {} }
@@ -36,11 +36,15 @@
        border-image (sama kuva, slice, width, outset), joten se seuraa kuplan reunaa ja pyöristyksiä ylhäältä alas.
        Divider = gradientin 1 px kova raja. Nappi itse on läpinäkyvä klikkialue + nuoli. */
     .nitro-chat-widget .bubble-container[data-kp-rt-auki] .chat-bubble::after {
-      content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 1;
+      content: ''; position: absolute; pointer-events: none; z-index: 1;
+      /* kp 03:19 'muutaman pikselin gap' ylhäällä: kuplan kuva ulottuu border-image-outsetin verran laatikon yli
+         (useimmissa 2px 0 0), ja gradientti piirtyy vain omaan laatikkoonsa -> laatikko itse kasvatetaan outsetilla */
+      top: calc(-1 * var(--kp-rt-ot, 0px)); right: calc(-1 * var(--kp-rt-or, 0px));
+      bottom: calc(-1 * var(--kp-rt-ob, 0px)); left: calc(-1 * var(--kp-rt-ol, 0px));
       background: linear-gradient(to right, transparent calc(100% - ${VARJO}px), rgba(0,0,0,.4) calc(100% - ${VARJO}px),
         rgba(0,0,0,.4) calc(100% - ${VARJO - 1}px), rgba(0,0,0,.13) calc(100% - ${VARJO - 1}px));
       -webkit-mask-box-image-source: var(--kp-rt-src); -webkit-mask-box-image-slice: var(--kp-rt-slice);
-      -webkit-mask-box-image-width: var(--kp-rt-w); -webkit-mask-box-image-outset: var(--kp-rt-out);
+      -webkit-mask-box-image-width: var(--kp-rt-w); -webkit-mask-box-image-outset: 0;
       -webkit-mask-box-image-repeat: stretch;
     }
     .nitro-chat-widget .bubble-container[data-kp-rt-auki] .chat-bubble:has(~ .chat-reply-button:hover)::after,
@@ -148,7 +152,12 @@
     if (kpl) {
       const c = getComputedStyle(kpl);
       kpl.style.setProperty('--kp-rt-src', c.borderImageSource); kpl.style.setProperty('--kp-rt-slice', c.borderImageSlice);
-      kpl.style.setProperty('--kp-rt-w', c.borderImageWidth); kpl.style.setProperty('--kp-rt-out', c.borderImageOutset);
+      kpl.style.setProperty('--kp-rt-w', c.borderImageWidth); { // outset: 1-4 arvoa; px sellaisenaan, yksikötön = border-image-widthin kerroin
+        const o = (c.borderImageOutset.match(/[\d.]+(px)?/g) || ['0']), bw = c.borderImageWidth.match(/[\d.]+/g) || ['0'];
+        const px = (v, i) => v.endsWith('px') ? parseFloat(v) : parseFloat(v) * parseFloat(bw[i] ?? bw[i % 2] ?? bw[0]);
+        const t = o[0], r = o[1] ?? t, b = o[2] ?? t, l = o[3] ?? r;
+        [['ot', t], ['or', r], ['ob', b], ['ol', l]].forEach(([k, v], i) => kpl.style.setProperty('--kp-rt-' + k, px(v, i) + 'px'));
+      }
       merkitseTumma(kupla, c.borderImageSource, c.borderImageSlice);
     }
     if (kpl && kpl.style.maxWidth) { leveys = [kpl, kpl.style.maxWidth]; kpl.style.maxWidth = (parseFloat(kpl.style.maxWidth) + LEVEYS) + 'px'; }
