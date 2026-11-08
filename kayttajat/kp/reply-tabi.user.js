@@ -4,7 +4,7 @@
 // @match        https://kupla.cc/*
 // @run-at       document-idle
 // @grant        none
-// @version      1.9.0
+// @version      1.10.0
 // @description  Puhekuplan reply-nappi (.chat-reply-button) kuplan oikeaan reunaan kiinnittyväksi tabiksi, sama ↩-merkki. Hover leventää kuplaa (tabi kuplan SISÄLLÄ) ja siirtää päälle osuvat naapurikuplat sivuun. kp 8.11. 02:20-02:23
 // @author       re-lab
 // ==/UserScript==
@@ -23,9 +23,12 @@
   // aloitetaan (reply-target), ja luokka katosi: kupla jäi leveäksi ilman varjostusta (kp 03:06 'miks käy näin').
   // 1.7.0: tumma kupla -> vaalea nuoli ja vaalea varjostus (kp 03:08 'jos on tumma kupla niin toi reply icon hukkuu').
   // Kuplan väri luetaan sen omasta border-image-kuvasta (data:-PNG, sama origin) keskipikselistä canvasilla.
-  const VERSIO = '1.9.0';
+  const VERSIO = '1.10.0';
   const LEVEYS = 16;
   const VARJO = LEVEYS + 5; // varjostettu kaista kuplan ulkoreunasta: lisätty tila + osa kuplan 6 px oikeaa reunakuvaa
+  // 1.10.0: jakoviiva mitataan kuplan LAATIKON reunasta, ei outsetilla kasvatetun ::after-laatikon reunasta (kp 03:54 'nuolella eri
+  // verran etäisyyttä divideriin riippuen kuplasta'): tyypeillä 9,10,18,21,22,25,26 oikea outset 1-10 px siirsi viivaa, nuoli pysyi.
+  const J = 'calc(100% - ' + VARJO + 'px - var(--kp-rt-or, 0px))', J1 = 'calc(100% - ' + (VARJO - 1) + 'px - var(--kp-rt-or, 0px))';
   if (window.__kuplaReplyTabi && typeof window.__kuplaReplyTabi.pois === 'function') { try { window.__kuplaReplyTabi.pois(); } catch (e) {} }
 
   const tyyli = document.createElement('style');
@@ -41,16 +44,16 @@
          (useimmissa 2px 0 0), ja gradientti piirtyy vain omaan laatikkoonsa -> laatikko itse kasvatetaan outsetilla */
       top: calc(-1 * var(--kp-rt-ot, 0px)); right: calc(-1 * var(--kp-rt-or, 0px));
       bottom: calc(-1 * var(--kp-rt-ob, 0px)); left: calc(-1 * var(--kp-rt-ol, 0px));
-      background: linear-gradient(to right, transparent calc(100% - ${VARJO}px), rgba(0,0,0,.4) calc(100% - ${VARJO}px),
-        rgba(0,0,0,.4) calc(100% - ${VARJO - 1}px), rgba(0,0,0,.13) calc(100% - ${VARJO - 1}px));
+      background: linear-gradient(to right, transparent ${J}, rgba(0,0,0,.4) ${J},
+        rgba(0,0,0,.4) ${J1}, rgba(0,0,0,.13) ${J1});
       -webkit-mask-box-image-source: var(--kp-rt-src); -webkit-mask-box-image-slice: var(--kp-rt-slice);
       -webkit-mask-box-image-width: var(--kp-rt-w); -webkit-mask-box-image-outset: 0;
       -webkit-mask-box-image-repeat: stretch;
     }
     .bubble-container[data-kp-rt-auki] .chat-bubble:has(~ .chat-reply-button:hover)::after,
     .bubble-container[data-kp-rt-auki]:has(.chat-reply-button:hover) .chat-bubble::after {
-      background: linear-gradient(to right, transparent calc(100% - ${VARJO}px), rgba(0,0,0,.45) calc(100% - ${VARJO}px),
-        rgba(0,0,0,.45) calc(100% - ${VARJO - 1}px), rgba(0,0,0,.25) calc(100% - ${VARJO - 1}px));
+      background: linear-gradient(to right, transparent ${J}, rgba(0,0,0,.45) ${J},
+        rgba(0,0,0,.45) ${J1}, rgba(0,0,0,.25) ${J1});
     }
     .bubble-container .chat-reply-button {
       position: absolute !important; top: 0 !important; bottom: 0 !important; height: auto !important; transform: none !important;
@@ -62,12 +65,12 @@
     .bubble-container .chat-reply-button::before { inset: 0 !important; }
     .bubble-container[data-kp-rt-tumma] .chat-reply-button { color: #f4f4f4 !important; }
     .bubble-container[data-kp-rt-auki][data-kp-rt-tumma] .chat-bubble::after {
-      background: linear-gradient(to right, transparent calc(100% - ${VARJO}px), rgba(255,255,255,.5) calc(100% - ${VARJO}px),
-        rgba(255,255,255,.5) calc(100% - ${VARJO - 1}px), rgba(255,255,255,.16) calc(100% - ${VARJO - 1}px));
+      background: linear-gradient(to right, transparent ${J}, rgba(255,255,255,.5) ${J},
+        rgba(255,255,255,.5) ${J1}, rgba(255,255,255,.16) ${J1});
     }
     .bubble-container[data-kp-rt-auki][data-kp-rt-tumma]:has(.chat-reply-button:hover) .chat-bubble::after {
-      background: linear-gradient(to right, transparent calc(100% - ${VARJO}px), rgba(255,255,255,.55) calc(100% - ${VARJO}px),
-        rgba(255,255,255,.55) calc(100% - ${VARJO - 1}px), rgba(255,255,255,.28) calc(100% - ${VARJO - 1}px));
+      background: linear-gradient(to right, transparent ${J}, rgba(255,255,255,.55) ${J},
+        rgba(255,255,255,.55) ${J1}, rgba(255,255,255,.28) ${J1});
     }
     .bubble-container[data-kp-rt-siirretty] { transition: translate .08s ease-out; }
   `;
