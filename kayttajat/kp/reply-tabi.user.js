@@ -4,7 +4,7 @@
 // @match        https://kupla.cc/*
 // @run-at       document-idle
 // @grant        none
-// @version      1.17.0
+// @version      1.18.0
 // @description  Puhekuplan reply-nappi (.chat-reply-button) kuplan oikeaan reunaan kiinnittyväksi tabiksi, sama ↩-merkki. Hover leventää kuplaa (tabi kuplan SISÄLLÄ) ja siirtää päälle osuvat naapurikuplat sivuun. kp 8.11. 02:20-02:23
 // @author       re-lab
 // ==/UserScript==
@@ -23,7 +23,7 @@
   // aloitetaan (reply-target), ja luokka katosi: kupla jäi leveäksi ilman varjostusta (kp 03:06 'miks käy näin').
   // 1.7.0: tumma kupla -> vaalea nuoli ja vaalea varjostus (kp 03:08 'jos on tumma kupla niin toi reply icon hukkuu').
   // Kuplan väri luetaan sen omasta border-image-kuvasta (data:-PNG, sama origin) keskipikselistä canvasilla.
-  const VERSIO = '1.17.0';
+  const VERSIO = '1.18.0';
   const LEVEYS = 16;
   const VARJO = LEVEYS + 5; // varjostettu kaista kuplan ulkoreunasta: lisätty tila + osa kuplan 6 px oikeaa reunakuvaa
   // 1.10.0: jakoviiva mitataan kuplan LAATIKON reunasta, ei outsetilla kasvatetun ::after-laatikon reunasta (kp 03:54 'nuolella eri
@@ -44,8 +44,8 @@
          (useimmissa 2px 0 0), ja gradientti piirtyy vain omaan laatikkoonsa -> laatikko itse kasvatetaan outsetilla */
       top: calc(-1 * var(--kp-rt-ot, 0px)); right: calc(-1 * var(--kp-rt-or, 0px));
       bottom: calc(-1 * var(--kp-rt-ob, 0px)); left: calc(-1 * var(--kp-rt-ol, 0px));
-      background: linear-gradient(to right, transparent ${J}, rgba(0,0,0,.4) ${J},
-        rgba(0,0,0,.4) ${J1}, rgba(0,0,0,.13) ${J1});
+      background: linear-gradient(to right, transparent ${J}, rgba(0,0,0,.22) ${J},
+        rgba(0,0,0,.22) ${J1}, rgba(0,0,0,.06) ${J1}); /* 1.18.0 kp 05:41 'subtlempaa shading etenkin kun ei hoveraa reply nappia' (oli .4/.13) */
       -webkit-mask-box-image-source: var(--kp-rt-src); -webkit-mask-box-image-slice: var(--kp-rt-slice);
       -webkit-mask-box-image-width: var(--kp-rt-w); -webkit-mask-box-image-outset: 0;
       -webkit-mask-box-image-repeat: stretch;
@@ -76,8 +76,8 @@
     .bubble-container .chat-reply-button::before { inset: 0 !important; }
     .bubble-container[data-kp-rt-tumma] .chat-reply-button { color: #f4f4f4 !important; }
     .bubble-container[data-kp-rt-auki][data-kp-rt-tumma] .chat-bubble::after {
-      background: linear-gradient(to right, transparent ${J}, rgba(255,255,255,.5) ${J},
-        rgba(255,255,255,.5) ${J1}, rgba(255,255,255,.16) ${J1});
+      background: linear-gradient(to right, transparent ${J}, rgba(255,255,255,.3) ${J},
+        rgba(255,255,255,.3) ${J1}, rgba(255,255,255,.08) ${J1}); /* 1.18.0 (oli .5/.16) */
     }
     .bubble-container[data-kp-rt-auki][data-kp-rt-tumma]:has(.chat-reply-button:hover) .chat-bubble::after {
       background: linear-gradient(to right, transparent ${J}, rgba(255,255,255,.55) ${J},
