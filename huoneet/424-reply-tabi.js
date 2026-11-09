@@ -1,5 +1,5 @@
-// Huoneskripti 424 zen den: reply-tabi KAIKILLE (kp 8.11. 22:54 "laitatko tän replyn kaikille nyt jakoon zen deniin sellasena kuin se on nyt"; 06:51-22:54 vain kurkkupomolle).
-// Kopio kayttajat/kp/reply-tabi.user.js 1.31.0:sta. Jos reply-tabi on jo käynnissä (kp:n käyttäjäskripti), ei tehdä mitään eikä pysäytetä sitä.
+// Huoneskripti 424 zen den: reply-tabi KAIKILLE (kp 8.11. 22:54 "laitatko tän replyn kaikille nyt jakoon zen deniin sellasena kuin se on nyt"; 9.11. 03:58 "jaa tää versio zen deniin kaikille").
+// Kopio kayttajat/kp/reply-tabi.user.js 1.32.3:sta. Jos reply-tabi on jo käynnissä (kp:n käyttäjäskripti), ei tehdä mitään eikä pysäytetä sitä.
 if (window.__kuplaReplyTabi) return () => {};
 // ==UserScript==
 // @name         Reply-tabi kuplan reunaan (kp)
@@ -7,7 +7,7 @@ if (window.__kuplaReplyTabi) return () => {};
 // @match        https://kupla.cc/*
 // @run-at       document-idle
 // @grant        none
-// @version      1.31.0
+// @version      1.32.3
 // @description  Puhekuplan reply-nappi (.chat-reply-button) kuplan oikeaan reunaan kiinnittyväksi tabiksi, sama ↩-merkki. Hover leventää kuplaa (tabi kuplan SISÄLLÄ) ja siirtää päälle osuvat naapurikuplat sivuun. kp 8.11. 02:20-02:23
 // @author       re-lab
 // ==/UserScript==
@@ -26,7 +26,7 @@ if (window.__kuplaReplyTabi) return () => {};
   // aloitetaan (reply-target), ja luokka katosi: kupla jäi leveäksi ilman varjostusta (kp 03:06 'miks käy näin').
   // 1.7.0: tumma kupla -> vaalea nuoli ja vaalea varjostus (kp 03:08 'jos on tumma kupla niin toi reply icon hukkuu').
   // Kuplan väri luetaan sen omasta border-image-kuvasta (data:-PNG, sama origin) keskipikselistä canvasilla.
-  const VERSIO = '1.31.0';
+  const VERSIO = '1.32.3';
   const LEVEYS = 16;
   const VARJO = LEVEYS + 5; // varjostettu kaista kuplan ulkoreunasta: lisätty tila + osa kuplan 6 px oikeaa reunakuvaa
   // 1.10.0: jakoviiva mitataan kuplan LAATIKON reunasta, ei outsetilla kasvatetun ::after-laatikon reunasta (kp 03:54 'nuolella eri
@@ -111,6 +111,7 @@ if (window.__kuplaReplyTabi) return () => {};
         rgba(255,255,255,.55) ${J1}, rgba(255,255,255,.28) ${J1});
     }
     .bubble-container[data-kp-rt-siirretty] { transition: top .2s, translate .08s ease-out; }
+    .bubble-container[data-kp-rt-siirretty] > .chat-bubble > .pointer { transition: translate .08s ease-out; }
   `;
   document.head.appendChild(tyyli);
 
@@ -179,6 +180,8 @@ if (window.__kuplaReplyTabi) return () => {};
   const vapautaSiirretyt = () => {
     for (const e of [...siirretyt, ...document.querySelectorAll('.bubble-container[data-kp-rt-siirretty]')]) {
       e.style.translate = ''; e.removeAttribute('data-kp-rt-siirretty');
+      const p = e.querySelector('.pointer');
+      if (p) p.style.translate = '';
     }
     siirretyt = [];
     if (topVahti) { try { topVahti.takeRecords(); } catch (e) {} }
@@ -207,7 +210,10 @@ if (window.__kuplaReplyTabi) return () => {};
     const rRect = r.getBoundingClientRect(), zb = kpl.currentCSSZoom || parseFloat(getComputedStyle(kpl).zoom) || 1;
     const vRects = viesti.getClientRects();
     let oikea = 0;
-    for (const e of sis.querySelectorAll(':scope > .username, :scope > .message, :scope > .duplicate-count')) for (const q of e.getClientRects()) oikea = Math.max(oikea, q.right);
+    // 1.32.3 (B46, kp 9.11. 03:31: reply-nappi tekstin päällä kun lainausrivi on omaa viestiä leveämpi):
+    // mitataan kaikkien tekstielementtien oikea reuna (myös .chat-reply-quote ja sen lapset), jotta
+    // kupla levenee riittävästi ja jakoviiva/nappi jää kaiken tekstin oikealle puolelle
+    for (const e of sis.querySelectorAll(':scope > .username, :scope > .message, :scope > .duplicate-count, :scope > .chat-reply-quote, :scope > .chat-reply-quote *')) for (const q of e.getClientRects()) oikea = Math.max(oikea, q.right);
     const reuna = kpl.getBoundingClientRect().right;
     // 1.29.0 (B40) + 1.30.0 (B42): jos viestin 1. sana rivittyy toiselle riville nimen alle (vRects[0].left <= rRect.right + 0.5 tai
     // vRects[0].top >= rRect.bottom - 1) tai viesti on tyhjä / pelkkiä välilyöntejä (vRects.length === 0 tai vRects[0].width === 0),
@@ -261,7 +267,7 @@ if (window.__kuplaReplyTabi) return () => {};
       return { left: r.left, right: r.right, top: r.top + dy, bottom: r.bottom + dy };
     };
     const kaikki = [...kupla.parentElement.querySelectorAll(':scope > .bubble-container')].filter(
-      e => e !== kupla && !e.classList.contains('invisible') && !e.classList.contains('chat-pulldown-measure') && Number.isFinite(parseFloat(e.style.top))
+      e => e !== kupla && !e.classList.contains('invisible') && !e.classList.contains('chat-pulldown-measure') && (Number.isFinite(parseFloat(e.style.top)) || Number.isFinite(parseFloat(e.style.bottom)))
     );
     const esteet = [laatikko(kupla)];
     const ehdokkaat = kaikki.map(e => ({ e, r: laatikko(e) })).sort((a, b) => a.r.left - b.r.left);
@@ -273,8 +279,27 @@ if (window.__kuplaReplyTabi) return () => {};
         if (pysty && vaaka && r.left >= s.left) dx = Math.max(dx, s.right - r.left + 1);
       }
       if (dx > 0) {
+        const dxCeil = Math.ceil(dx);
+        // 1.32.1 (B44, kp 9.11. 01:37: "jos se menis muuten alle, ei tehdä mitään. Muissa tapauksissa väkänen pysyy..."):
+        // Jos täydellä kompensaatiolla nuolen vasen reuna menisi työnnetyn kuplan avatar-kuvan oikean reunan alle
+        // (p0Left < uiR + dxCeil), ei tehdä mitään: nuoli siirtyy kuplan mukana ilman translatea.
+        // Muissa tapauksissa täysi kompensaatio (nuoli pysyy ruutu-x:ssä p0Left, dev 0).
+        const ptr = e.querySelector(':scope > .chat-bubble > .pointer') || e.querySelector('.pointer');
+        if (ptr) {
+          const kpl = e.querySelector(':scope > .chat-bubble') || e;
+          const zb = kpl.currentCSSZoom || parseFloat(getComputedStyle(kpl).zoom) || 1;
+          const p0Left = ptr.getBoundingClientRect().left;
+          const ui = e.querySelector('.user-image') || (e.querySelector('.user-container') && e.querySelector('.user-container').offsetHeight > 0 ? e.querySelector('.user-container') : null);
+          const uiR = (ui && ui.getBoundingClientRect().width > 0) ? ui.getBoundingClientRect().right : null;
+          const minLeft = uiR !== null ? (uiR + dxCeil) : (kpl.getBoundingClientRect().left + dxCeil + 3 * zb);
+          if (p0Left < minLeft) {
+            ptr.style.translate = '';
+          } else {
+            ptr.style.translate = `${-dxCeil / zb}px 0`;
+          }
+        }
         e.setAttribute('data-kp-rt-siirretty', '');
-        e.style.translate = `${Math.ceil(dx)}px 0`;
+        e.style.translate = `${dxCeil}px 0`;
         siirretyt.push(e);
         esteet.push({ left: r.left + dx, right: r.right + dx, top: r.top, bottom: r.bottom });
       }
@@ -335,8 +360,9 @@ if (window.__kuplaReplyTabi) return () => {};
     if (kpl && sis0) { const cs = getComputedStyle(sis0), a = sis0.getBoundingClientRect(), b = kpl.getBoundingClientRect(), z = b.height / (kpl.offsetHeight || 1);
       const tk = (a.top + a.bottom) / 2 + (parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)) * z / 2;
       kupla.style.setProperty('--kp-rt-dy', ((tk - (b.top + b.bottom) / 2) / z) + 'px'); }
-    // naapurien siirto vain live chatissa: historioissa kuplat ovat omilla riveillään / omalla asettelullaan
-    if (live) tyonna(kupla);
+    // 1.32.2 (B45, kp 9.11. 02:49 'ylävetohistoriassa ei tee samaa · siis ei osaa väistää'):
+    // naapurien siirto live-chatissa ja ylävetohistoriassa (.chat-pulldown-bubble), jossa kuplat voivat olla vierekkäin samalla rivillä
+    if (live || kupla.matches('.chat-pulldown-bubble')) tyonna(kupla);
   };
   const ulos = ev => { if (auki && !(ev.relatedTarget && auki.contains(ev.relatedTarget))) palauta(); };
 
