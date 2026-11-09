@@ -4,7 +4,7 @@
 // @match        https://kupla.cc/*
 // @run-at       document-idle
 // @grant        none
-// @version      1.32.2
+// @version      1.32.3
 // @description  Puhekuplan reply-nappi (.chat-reply-button) kuplan oikeaan reunaan kiinnittyväksi tabiksi, sama ↩-merkki. Hover leventää kuplaa (tabi kuplan SISÄLLÄ) ja siirtää päälle osuvat naapurikuplat sivuun. kp 8.11. 02:20-02:23
 // @author       re-lab
 // ==/UserScript==
@@ -23,7 +23,7 @@
   // aloitetaan (reply-target), ja luokka katosi: kupla jäi leveäksi ilman varjostusta (kp 03:06 'miks käy näin').
   // 1.7.0: tumma kupla -> vaalea nuoli ja vaalea varjostus (kp 03:08 'jos on tumma kupla niin toi reply icon hukkuu').
   // Kuplan väri luetaan sen omasta border-image-kuvasta (data:-PNG, sama origin) keskipikselistä canvasilla.
-  const VERSIO = '1.32.2';
+  const VERSIO = '1.32.3';
   const LEVEYS = 16;
   const VARJO = LEVEYS + 5; // varjostettu kaista kuplan ulkoreunasta: lisätty tila + osa kuplan 6 px oikeaa reunakuvaa
   // 1.10.0: jakoviiva mitataan kuplan LAATIKON reunasta, ei outsetilla kasvatetun ::after-laatikon reunasta (kp 03:54 'nuolella eri
@@ -207,7 +207,10 @@
     const rRect = r.getBoundingClientRect(), zb = kpl.currentCSSZoom || parseFloat(getComputedStyle(kpl).zoom) || 1;
     const vRects = viesti.getClientRects();
     let oikea = 0;
-    for (const e of sis.querySelectorAll(':scope > .username, :scope > .message, :scope > .duplicate-count')) for (const q of e.getClientRects()) oikea = Math.max(oikea, q.right);
+    // 1.32.3 (B46, kp 9.11. 03:31: reply-nappi tekstin päällä kun lainausrivi on omaa viestiä leveämpi):
+    // mitataan kaikkien tekstielementtien oikea reuna (myös .chat-reply-quote ja sen lapset), jotta
+    // kupla levenee riittävästi ja jakoviiva/nappi jää kaiken tekstin oikealle puolelle
+    for (const e of sis.querySelectorAll(':scope > .username, :scope > .message, :scope > .duplicate-count, :scope > .chat-reply-quote, :scope > .chat-reply-quote *')) for (const q of e.getClientRects()) oikea = Math.max(oikea, q.right);
     const reuna = kpl.getBoundingClientRect().right;
     // 1.29.0 (B40) + 1.30.0 (B42): jos viestin 1. sana rivittyy toiselle riville nimen alle (vRects[0].left <= rRect.right + 0.5 tai
     // vRects[0].top >= rRect.bottom - 1) tai viesti on tyhjä / pelkkiä välilyöntejä (vRects.length === 0 tai vRects[0].width === 0),
