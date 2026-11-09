@@ -4,7 +4,7 @@
 // @match        https://kupla.cc/*
 // @run-at       document-idle
 // @grant        none
-// @version      1.32.1
+// @version      1.32.2
 // @description  Puhekuplan reply-nappi (.chat-reply-button) kuplan oikeaan reunaan kiinnittyväksi tabiksi, sama ↩-merkki. Hover leventää kuplaa (tabi kuplan SISÄLLÄ) ja siirtää päälle osuvat naapurikuplat sivuun. kp 8.11. 02:20-02:23
 // @author       re-lab
 // ==/UserScript==
@@ -23,7 +23,7 @@
   // aloitetaan (reply-target), ja luokka katosi: kupla jäi leveäksi ilman varjostusta (kp 03:06 'miks käy näin').
   // 1.7.0: tumma kupla -> vaalea nuoli ja vaalea varjostus (kp 03:08 'jos on tumma kupla niin toi reply icon hukkuu').
   // Kuplan väri luetaan sen omasta border-image-kuvasta (data:-PNG, sama origin) keskipikselistä canvasilla.
-  const VERSIO = '1.32.1';
+  const VERSIO = '1.32.2';
   const LEVEYS = 16;
   const VARJO = LEVEYS + 5; // varjostettu kaista kuplan ulkoreunasta: lisätty tila + osa kuplan 6 px oikeaa reunakuvaa
   // 1.10.0: jakoviiva mitataan kuplan LAATIKON reunasta, ei outsetilla kasvatetun ::after-laatikon reunasta (kp 03:54 'nuolella eri
@@ -261,7 +261,7 @@
       return { left: r.left, right: r.right, top: r.top + dy, bottom: r.bottom + dy };
     };
     const kaikki = [...kupla.parentElement.querySelectorAll(':scope > .bubble-container')].filter(
-      e => e !== kupla && !e.classList.contains('invisible') && !e.classList.contains('chat-pulldown-measure') && Number.isFinite(parseFloat(e.style.top))
+      e => e !== kupla && !e.classList.contains('invisible') && !e.classList.contains('chat-pulldown-measure') && (Number.isFinite(parseFloat(e.style.top)) || Number.isFinite(parseFloat(e.style.bottom)))
     );
     const esteet = [laatikko(kupla)];
     const ehdokkaat = kaikki.map(e => ({ e, r: laatikko(e) })).sort((a, b) => a.r.left - b.r.left);
@@ -283,7 +283,7 @@
           const kpl = e.querySelector(':scope > .chat-bubble') || e;
           const zb = kpl.currentCSSZoom || parseFloat(getComputedStyle(kpl).zoom) || 1;
           const p0Left = ptr.getBoundingClientRect().left;
-          const ui = e.querySelector('.user-image') || e.querySelector('.user-container');
+          const ui = e.querySelector('.user-image') || (e.querySelector('.user-container') && e.querySelector('.user-container').offsetHeight > 0 ? e.querySelector('.user-container') : null);
           const uiR = (ui && ui.getBoundingClientRect().width > 0) ? ui.getBoundingClientRect().right : null;
           const minLeft = uiR !== null ? (uiR + dxCeil) : (kpl.getBoundingClientRect().left + dxCeil + 3 * zb);
           if (p0Left < minLeft) {
@@ -354,8 +354,9 @@
     if (kpl && sis0) { const cs = getComputedStyle(sis0), a = sis0.getBoundingClientRect(), b = kpl.getBoundingClientRect(), z = b.height / (kpl.offsetHeight || 1);
       const tk = (a.top + a.bottom) / 2 + (parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)) * z / 2;
       kupla.style.setProperty('--kp-rt-dy', ((tk - (b.top + b.bottom) / 2) / z) + 'px'); }
-    // naapurien siirto vain live chatissa: historioissa kuplat ovat omilla riveillään / omalla asettelullaan
-    if (live) tyonna(kupla);
+    // 1.32.2 (B45, kp 9.11. 02:49 'ylävetohistoriassa ei tee samaa · siis ei osaa väistää'):
+    // naapurien siirto live-chatissa ja ylävetohistoriassa (.chat-pulldown-bubble), jossa kuplat voivat olla vierekkäin samalla rivillä
+    if (live || kupla.matches('.chat-pulldown-bubble')) tyonna(kupla);
   };
   const ulos = ev => { if (auki && !(ev.relatedTarget && auki.contains(ev.relatedTarget))) palauta(); };
 
