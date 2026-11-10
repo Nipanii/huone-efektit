@@ -4,7 +4,7 @@
 // @match        https://kupla.cc/*
 // @run-at       document-idle
 // @grant        none
-// @version      1.32.5
+// @version      1.32.6
 // @description  Puhekuplan reply-nappi (.chat-reply-button) kuplan oikeaan reunaan kiinnittyväksi tabiksi, sama ↩-merkki. Hover leventää kuplaa (tabi kuplan SISÄLLÄ) ja siirtää päälle osuvat naapurikuplat sivuun. kp 8.11. 02:20-02:23
 // @author       re-lab
 // ==/UserScript==
@@ -23,7 +23,7 @@
   // aloitetaan (reply-target), ja luokka katosi: kupla jäi leveäksi ilman varjostusta (kp 03:06 'miks käy näin').
   // 1.7.0: tumma kupla -> vaalea nuoli ja vaalea varjostus (kp 03:08 'jos on tumma kupla niin toi reply icon hukkuu').
   // Kuplan väri luetaan sen omasta border-image-kuvasta (data:-PNG, sama origin) keskipikselistä canvasilla.
-  const VERSIO = '1.32.5';
+  const VERSIO = '1.32.6';
   const LEVEYS = 16;
   const VARJO = LEVEYS + 5; // varjostettu kaista kuplan ulkoreunasta: lisätty tila + osa kuplan 6 px oikeaa reunakuvaa
   // 1.10.0: jakoviiva mitataan kuplan LAATIKON reunasta, ei outsetilla kasvatetun ::after-laatikon reunasta (kp 03:54 'nuolella eri
@@ -259,7 +259,10 @@
     // jolloin pitkä kupla rivittyi hoverissa uudelleen
     const Z = (kpl.currentCSSZoom || parseFloat(getComputedStyle(kpl).zoom) || 1) * (window.devicePixelRatio || 1);
     const m = Math.max(0, Math.round(tarve * Z * 32)), lisa = m > 0 ? (m / 32 + 1 / 1024) / Z : 0, prq = pr0 + lisa;
-    const mEx = Math.max(0, Math.round(-tarve * Z * 32)), extra = mEx > 0 ? (mEx / 32 + 1 / 1024) / Z : 0;
+    // 1.32.6 (B49, kp 10.11. 12:53-12:56 'reply nappi ihan vääräs paikkaa' · 'pikselin tai parin gap kuplan oik reunassa'): 1.32.4:n extra siirsi
+    // tabin kuplan sisälle -> rivittyneessä/kursiivi-kuplassa tabi keskellä kuplaa ja pienellä vapaalla tilalla 1-2 px rako reunaan.
+    // Invariantti: tabin oikea reuna == kuplan oikea reuna. extra on aina 0 (CSS-muuttujat jäävät, oletus 0px); lisa kuten 1.32.3:ssa.
+    const extra = 0;
     kupla.style.setProperty('--kp-rt-pr', prq + 'px');
     kupla.style.setProperty('--kp-rt-lisa', lisa + 'px');
     kupla.style.setProperty('--kp-rt-extra', extra + 'px');
