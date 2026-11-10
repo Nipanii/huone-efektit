@@ -1,5 +1,5 @@
-// Huoneskripti 424 zen den: reply-tabi KAIKILLE (kp 8.11. 22:54 "laitatko tän replyn kaikille nyt jakoon zen deniin sellasena kuin se on nyt"; 9.11. 03:58 "jaa tää versio zen deniin kaikille").
-// Kopio kayttajat/kp/reply-tabi.user.js 1.32.3:sta. Jos reply-tabi on jo käynnissä (kp:n käyttäjäskripti), ei tehdä mitään eikä pysäytetä sitä.
+// Huoneskripti 424 zen den: reply-tabi KAIKILLE (kp 8.11. 22:54 "laitatko tän replyn kaikille nyt jakoon zen deniin sellasena kuin se on nyt"; 9.11. 03:58 "jaa tää versio zen deniin kaikille"; 10.11. 13:37 YV "laita tää versio jakoon koko zen denille. tää reply nappi versio").
+// Kopio kayttajat/kp/reply-tabi.user.js 1.32.6:sta. Jos reply-tabi on jo käynnissä (kp:n käyttäjäskripti), ei tehdä mitään eikä pysäytetä sitä.
 if (window.__kuplaReplyTabi) return () => {};
 // ==UserScript==
 // @name         Reply-tabi kuplan reunaan (kp)
@@ -7,7 +7,7 @@ if (window.__kuplaReplyTabi) return () => {};
 // @match        https://kupla.cc/*
 // @run-at       document-idle
 // @grant        none
-// @version      1.32.3
+// @version      1.32.6
 // @description  Puhekuplan reply-nappi (.chat-reply-button) kuplan oikeaan reunaan kiinnittyväksi tabiksi, sama ↩-merkki. Hover leventää kuplaa (tabi kuplan SISÄLLÄ) ja siirtää päälle osuvat naapurikuplat sivuun. kp 8.11. 02:20-02:23
 // @author       re-lab
 // ==/UserScript==
@@ -26,12 +26,14 @@ if (window.__kuplaReplyTabi) return () => {};
   // aloitetaan (reply-target), ja luokka katosi: kupla jäi leveäksi ilman varjostusta (kp 03:06 'miks käy näin').
   // 1.7.0: tumma kupla -> vaalea nuoli ja vaalea varjostus (kp 03:08 'jos on tumma kupla niin toi reply icon hukkuu').
   // Kuplan väri luetaan sen omasta border-image-kuvasta (data:-PNG, sama origin) keskipikselistä canvasilla.
-  const VERSIO = '1.32.3';
+  const VERSIO = '1.32.6';
   const LEVEYS = 16;
   const VARJO = LEVEYS + 5; // varjostettu kaista kuplan ulkoreunasta: lisätty tila + osa kuplan 6 px oikeaa reunakuvaa
   // 1.10.0: jakoviiva mitataan kuplan LAATIKON reunasta, ei outsetilla kasvatetun ::after-laatikon reunasta (kp 03:54 'nuolella eri
   // verran etäisyyttä divideriin riippuen kuplasta'): tyypeillä 9,10,18,21,22,25,26 oikea outset 1-10 px siirsi viivaa, nuoli pysyi.
-  const J = 'calc(100% - ' + VARJO + 'px - var(--kp-rt-or, 0px))', J1 = 'calc(100% - ' + (VARJO - 1) + 'px - var(--kp-rt-or, 0px))';
+  // 1.32.4 (B47 + B48, kp 10.11. 07:30 tulkinta a): vakioväli tekstiin kuplan sisällä. Jos kuplassa on vapaata tilaa,
+  // nappi ja varjostus siirtyvät kuplan oikeasta reunasta sisäänpäin --kp-rt-extra px verran.
+  const J = 'calc(100% - ' + VARJO + 'px - var(--kp-rt-extra, 0px) - var(--kp-rt-or, 0px))', J1 = 'calc(100% - ' + (VARJO - 1) + 'px - var(--kp-rt-extra, 0px) - var(--kp-rt-or, 0px))', J2 = 'calc(100% - var(--kp-rt-extra, 0px) - var(--kp-rt-or, 0px))';
   if (window.__kuplaReplyTabi && typeof window.__kuplaReplyTabi.pois === 'function') { try { window.__kuplaReplyTabi.pois(); } catch (e) {} }
   // 1.27.0 (kp 07:33 'miks livessä nyt kuplat taas liikahtaa ku hover'): PR 863 tuo reply-tabin clienttiin (useChatReplyTabi.ts,
   // samat data-kp-rt-*-merkit). Tämä skripti sen päällä = kaksi kuuntelijaa samoilla kuplilla. Natiivi tunnistetaan clientin omasta
@@ -53,7 +55,7 @@ if (window.__kuplaReplyTabi) return () => {};
       top: calc(-1 * var(--kp-rt-ot, 0px)); right: calc(-1 * var(--kp-rt-or, 0px));
       bottom: calc(-1 * var(--kp-rt-ob, 0px)); left: calc(-1 * var(--kp-rt-ol, 0px));
       background: linear-gradient(to right, transparent ${J}, rgba(0,0,0,.22) ${J},
-        rgba(0,0,0,.22) ${J1}, rgba(0,0,0,.06) ${J1}); /* 1.18.0 kp 05:41 'subtlempaa shading etenkin kun ei hoveraa reply nappia' (oli .4/.13) */
+        rgba(0,0,0,.22) ${J1}, rgba(0,0,0,.06) ${J1}, rgba(0,0,0,.06) ${J2}, transparent ${J2}); /* 1.18.0 kp 05:41 'subtlempaa shading etenkin kun ei hoveraa reply nappia' (oli .4/.13) */
       -webkit-mask-box-image-source: var(--kp-rt-src); -webkit-mask-box-image-slice: var(--kp-rt-slice);
       -webkit-mask-box-image-width: var(--kp-rt-w); -webkit-mask-box-image-outset: 0;
       -webkit-mask-box-image-repeat: stretch;
@@ -61,13 +63,14 @@ if (window.__kuplaReplyTabi) return () => {};
     .bubble-container[data-kp-rt-auki] .chat-bubble:has(~ .chat-reply-button:hover)::after,
     .bubble-container[data-kp-rt-auki]:has(.chat-reply-button:hover) .chat-bubble::after {
       background: linear-gradient(to right, transparent ${J}, rgba(0,0,0,.45) ${J},
-        rgba(0,0,0,.45) ${J1}, rgba(0,0,0,.25) ${J1});
+        rgba(0,0,0,.45) ${J1}, rgba(0,0,0,.25) ${J1}, rgba(0,0,0,.25) ${J2}, transparent ${J2});
     }
     .bubble-container .chat-reply-button {
       position: absolute !important; top: 0 !important; bottom: 0 !important; height: auto !important; transform: none !important;
       /* 1.11.0 (kp 04:01 'nuoli … vähän liikaa vasemmalla'): nappi ulottuu kuplakuvan näkyvään oikeaan reunaan asti
          (outset), ja nuoli keskitetään jakoviivan ja sen reunan väliin — ennen padding-right 3px + outset jätti sen vasemmalle */
-      right: calc(var(--kp-rt-ir, 0px) - var(--kp-rt-or, 0px)) !important; width: calc(${VARJO}px + var(--kp-rt-or, 0px) - var(--kp-rt-ir, 0px)) !important;
+      /* 1.32.4 (B48): jos kuplassa on tilaa, nappi siirtyy kuplan sisälle tekstin viereen (+ var(--kp-rt-extra)) */
+      right: calc(var(--kp-rt-ir, 0px) - var(--kp-rt-or, 0px) + var(--kp-rt-extra, 0px)) !important; width: calc(${VARJO}px + var(--kp-rt-or, 0px) - var(--kp-rt-ir, 0px)) !important;
       min-width: 0 !important; max-width: none !important;
       padding: max(0px, calc(2 * var(--kp-rt-dy, 0px))) 3px max(0px, calc(-2 * var(--kp-rt-dy, 0px))) 1px !important; /* 1.16.0 (kp 04:41 bubble-1010 'teksti eri kohdas kuplaa' · 04:44 'reply nappi eksyy'): sky-kuplissa (1000-1049) tekstin ylä- ja alapehmuste eroaa (1010: 15/7, ChatPurchasableStyles.scss) ja kuvan oikeassa reunassa on läpinäkyvää, joten nuoli keskitetään tekstiin (--kp-rt-dy) ja kuvan näkyvään reunaan (--kp-rt-ir) laatikon sijaan. 1.13.0 kp 04:16 '1-2 pikselii vasemmalle': nuoli 1,5 px keskeltä vasemmalle (variantti D) */ box-sizing: border-box !important; border: 0 !important; border-radius: 0 !important;
       background: transparent !important; color: #111 !important; font-size: 12px !important; font-weight: bold !important;
@@ -88,7 +91,7 @@ if (window.__kuplaReplyTabi) return () => {};
     /* 1.17.0 (kp 05:18 'pieni nuoli kuplan alaosassa siirtyy kun hoveraa eli ei pysy hahmon kohdalla'): .pointer on kuplan sisällä
        left 50 %, joten oikealle levennetty kupla vei sitä puolet levennyksestä; siirretään takaisin */
     .bubble-container[data-kp-rt-auki][data-kp-rt-live]:not(.chat-pulldown-bubble) > .chat-bubble > .pointer { margin-left: calc(-0.5 * var(--kp-rt-lisa, 0px)) !important; }
-    .bubble-container[data-kp-rt-auki][data-kp-rt-live] > .chat-reply-button { right: calc(var(--kp-rt-ir, 0px) - var(--kp-rt-or, 0px) - var(--kp-rt-lisa, 0px)) !important; }
+    .bubble-container[data-kp-rt-auki][data-kp-rt-live] > .chat-reply-button { right: calc(var(--kp-rt-ir, 0px) - var(--kp-rt-or, 0px) - var(--kp-rt-lisa, 0px) + var(--kp-rt-extra, 0px)) !important; }
     /* 1.22.0 (kp 06:12 'reply nappi vaatii lisätilaa mitä laatikko ei anna ja teksti pakottuu seuraavalle riville' · 06:18 1.21:n
        negatiivinen margin jätti napin kuplan ulkopuolelle): historiaikkunan kontti on fit-content ja max-width calc(100% - 3rem)
        (ChatHistoryView.scss), joten pitkässä viestissä lisätty padding rivitti tekstin. Hoverissa kontti saa napin verran lisää. */
@@ -104,11 +107,11 @@ if (window.__kuplaReplyTabi) return () => {};
     .bubble-container[data-kp-rt-tumma] .chat-reply-button { color: #f4f4f4 !important; }
     .bubble-container[data-kp-rt-auki][data-kp-rt-tumma] .chat-bubble::after {
       background: linear-gradient(to right, transparent ${J}, rgba(255,255,255,.3) ${J},
-        rgba(255,255,255,.3) ${J1}, rgba(255,255,255,.08) ${J1}); /* 1.18.0 (oli .5/.16) */
+        rgba(255,255,255,.3) ${J1}, rgba(255,255,255,.08) ${J1}, rgba(255,255,255,.08) ${J2}, transparent ${J2}); /* 1.18.0 (oli .5/.16) */
     }
     .bubble-container[data-kp-rt-auki][data-kp-rt-tumma]:has(.chat-reply-button:hover) .chat-bubble::after {
       background: linear-gradient(to right, transparent ${J}, rgba(255,255,255,.55) ${J},
-        rgba(255,255,255,.55) ${J1}, rgba(255,255,255,.28) ${J1});
+        rgba(255,255,255,.55) ${J1}, rgba(255,255,255,.28) ${J1}, rgba(255,255,255,.28) ${J2}, transparent ${J2});
     }
     .bubble-container[data-kp-rt-siirretty] { transition: top .2s, translate .08s ease-out; }
     .bubble-container[data-kp-rt-siirretty] > .chat-bubble > .pointer { transition: translate .08s ease-out; }
@@ -210,10 +213,26 @@ if (window.__kuplaReplyTabi) return () => {};
     const rRect = r.getBoundingClientRect(), zb = kpl.currentCSSZoom || parseFloat(getComputedStyle(kpl).zoom) || 1;
     const vRects = viesti.getClientRects();
     let oikea = 0;
-    // 1.32.3 (B46, kp 9.11. 03:31: reply-nappi tekstin päällä kun lainausrivi on omaa viestiä leveämpi):
-    // mitataan kaikkien tekstielementtien oikea reuna (myös .chat-reply-quote ja sen lapset), jotta
-    // kupla levenee riittävästi ja jakoviiva/nappi jää kaiken tekstin oikealle puolelle
-    for (const e of sis.querySelectorAll(':scope > .username, :scope > .message, :scope > .duplicate-count, :scope > .chat-reply-quote, :scope > .chat-reply-quote *')) for (const q of e.getClientRects()) oikea = Math.max(oikea, q.right);
+    // 1.32.3 (B46) + 1.32.5 (D1 + D2 live-mittauksesta):
+    // Viestin ja nimen inline-tekstirivit mitataan suoraan getClientRects():llä.
+    // Vastauskuplien lainausriveiltä (.chat-reply-quote live/ylävedossa, .chat-history-reply-quote sivuhistoriassa)
+    // mitataan vain TEKSTIN oikea reuna (Range tekstisolmuista), ei koko sisällön levyistä flex-laatikkoa.
+    for (const e of sis.querySelectorAll(':scope > .username, :scope > .message, :scope > .duplicate-count')) for (const q of e.getClientRects()) oikea = Math.max(oikea, q.right);
+    const qRng = document.createRange();
+    const mittaaTeksti = el => {
+      for (let c = el.firstChild; c; c = c.nextSibling) {
+        if (c.nodeType === 3) {
+          if (c.data && /\S/.test(c.data)) {
+            qRng.selectNodeContents(c);
+            for (const q of qRng.getClientRects()) oikea = Math.max(oikea, q.right);
+          }
+        } else if (c.nodeType === 1) {
+          if (c.matches && c.matches('img, svg')) for (const q of c.getClientRects()) oikea = Math.max(oikea, q.right);
+          mittaaTeksti(c);
+        }
+      }
+    };
+    for (const qe of sis.querySelectorAll('.chat-reply-quote, .chat-history-reply-quote')) mittaaTeksti(qe);
     const reuna = kpl.getBoundingClientRect().right;
     // 1.29.0 (B40) + 1.30.0 (B42): jos viestin 1. sana rivittyy toiselle riville nimen alle (vRects[0].left <= rRect.right + 0.5 tai
     // vRects[0].top >= rRect.bottom - 1) tai viesti on tyhjä / pelkkiä välilyöntejä (vRects.length === 0 tai vRects[0].width === 0),
@@ -231,19 +250,25 @@ if (window.__kuplaReplyTabi) return () => {};
     return { tavoite, oikea, reuna, zb };
   };
   const tasaaVali = (kupla, kpl, pr0, v0) => {
-    // lopussa kupla on lisa leveämpi (oikea reuna + lisa * zb) ja teksti paikallaan, ja jakoviiva on VARJO kuplan reunasta:
-    // (reuna + lisa * zb - VARJO * zb) - oikea = tavoite. Ei alle 0: kupla ei kapene eikä tekstin tila kasva (se voisi purkaa rivityksen).
-    // Ilman nimeä/':'/viestiä (v0 null) padding on CSS:n oletus 6 + LEVEYS; lisa kasvattaa leveyden saman verran, ettei teksti rivity.
-    const pr = v0 ? pr0 + Math.max(0, (v0.tavoite + v0.oikea - v0.reuna) / v0.zb + VARJO) : Math.max(pr0, 6 + LEVEYS);
+    // 1.32.4 (B47 + B48, kp 10.11. 07:30 tulkinta a: vakioväli tekstiin):
+    // Jos kuplassa ei ole tilaa (tarve > 0), kupla levenee lisa px.
+    // Jos kuplassa on jo vapaata tilaa napille (tarve <= 0), kupla EI levene (lisa = 0), ja nappi + varjostus
+    // siirtyvät kuplan sisälle tekstin viereen vakiovälille (extra = -tarve px kuplan oikeasta reunasta sisäänpäin).
+    const tarve = v0 ? (v0.tavoite + v0.oikea - v0.reuna) / v0.zb + VARJO : 6 + LEVEYS - pr0;
     // 1.28.0: lisa on laite-px:inä (kuplan px * zoom * devicePixelRatio, layoutin oma yksikkö 1/64) 1/32:n monikerta -> puolikas (nuolen
     // margin-left) on tasan yksi 1/64 eikä pyöristy eri suuntaan kuin kuplan 50 %. + 1/1024 laite-px: float-virhe ei pudota arvoa
     // pyöristettäessä alemmalle 1/64:lle (katkaisu ja pyöristys antavat saman). pr = pr0 + lisa, joten padding ja leveys kasvavat täsmälleen
     // saman verran. max-width kasvaa lisa eikä pr - 6: sky-kuplan (1010) oma padding-right on 12 px, ja -6 antoi tekstille 6 px lisää,
     // jolloin pitkä kupla rivittyi hoverissa uudelleen
     const Z = (kpl.currentCSSZoom || parseFloat(getComputedStyle(kpl).zoom) || 1) * (window.devicePixelRatio || 1);
-    const m = Math.max(0, Math.round((pr - pr0) * Z * 32)), lisa = m > 0 ? (m / 32 + 1 / 1024) / Z : 0, prq = pr0 + lisa;
+    const m = Math.max(0, Math.round(tarve * Z * 32)), lisa = m > 0 ? (m / 32 + 1 / 1024) / Z : 0, prq = pr0 + lisa;
+    // 1.32.6 (B49, kp 10.11. 12:53-12:56 'reply nappi ihan vääräs paikkaa' · 'pikselin tai parin gap kuplan oik reunassa'): 1.32.4:n extra siirsi
+    // tabin kuplan sisälle -> rivittyneessä/kursiivi-kuplassa tabi keskellä kuplaa ja pienellä vapaalla tilalla 1-2 px rako reunaan.
+    // Invariantti: tabin oikea reuna == kuplan oikea reuna. extra on aina 0 (CSS-muuttujat jäävät, oletus 0px); lisa kuten 1.32.3:ssa.
+    const extra = 0;
     kupla.style.setProperty('--kp-rt-pr', prq + 'px');
     kupla.style.setProperty('--kp-rt-lisa', lisa + 'px');
+    kupla.style.setProperty('--kp-rt-extra', extra + 'px');
     const lev0 = parseFloat(kpl.style.getPropertyValue('--kp-rt-lev0')) || 0;
     if (leveys) kpl.style.maxWidth = (Math.max(parseFloat(leveys[1]), lev0) + prq - pr0 + 1 / (Z * 64)) + 'px';
   };
