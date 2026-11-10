@@ -139,6 +139,18 @@
           "globaali": "__kuplaOsoitaValikko"
         }
       ]
+    },
+    {
+      "nimi": "laatikko-reply-tabi",
+      "kayttajat": [
+        132
+      ],
+      "skriptit": [
+        {
+          "polku": "kayttajat/laatikko/reply-tabi.user.js",
+          "globaali": "__kuplaReplyTabi"
+        }
+      ]
     }
   ]
 }
