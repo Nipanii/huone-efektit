@@ -117,18 +117,6 @@
       ]
     },
     {
-      "nimi": "kp-osoita-valikko",
-      "kayttajat": [
-        282
-      ],
-      "skriptit": [
-        {
-          "polku": "kayttajat/kp/osoita-pitaa-valikon.user.js",
-          "globaali": "__kuplaOsoitaValikko"
-        }
-      ]
-    },
-    {
       "nimi": "laatikko-reply-tabi",
       "kayttajat": [
         132
