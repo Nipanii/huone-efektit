@@ -117,18 +117,6 @@
       ]
     },
     {
-      "nimi": "kp-ylaveto-zoom",
-      "kayttajat": [
-        282
-      ],
-      "skriptit": [
-        {
-          "polku": "kayttajat/kp/ylaveto-zoom.user.js",
-          "globaali": "__kuplaYlavetoZoom"
-        }
-      ]
-    },
-    {
       "nimi": "kp-osoita-valikko",
       "kayttajat": [
         282
