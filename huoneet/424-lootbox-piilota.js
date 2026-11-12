@@ -27,8 +27,12 @@ const tarkista = () => {
 const LAATIKKO_TYYPIT = new Set([2100114949, 2100114978, 2100114948, 2100101136, 2100101806, 2100101858, 2100101811, 10322]);
 // 09:50: pelkkä s.visible=false setInterval:lla EI riittänyt: renderöijä asettaa visible=true joka framella ja piirtää ennen seuraavaa tikkiä (kp:n kuva: paketti näkyi robon clientissä vaikka rect [0,0]).
 // Siksi visible lukitaan getterillä joka palauttaa aina false; asetus ohitetaan. Siivous poistaa getterin ja palauttaa arvon.
-const lukitse = (s) => { if (s.__klsLukittu) return; try { s.__klsLukittu = true; Object.defineProperty(s, 'visible', { configurable: true, get: () => false, set: () => {} }); } catch (x) { s.__klsLukittu = false; } };
-const vapauta = (s) => { if (!s.__klsLukittu) return; try { delete s.visible; s.visible = true; } catch (x) {} delete s.__klsLukittu; };
+// 09:58 (Opus): pelkkä getter EI riittänyt: piirtäjä käyttää välimuistia joka päivittyy vain kun spriten _updateCounter / visualisaation
+//   _updateSpriteCounter kasvaa, ja getter ohitti asettimen joka niitä kasvattaa (mitattu: vis false mutta _visible true, laskurit paikallaan, paketti kuvassa).
+//   Siksi myös _visible=false + laskurit eteenpäin. A-B robolla 09:57: _visible true + laskuri -> paketti kuvassa, _visible false + laskuri -> ei (gw, rinnakkaiskuva).
+const lukitse = (s) => { try { if (!s.__klsLukittu) { s.__klsLukittu = true; Object.defineProperty(s, 'visible', { configurable: true, get: () => false, set: () => {} }); }
+  if (s._visible !== false) { s._visible = false; s._updateCounter = (s._updateCounter | 0) + 1; return true; } } catch (x) {} return false; };
+const vapauta = (s) => { if (!s.__klsLukittu) return; try { delete s.visible; s._visible = false; s.visible = true; s._updateCounter = (s._updateCounter | 0) + 1; } catch (x) {} delete s.__klsLukittu; };
 const piilotetut = new Map();   // objekti-id -> visualisaatio
 const spritet = (v) => (v && (v._sprites || v.sprites)) || [];
 const piilotaLaatikot = () => {
@@ -42,13 +46,16 @@ const piilotaLaatikot = () => {
       const omistaja = String(m.getValue('furniture_owner_name') || '').toLowerCase(); if (!PIILOTETUT_NIMET.includes(omistaja)) continue;
       const v = o.visualization; if (!v) continue;
       nakyvilla.add(o.id); piilotetut.set(o.id, v);
-      spritet(v).forEach((s) => lukitse(s));
+      let muuttui = false; spritet(v).forEach((s) => { if (lukitse(s)) muuttui = true; });
+      if (muuttui) v._updateSpriteCounter = (v._updateSpriteCounter | 0) + 1;
     }
-    for (const [id, v] of piilotetut) if (!nakyvilla.has(id)) { spritet(v).forEach(vapauta); piilotetut.delete(id); }
+    for (const [id, v] of piilotetut) if (!nakyvilla.has(id)) { spritet(v).forEach(vapauta); v._updateSpriteCounter = (v._updateSpriteCounter | 0) + 1; piilotetut.delete(id); }
   } catch (x) {}
 };
 const ajastin = setInterval(piilotaLaatikot, 50);
+// Uusi paketti tulee ~9,5 s välein (mitattu langalta: FURNITURE_FLOOR_REMOVE + _ADD per avaus), joten piilota se jo samalla ruudunpäivityksellä.
+let kaynnissa = true; const kehys = () => { if (!kaynnissa) return; piilotaLaatikot(); requestAnimationFrame(kehys); }; requestAnimationFrame(kehys);
 const mo = new MutationObserver(tarkista);
 mo.observe(document.body, { childList: true, subtree: true, characterData: true });
 tarkista();
-return () => { try { clearInterval(ajastin); for (const [id, v] of piilotetut) spritet(v).forEach(vapauta); piilotetut.clear(); mo.disconnect(); tyyli.remove(); document.querySelectorAll('.lootbox-ceremony[data-kls-ok]').forEach((e) => e.removeAttribute('data-kls-ok')); } catch (x) {} };
+return () => { try { kaynnissa = false; clearInterval(ajastin); for (const [id, v] of piilotetut) { spritet(v).forEach(vapauta); v._updateSpriteCounter = (v._updateSpriteCounter | 0) + 1; } piilotetut.clear(); mo.disconnect(); tyyli.remove(); document.querySelectorAll('.lootbox-ceremony[data-kls-ok]').forEach((e) => e.removeAttribute('data-kls-ok')); } catch (x) {} };
