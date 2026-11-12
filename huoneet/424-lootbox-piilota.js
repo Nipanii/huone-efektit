@@ -25,6 +25,10 @@ const tarkista = () => {
 // Lahjapaketti-esine (kp 09:30 "PIILOTA SE ESINE" + 09:31 "jos se filtteröi meidän nimil · muuten ei"): vain LAATIKKO-spritet joiden omistaja on kp tai Ezkey.
 // Mitattu robolla: object.model.getValue('furniture_owner_name'|'furniture_type_id') toimii; sprite.visible=false -> getRoomObjectBoundingRectangle [0,0], palautus palauttaa; visualization._alphaMultiplier EI vaikuta.
 const LAATIKKO_TYYPIT = new Set([2100114949, 2100114978, 2100114948, 2100101136, 2100101806, 2100101858, 2100101811, 10322]);
+// 09:50: pelkkä s.visible=false setInterval:lla EI riittänyt: renderöijä asettaa visible=true joka framella ja piirtää ennen seuraavaa tikkiä (kp:n kuva: paketti näkyi robon clientissä vaikka rect [0,0]).
+// Siksi visible lukitaan getterillä joka palauttaa aina false; asetus ohitetaan. Siivous poistaa getterin ja palauttaa arvon.
+const lukitse = (s) => { if (s.__klsLukittu) return; try { s.__klsLukittu = true; Object.defineProperty(s, 'visible', { configurable: true, get: () => false, set: () => {} }); } catch (x) { s.__klsLukittu = false; } };
+const vapauta = (s) => { if (!s.__klsLukittu) return; try { delete s.visible; s.visible = true; } catch (x) {} delete s.__klsLukittu; };
 const piilotetut = new Map();   // objekti-id -> visualisaatio
 const spritet = (v) => (v && (v._sprites || v.sprites)) || [];
 const piilotaLaatikot = () => {
@@ -38,13 +42,13 @@ const piilotaLaatikot = () => {
       const omistaja = String(m.getValue('furniture_owner_name') || '').toLowerCase(); if (!PIILOTETUT_NIMET.includes(omistaja)) continue;
       const v = o.visualization; if (!v) continue;
       nakyvilla.add(o.id); piilotetut.set(o.id, v);
-      spritet(v).forEach((s) => { if (s.visible !== false) { if (s.__klsOrig === undefined) s.__klsOrig = s.visible; s.visible = false; } });
+      spritet(v).forEach((s) => lukitse(s));
     }
-    for (const [id, v] of piilotetut) if (!nakyvilla.has(id)) { spritet(v).forEach((s) => { if (s.__klsOrig !== undefined) { s.visible = s.__klsOrig !== false; delete s.__klsOrig; } }); piilotetut.delete(id); }
+    for (const [id, v] of piilotetut) if (!nakyvilla.has(id)) { spritet(v).forEach(vapauta); piilotetut.delete(id); }
   } catch (x) {}
 };
 const ajastin = setInterval(piilotaLaatikot, 50);
 const mo = new MutationObserver(tarkista);
 mo.observe(document.body, { childList: true, subtree: true, characterData: true });
 tarkista();
-return () => { try { clearInterval(ajastin); for (const [id, v] of piilotetut) spritet(v).forEach((s) => { if (s.__klsOrig !== undefined) { s.visible = s.__klsOrig !== false; delete s.__klsOrig; } }); piilotetut.clear(); mo.disconnect(); tyyli.remove(); document.querySelectorAll('.lootbox-ceremony[data-kls-ok]').forEach((e) => e.removeAttribute('data-kls-ok')); } catch (x) {} };
+return () => { try { clearInterval(ajastin); for (const [id, v] of piilotetut) spritet(v).forEach(vapauta); piilotetut.clear(); mo.disconnect(); tyyli.remove(); document.querySelectorAll('.lootbox-ceremony[data-kls-ok]').forEach((e) => e.removeAttribute('data-kls-ok')); } catch (x) {} };
