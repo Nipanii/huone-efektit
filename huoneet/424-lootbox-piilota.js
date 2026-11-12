@@ -52,10 +52,29 @@ const piilotaLaatikot = () => {
     for (const [id, v] of piilotetut) if (!nakyvilla.has(id)) { spritet(v).forEach(vapauta); v._updateSpriteCounter = (v._updateSpriteCounter | 0) + 1; piilotetut.delete(id); }
   } catch (x) {}
 };
-const ajastin = setInterval(piilotaLaatikot, 50);
+// 10:00 kp "ne kerkee vilahtaa vielä": uusi paketti piirtyi ennen ajastinta. Siksi piilotus myös visualisaation omaan update-kutsuun
+//   (ajetaan joka ruudulla juuri ennen piirtoa). Luokka haetaan rakenteesta (proto jolla omat update + updateSprites + getLibraryAssetNameForSprite), ei minifioidulla nimellä.
+const kohdeV = new WeakMap();
+const onKohde = (v) => { let k = kohdeV.get(v); if (k !== undefined) return k; const m = v._object && v._object.model; if (!m) return false;
+  const t = m.getValue('furniture_type_id'); if (t === undefined || t === null) return false;
+  k = LAATIKKO_TYYPIT.has(t) && PIILOTETUT_NIMET.includes(String(m.getValue('furniture_owner_name') || '').toLowerCase()); kohdeV.set(v, k); return k; };
+const paikatut = new Map();   // proto -> alkuperäinen update
+let paikattuMaara = -1;
+const paikkaa = () => { try {
+  const re = window.NitroDevTools && window.NitroDevTools.roomEngine; const rid = re && re.activeRoomId; if (!(rid > 0)) return;
+  const kaikki = re.getRoomObjects(rid, 10) || []; if (kaikki.length === paikattuMaara) return; paikattuMaara = kaikki.length;
+  for (const o of kaikki) { let p = o.visualization && Object.getPrototypeOf(o.visualization);
+    while (p && p !== Object.prototype) { const own = (n) => Object.prototype.hasOwnProperty.call(p, n);
+      if (!paikatut.has(p) && own('update') && own('updateSprites') && own('getLibraryAssetNameForSprite') && !p.update.__kls) {
+        const orig = p.update; paikatut.set(p, orig);
+        const kaare = function () { const r = orig.apply(this, arguments); try { if (onKohde(this)) { let mu = false; spritet(this).forEach((s) => { if (lukitse(s)) mu = true; }); if (mu) this._updateSpriteCounter = (this._updateSpriteCounter | 0) + 1; if (this._object) piilotetut.set(this._object.id, this); } } catch (x) {} return r; };
+        kaare.__kls = true; p.update = kaare; }
+      p = Object.getPrototypeOf(p); } } } catch (x) {} };
+const ajastin = setInterval(() => { paikkaa(); piilotaLaatikot(); }, 50);
+paikkaa();
 // Uusi paketti tulee ~9,5 s välein (mitattu langalta: FURNITURE_FLOOR_REMOVE + _ADD per avaus), joten piilota se jo samalla ruudunpäivityksellä.
 let kaynnissa = true; const kehys = () => { if (!kaynnissa) return; piilotaLaatikot(); requestAnimationFrame(kehys); }; requestAnimationFrame(kehys);
 const mo = new MutationObserver(tarkista);
 mo.observe(document.body, { childList: true, subtree: true, characterData: true });
 tarkista();
-return () => { try { kaynnissa = false; clearInterval(ajastin); for (const [id, v] of piilotetut) { spritet(v).forEach(vapauta); v._updateSpriteCounter = (v._updateSpriteCounter | 0) + 1; } piilotetut.clear(); mo.disconnect(); tyyli.remove(); document.querySelectorAll('.lootbox-ceremony[data-kls-ok]').forEach((e) => e.removeAttribute('data-kls-ok')); } catch (x) {} };
+return () => { try { kaynnissa = false; clearInterval(ajastin); for (const [p, orig] of paikatut) p.update = orig; paikatut.clear(); for (const [id, v] of piilotetut) { spritet(v).forEach(vapauta); v._updateSpriteCounter = (v._updateSpriteCounter | 0) + 1; } piilotetut.clear(); mo.disconnect(); tyyli.remove(); document.querySelectorAll('.lootbox-ceremony[data-kls-ok]').forEach((e) => e.removeAttribute('data-kls-ok')); } catch (x) {} };
