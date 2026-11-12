@@ -1,7 +1,7 @@
 // Huoneskripti 424 zen den: lootbox-suora VAIN kurkkupomolle (id 282). kp 12.11. 08:37-08:38 "en haluu käyttää loaderii · huonescript" · kuiskaus "mulle vaa eka · suodatat pelaajilla".
 // Kopio userscriptit/lootbox-suora/lootbox-suora.user.js (re-lab) sellaisenaan + tämä kääre. Muut pelaajat: ei mitään.
 // Pysäytys (huoneesta lähtö): paneeli pois, käynnissä oleva ajo pysäytetään.
-const SALLITUT = [282];
+const SALLITUT = [282, 123, 78];   // kp, Ezkey, semsi (kp kuiskaus 08:47 "jaa ezille ja semsille")
 const omaId = () => { try { const d = (o, k) => { const x = o && Object.getOwnPropertyDescriptor(o, k); return x ? x.value : undefined; }; const e = window.NitroDevTools && window.NitroDevTools.roomEngine; const u = d(d(e, "_sessionDataManager"), "_userId"); return u > 0 ? u : 0; } catch (x) { return 0; } };
 if (!SALLITUT.includes(omaId())) return () => {};
 // ==UserScript==
