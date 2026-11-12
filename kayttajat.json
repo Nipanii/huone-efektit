@@ -127,6 +127,18 @@
           "globaali": "__kuplaReplyTabi"
         }
       ]
+    },
+    {
+      "nimi": "kp-b260",
+      "kayttajat": [
+        282
+      ],
+      "skriptit": [
+        {
+          "polku": "kayttajat/kp/b260-show-message-tyylit.user.js",
+          "globaali": "__kuplaB260"
+        }
+      ]
     }
   ]
 }
