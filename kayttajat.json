@@ -127,6 +127,19 @@
           "globaali": "__kuplaReplyTabi"
         }
       ]
+    },
+    {
+      "nimi": "pohjaeditori-zoom-fix",
+      "kayttajat": [
+        282,
+        281
+      ],
+      "skriptit": [
+        {
+          "polku": "kayttajat/pohjaeditori/pohjaeditori-zoom-fix.user.js",
+          "globaali": "__kuplaPohjaeditoriZoomFix"
+        }
+      ]
     }
   ]
 }
