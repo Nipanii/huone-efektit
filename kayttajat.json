@@ -105,18 +105,6 @@
       ]
     },
     {
-      "nimi": "kp-reply-tabi",
-      "kayttajat": [
-        282
-      ],
-      "skriptit": [
-        {
-          "polku": "kayttajat/kp/reply-tabi.user.js",
-          "globaali": "__kuplaReplyTabi"
-        }
-      ]
-    },
-    {
       "nimi": "laatikko-reply-tabi",
       "kayttajat": [
         132
